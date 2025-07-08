@@ -5,4 +5,4 @@ export { default as ProjectCard } from './ProjectCard.svelte';
 // export { default as ProjectForm } from './ProjectForm.svelte';
 // export { default as ProjectStats } from './ProjectStats.svelte';
 // export { default as ProjectFilter } from './ProjectFilter.svelte';
-// export { default as ProjectSearch } from './ProjectSearch.svelte'; 
+// export { default as ProjectSearch } from './ProjectSearch.svelte';

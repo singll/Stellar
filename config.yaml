@@ -3,9 +3,10 @@ server:
   port: 8090
   mode: "release"
 
+# 生产环境 - 使用外部数据库服务
 mongodb:
   uri: "mongodb://192.168.7.216:27017"
-  database: "stellarserver"
+  database: "stellarserver"  # 生产环境数据库
   user: "admin"
   password: "admin"
   maxPoolSize: 100
@@ -15,7 +16,7 @@ mongodb:
 redis:
   addr: "192.168.7.128:6379"
   password: "redis"
-  db: 0
+  db: 0  # 生产环境使用db 0
   poolSize: 100
   minIdleConns: 10
   maxConnAgeMS: 30000

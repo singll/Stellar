@@ -77,16 +77,16 @@ import { ProjectAPI } from '$lib/api/projects';
 
 // 获取项目列表
 const projects = await ProjectAPI.getProjects({
-  page: 1,
-  limit: 20,
-  search: '搜索关键词'
+	page: 1,
+	limit: 20,
+	search: '搜索关键词'
 });
 
 // 创建项目
 const newProject = await ProjectAPI.createProject({
-  name: '项目名称',
-  description: '项目描述',
-  target: 'example.com'
+	name: '项目名称',
+	description: '项目描述',
+	target: 'example.com'
 });
 
 // 获取项目详情
@@ -99,19 +99,19 @@ const project = await ProjectAPI.getProject(projectId);
 
 ```typescript
 interface Project {
-  id: string;
-  name: string;
-  description?: string;
-  target?: string;
-  scan_status?: string;
-  color?: string;
-  is_private?: boolean;
-  assets_count?: number;
-  vulnerabilities_count?: number;
-  tasks_count?: number;
-  created_by?: string;
-  created_at: string;
-  updated_at: string;
+	id: string;
+	name: string;
+	description?: string;
+	target?: string;
+	scan_status?: string;
+	color?: string;
+	is_private?: boolean;
+	assets_count?: number;
+	vulnerabilities_count?: number;
+	tasks_count?: number;
+	created_by?: string;
+	created_at: string;
+	updated_at: string;
 }
 ```
 
@@ -247,4 +247,4 @@ GET    /api/v1/projects/stats    # 获取项目统计
 
 ---
 
-**注意**：这是 Stellar 项目管理功能的初始版本，我们会根据用户反馈持续改进和扩展功能。 
+**注意**：这是 Stellar 项目管理功能的初始版本，我们会根据用户反馈持续改进和扩展功能。

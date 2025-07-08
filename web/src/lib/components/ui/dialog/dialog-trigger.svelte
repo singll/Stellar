@@ -3,7 +3,7 @@
   Dialog trigger component from shadcn-svelte
 -->
 <script lang="ts">
-	import { Dialog as DialogPrimitive } from "bits-ui";
+	import { Dialog as DialogPrimitive } from 'bits-ui';
 
 	type $$Props = DialogPrimitive.TriggerProps;
 </script>

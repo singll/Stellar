@@ -13,11 +13,7 @@
 		"types": ["svelte", "vite/client"],
 		"verbatimModuleSyntax": true,
 		"experimentalDecorators": true,
-		"useDefineForClassFields": true,
-		"paths": {
-			"$lib": ["./src/lib"],
-			"$lib/*": ["./src/lib/*"]
-		}
+		"useDefineForClassFields": true
 	}
 	// Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
 	// except $lib which is handled by https://svelte.dev/docs/kit/configuration#files

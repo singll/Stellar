@@ -5,12 +5,14 @@ import path from 'path';
 export default defineConfig({
 	plugins: [sveltekit()],
 	server: {
+		host: '0.0.0.0', // 前端也监听所有接口
+		port: 5173,
 		fs: {
 			allow: ['static']
 		},
 		proxy: {
 			'/api': {
-				target: 'http://localhost:8090',
+				target: 'http://0.0.0.0:8090', // 后端服务地址
 				changeOrigin: true,
 				secure: false,
 				ws: true,

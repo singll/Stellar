@@ -1,0 +1,74 @@
+server:
+  host: "0.0.0.0"
+  port: 8090
+  mode: "debug"
+
+# 开发环境 - 使用外部数据库服务，不同数据库名区分环境
+mongodb:
+  uri: "mongodb://192.168.7.216:27017"
+  database: "stellarserver_dev"
+  user: "admin"
+  password: "admin"
+  maxPoolSize: 20
+  minPoolSize: 5
+  maxIdleTimeMS: 30000
+
+redis:
+  addr: "192.168.7.128:6379"
+  password: "redis"
+  db: 1  # 使用db 1作为开发环境，避免与生产环境冲突
+  poolSize: 20
+  minIdleConns: 5
+  maxConnAgeMS: 30000
+
+auth:
+  jwtSecret: "stellarserver-dev-secret-key-change-in-production"
+  tokenExpiry: 24  # 小时
+
+subdomain:
+  resolvers:
+    - "8.8.8.8:53"
+    - "114.114.114.114:53"
+  timeout: 10  # 秒
+  maxConcurrency: 50  # 开发环境适中并发
+  retryTimes: 2
+  dictPath: "./dicts/subdomain_dict.txt"
+
+portscan:
+  timeout: 5  # 秒
+  rateLimit: 200  # 开发环境适中速率
+  maxConcurrency: 30  # 开发环境适中并发
+  defaultPorts:
+    - 21
+    - 22
+    - 80
+    - 443
+    - 3306
+    - 6379
+    - 8080
+    - 8443
+
+vulnscan:
+  timeout: 30  # 秒
+  maxConcurrency: 20  # 开发环境适中并发
+  pluginPath: "./plugins/vuln"
+
+discovery:
+  timeout: 30  # 秒
+  maxConcurrency: 20
+  scanInterval: 24  # 小时
+
+node:
+  heartbeatInterval: 30  # 秒
+  heartbeatTimeout: 90  # 秒
+  enableAutoRemove: false
+  autoRemoveAfter: 86400  # 秒，1天
+  masterNodeName: "dev-master-node"
+
+task:
+  maxConcurrentTasks: 8  # 开发环境适中并发
+  taskTimeout: 3600  # 秒，1小时
+  enableRetry: true
+  maxRetries: 3
+  retryInterval: 300  # 秒，5分钟
+  queueCapacity: 500  # 开发环境适中队列容量

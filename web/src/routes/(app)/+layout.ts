@@ -5,14 +5,15 @@ import { get } from 'svelte/store';
 import type { LayoutLoad } from './$types';
 
 export const load: LayoutLoad = async () => {
-  if (browser) {
-    const authState = get(auth);
-    if (!authState.isAuthenticated) {
-      goto('/(auth)/login');
-    }
-  }
-  
-  return {};
+	if (browser) {
+		const authState = get(auth);
+		if (!authState.isAuthenticated) {
+			goto('/login');
+			return {};
+		}
+	}
+
+	return {};
 };
 
-export const ssr = false; 
+export const ssr = false;

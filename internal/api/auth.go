@@ -25,8 +25,8 @@ func (h *AuthHandler) RegisterRoutes(router *gin.RouterGroup) {
 	authGroup := router.Group("/auth")
 	{
 		authGroup.POST("/login", h.Login)
-		authGroup.GET("/info", GetUserInfo)
-		authGroup.POST("/logout", AuthMiddleware(), Logout)
+		authGroup.GET("/info", AuthMiddleware(), GetUserInfo) // 用户信息需要认证
+		authGroup.POST("/logout", Logout) // logout不需要认证中间件
 		authGroup.POST("/register", h.Register)
 	}
 }
@@ -139,45 +139,53 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// 返回令牌
-	var resp LoginResponse
-	resp.Code = 200
-	resp.Data.Token = tokenString
-	c.JSON(http.StatusOK, resp)
+	// 返回令牌和用户信息
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "登录成功",
+		"data": gin.H{
+			"token": tokenString,
+			"user": gin.H{
+				"id":        user.ID.Hex(),
+				"username":  user.Username,
+				"email":     user.Email,
+				"roles":     user.Roles,
+				"created":   user.Created,
+				"lastLogin": user.LastLogin,
+			},
+		},
+	})
 }
 
 // GetUserInfo 获取用户信息
 func GetUserInfo(c *gin.Context) {
-	// 从请求头获取令牌
-	tokenString := c.GetHeader("Authorization")
-	if tokenString == "" {
+	// 从中间件获取用户信息
+	username, exists := c.Get("username")
+	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"code":    401,
-			"message": "未提供授权令牌",
+			"message": "用户信息未找到",
 		})
 		return
 	}
 
-	// 解析令牌
-	claims := &Claims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		return JWTSecret, nil
-	})
-
-	if err != nil || !token.Valid {
+	roles, exists := c.Get("roles")
+	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"code":    401,
-			"message": "无效的授权令牌",
+			"message": "用户角色信息未找到",
 		})
 		return
 	}
 
 	// 返回用户信息
-	var resp UserInfoResponse
-	resp.Code = 200
-	resp.Data.Username = claims.Username
-	resp.Data.Roles = claims.Roles
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"data": gin.H{
+			"username": username,
+			"roles":    roles,
+		},
+	})
 }
 
 // Logout 处理登出请求
@@ -194,14 +202,20 @@ func Logout(c *gin.Context) {
 func AuthMiddleware(allowedRoles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 从请求头获取令牌
-		tokenString := c.GetHeader("Authorization")
-		if tokenString == "" {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"code":    401,
 				"message": "未提供授权令牌",
 			})
 			c.Abort()
 			return
+		}
+
+		// 提取Bearer token
+		tokenString := authHeader
+		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+			tokenString = authHeader[7:]
 		}
 
 		// 解析令牌

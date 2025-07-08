@@ -1,7 +1,7 @@
 <script lang="ts">
-	import "../app.css";
-	import NotificationContainer from "$lib/components/notification/NotificationContainer.svelte";
-	import type { Snippet } from "svelte";
+	import '../app.css';
+	import NotificationContainer from '$lib/components/notification/NotificationContainer.svelte';
+	import type { Snippet } from 'svelte';
 
 	interface Props {
 		children: Snippet;

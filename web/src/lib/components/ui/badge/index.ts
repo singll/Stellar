@@ -1,8 +1,4 @@
-import Root, {
-	type BadgeProps,
-	type BadgeVariant,
-	badgeVariants,
-} from "./badge.svelte";
+import Root, { type BadgeProps, type BadgeVariant, badgeVariants } from './badge.svelte';
 
 export {
 	Root,
@@ -11,5 +7,5 @@ export {
 	Root as Badge,
 	badgeVariants,
 	type BadgeProps,
-	type BadgeVariant,
-}; 
+	type BadgeVariant
+};
