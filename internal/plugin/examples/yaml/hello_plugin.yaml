@@ -1,0 +1,50 @@
+id: hello_plugin_yaml
+name: Hello Plugin (YAML)
+version: 1.0.0
+type: utility
+author: StellarServer Team
+description: A simple example plugin defined in YAML
+category: example
+tags:
+  - example
+  - hello
+  - utility
+  - yaml
+language: YAML
+
+params:
+  - name: name
+    type: string
+    description: Your name
+    required: true
+    default: World
+  - name: greeting
+    type: string
+    description: Greeting message
+    required: false
+    default: Hello
+    options:
+      - Hello
+      - Hi
+      - Hey
+      - Greetings
+
+script:
+  language: python
+  code: |
+    def execute(params):
+        name = params.get('name', 'World')
+        greeting = params.get('greeting', 'Hello')
+        return {
+            'success': True,
+            'data': f"{greeting}, {name}!",
+            'message': "Plugin executed successfully"
+        }
+
+    def validate(params):
+        if 'name' not in params:
+            return {
+                'success': False,
+                'error': "Missing required parameter: name"
+            }
+        return {'success': True} 

@@ -1,0 +1,763 @@
+# Stellar 项目开发规范
+
+## 规则体系索引
+
+本项目采用分层规则管理，具体规则分布如下：
+
+### 核心项目规则 [P0]
+- 本文件 (`.cursorrules`): 项目概述、技术栈、结构规范
+- `.cursor/rules/context7.mdc`: Context7 MCP 集成规范
+- `.cursor/rules/llm.mdc`: LLM 严格模式规则
+
+### 开发规范 [P0]
+- `.cursor/rules/go-backend-standards.mdc`: Go 后端开发标准
+- `.cursor/rules/svelte5-frontend-standards.mdc`: Svelte 5 前端开发标准
+- `.cursor/rules/api-design.mdc`: API 设计规范
+- `.cursor/rules/error-handling.mdc`: 错误处理规范
+
+### 代码质量 [P1]
+- `.cursor/rules/naming-conventions.mdc`: 命名规范
+- `.cursor/rules/security-standards.mdc`: 安全标准
+- `.cursor/rules/observability-performance.mdc`: 性能监控规范
+
+### 工程实践 [P1]
+- `.cursor/rules/git-commit-message.mdc`: Git 提交消息规范
+- `.cursor/rules/task-master.mdc`: 任务管理规范
+- `.cursor/rules/docs-guide.mdc`: 文档编写指南
+
+## 项目概述
+
+**Stellar** 是基于 **ScopeSentry** 项目的 Go 语言重构版本，是一个分布式安全资产管理和漏洞扫描平台。
+
+### 原项目架构
+- **ScopeSentry-main**: 原后端项目 (Python + FastAPI + MongoDB)
+- **ScopeSentry-UI-main**: 原前端项目 (Vue 3 + Element Plus + Vite)
+
+### 重构目标架构
+- **后端**: Go + Gin + MongoDB + Redis (根目录重构)
+- **前端**: Svelte 5 + SvelteKit (web/ 目录重构)
+- **API**: 保持兼容的 RESTful API (/api/v1/)
+
+## 核心技术栈规范
+
+### 后端技术栈 [P0]
+
+【必须】使用以下技术：
+- **框架**: Gin 1.10+
+- **数据库**: MongoDB + Redis  
+- **认证**: JWT (golang-jwt/jwt/v4)
+- **配置**: YAML 配置文件
+- **日志**: zerolog
+- **WebSocket**: gorilla/websocket
+
+```go
+// ✅ 正确 - API 路由注册
+func RegisterAPIRoutes(router *gin.Engine, deps *Dependencies) {
+    apiV1 := router.Group("/api/v1")
+    
+    // 认证路由
+    authHandler := NewAuthHandler(deps.DB)
+    authHandler.RegisterRoutes(apiV1.Group("/auth"))
+    
+    // 资产路由
+    assetHandler := NewAssetHandler(deps.DB)
+    assetHandler.RegisterRoutes(apiV1.Group("/assets"))
+}
+```
+
+### 前端技术栈 [P0]
+
+【必须】在 `web/` 目录下使用：
+- **框架**: Svelte 5 + SvelteKit 2+
+- **构建**: Vite 5+
+- **语言**: TypeScript 5+
+- **UI库**: shadcn-svelte + Tailwind CSS
+- **状态管理**: Svelte 5 内置 runes + TanStack Store (复杂状态)
+- **HTTP**: Axios (保持与原API兼容)
+- **表单**: Felte + Zod
+
+```typescript
+// ✅ 正确 - API 客户端配置
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: '/api/v1',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// 请求拦截器添加JWT
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+```
+
+## 项目结构规范
+
+### 整体项目结构 [P0]
+
+```
+Stellar/
+├── ScopeSentry-main/       # 原Python后端项目 (参考)
+├── ScopeSentry-UI-main/    # 原Vue前端项目 (参考)
+├── cmd/                    # Go应用入口
+├── internal/               # Go内部包
+│   ├── api/               # HTTP API 处理器
+│   ├── config/            # 配置管理
+│   ├── database/          # 数据库连接
+│   ├── models/            # 数据模型
+│   ├── services/          # 业务逻辑服务
+│   └── utils/             # 工具函数
+├── web/                   # Svelte前端重构目录
+│   ├── src/
+│   │   ├── lib/           # 组件库和工具
+│   │   ├── routes/        # SvelteKit 路由
+│   │   └── app.html       # HTML 模板
+│   ├── static/            # 静态资源
+│   └── package.json
+├── config.yaml            # 配置文件
+├── go.mod                 # Go 模块
+└── start-dev.bat          # 开发环境启动脚本
+```
+
+### 前端重构目录结构 [P0]
+
+```
+web/
+├── src/
+│   ├── lib/               # 组件库和工具
+│   │   ├── components/    # 可复用组件
+│   │   │   ├── layout/    # 布局组件
+│   │   │   ├── ui/        # shadcn-svelte UI组件
+│   │   │   └── ...        # 业务组件
+│   │   ├── stores/        # 状态管理
+│   │   ├── utils/         # 工具函数
+│   │   └── api/           # API 客户端
+│   ├── routes/            # SvelteKit 路由
+│   │   ├── (app)/         # 需认证的应用页面组
+│   │   │   ├── dashboard/ # 仪表盘
+│   │   │   ├── assets/    # 资产管理
+│   │   │   └── ...        # 其他应用页面
+│   │   ├── (auth)/        # 无需认证的页面组
+│   │   │   ├── login/     # 登录页面
+│   │   │   └── ...        # 其他认证页面
+│   │   ├── +layout.svelte # 全局根布局
+│   │   └── +page.svelte   # 根页面 (通常重定向或作为欢迎页)
+│   └── app.html           # HTML 模板
+├── static/                # 静态资源
+├── package.json
+└── svelte.config.js
+```
+
+## 核心功能模块
+
+### 安全扫描功能 [P0]
+- **资产测绘**: 自动发现和映射网络资产
+- **子域名枚举**: 全面收集子域名信息
+- **端口扫描**: 识别开放端口和服务
+- **漏洞扫描**: 检测常见安全漏洞
+- **敏感信息检测**: 发现敏感数据泄露
+- **子域名接管检测**: 识别可能被接管的子域名
+- **网页爬虫**: 自动爬取网站内容
+- **页面监控**: 检测网页变更
+
+### 分布式架构 [P0]
+- **多节点扫描**: 分布式扫描架构
+- **任务分发**: 主节点管理任务分发
+- **结果聚合**: 统一收集扫描结果
+- **插件系统**: 支持自定义扩展功能
+
+## API 接口规范
+
+### 后端 API 设计 [P0]
+
+【必须】遵循 RESTful 设计，保持与原 ScopeSentry API 兼容：
+
+```go
+// ✅ 正确 - API 响应结构 (兼容原项目)
+type APIResponse struct {
+    Code    int         `json:"code"`
+    Message string      `json:"message"`
+    Data    interface{} `json:"data,omitempty"`
+}
+
+// ✅ 正确 - 错误处理
+func (h *Handler) handleError(c *gin.Context, err error, code int) {
+    utils.Error("API错误", err)
+    c.JSON(code, APIResponse{
+        Code:    code,
+        Message: err.Error(),
+    })
+}
+
+// ✅ 正确 - 成功响应
+func (h *Handler) handleSuccess(c *gin.Context, data interface{}) {
+    c.JSON(http.StatusOK, APIResponse{
+        Code:    200,
+        Message: "success",
+        Data:    data,
+    })
+}
+```
+
+### 核心API路由 [P0]
+
+```go
+// ✅ 正确 - 核心API路由注册
+apiV1 := router.Group("/api/v1")
+
+// 用户认证
+authHandler.RegisterRoutes(apiV1.Group("/auth"))
+
+// 项目管理
+projectHandler.RegisterRoutes(apiV1.Group("/projects"))
+
+// 资产管理
+assetHandler.RegisterRoutes(apiV1.Group("/assets"))
+
+// 任务管理
+taskHandler.RegisterRoutes(apiV1.Group("/tasks"))
+
+// 节点管理
+nodeHandler.RegisterRoutes(apiV1.Group("/nodes"))
+
+// 漏洞扫描
+vulnHandler.RegisterRoutes(apiV1.Group("/vulnerabilities"))
+
+// 端口扫描
+portScanHandler.RegisterRoutes(apiV1.Group("/portscan"))
+
+// 子域名枚举
+subdomainHandler.RegisterRoutes(apiV1.Group("/subdomains"))
+
+// 插件管理
+pluginHandler.RegisterRoutes(apiV1.Group("/plugins"))
+
+// 监控
+monitoringHandler.RegisterRoutes(apiV1.Group("/monitoring"))
+
+// 敏感信息
+sensitiveHandler.RegisterRoutes(apiV1.Group("/sensitive"))
+
+// 统计数据
+statsHandler.RegisterRoutes(apiV1.Group("/statistics"))
+```
+
+### 前端 API 调用 [P0]
+
+【**重要规范**】项目中【必须】使用位于 `web/src/lib/api/axios-config.ts` 的**唯一共享 `api` 实例**进行所有后端通信。严禁创建新的 `axios` 实例或使用原生的 `fetch` 方法直接调用API。这确保了所有请求都经过统一的拦截器处理（如JWT令牌刷新、错误处理等）。
+
+// ❌ 错误 - 创建了新的实例或使用fetch
+const newApiClient = axios.create(); // 严禁！
+fetch('/api/v1/some-endpoint'); // 严禁！
+
+// ✅ 正确 - 复用共享实例
+import api from '$lib/api/axios-config';
+api.get('/my-endpoint');
+
+
+【**推荐实践**】将各模块的API调用封装在专门的 Service 文件中，例如 `web/src/lib/api/auth.ts` 用于处理认证相关请求。
+
+```typescript
+// ✅ 正确 - API 服务封装
+export class AssetService {
+  static async getAssets(params?: AssetQueryParams): Promise<Asset[]> {
+    const response = await api.get('/assets', { params });
+    return response.data.data;
+  }
+
+  static async createAsset(asset: CreateAssetRequest): Promise<Asset> {
+    const response = await api.post('/assets', asset);
+    return response.data.data;
+  }
+}
+
+export class ProjectService {
+  static async getProjects(): Promise<Project[]> {
+    const response = await api.get('/projects');
+    return response.data.data;
+  }
+
+  static async createProject(project: CreateProjectRequest): Promise<Project> {
+    const response = await api.post('/projects', project);
+    return response.data.data;
+  }
+}
+```
+
+## 状态管理规范
+
+### 前端状态管理 [P0]
+
+【**重要规范**】Svelte Store（或TanStack Store）的核心职责是**状态管理**，而不是数据获取。Store 内部【严禁】包含任何直接的API调用逻辑（如 `fetch` 或直接使用 `axios`）。
+
+数据交互的正确流程是：
+1. 在Svelte组件（如 `+page.svelte` 的 `handleSubmit` 函数）或 SvelteKit 的 `load` 函数中调用API服务层的方法（例如 `authApi.login()`）。
+2. API服务层负责与后端通信。
+3. 组件在API调用成功后，将返回的数据（如 `token` 和 `user`）传递给 Store 的 action (例如 `auth.login(data)`)。
+4. Store 的 action 仅负责更新内部状态。
+
+// ❌ 错误 - Store 内部包含 API 调用
+function createAuthStore() {
+  // ...
+  return {
+    login: async (credentials) => {
+      // 严禁在 store 内部直接 fetch!
+      const response = await fetch('/api/v1/auth/login', { /* ... */ });
+      // ... 更新状态
+    }
+  }
+}
+
+// ✅ 正确 - Store 仅负责状态更新
+function createAuthStore() {
+  // ...
+  return {
+    login: (data: { token: string; user: User }) => {
+      // 只负责更新状态
+      update(state => ({ ...state, user: data.user, token: data.token }));
+    }
+  }
+}
+
+
+【**推荐实践**】根据状态的复杂度和范围选择合适的方案：
+
+```typescript
+// ✅ 简单状态 - Svelte 5 runes
+import { writable } from 'svelte/store';
+
+export const user = writable<User | null>(null);
+export const theme = writable<'light' | 'dark'>('light');
+
+// ✅ 复杂状态 - TanStack Store
+import { Store } from '@tanstack/store';
+
+interface AppState {
+  assets: Asset[];
+  selectedAsset: Asset | null;
+  filters: AssetFilters;
+  projects: Project[];
+  currentProject: Project | null;
+}
+
+export const appStore = new Store<AppState>({
+  assets: [],
+  selectedAsset: null,
+  filters: {},
+  projects: [],
+  currentProject: null,
+});
+```
+
+## 认证与授权规范
+
+### JWT 认证流程 [P0]
+
+```go
+// ✅ 后端 - JWT 中间件
+func AuthMiddleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        token := c.GetHeader("Authorization")
+        if token == "" {
+            c.JSON(401, gin.H{"error": "未授权"})
+            c.Abort()
+            return
+        }
+        
+        // 验证 JWT token
+        claims, err := validateJWT(token)
+        if err != nil {
+            c.JSON(401, gin.H{"error": "令牌无效"})
+            c.Abort()
+            return
+        }
+        
+        c.Set("user", claims)
+        c.Next()
+    }
+}
+```
+
+```typescript
+// ✅ 前端 - 认证状态管理
+import { writable } from 'svelte/store';
+
+interface AuthState {
+  user: User | null;
+  token: string | null;
+  isAuthenticated: boolean;
+}
+
+export const authStore = writable<AuthState>({
+  user: null,
+  token: null,
+  isAuthenticated: false,
+});
+
+export const login = async (credentials: LoginCredentials) => {
+  const response = await api.post('/auth/login', credentials);
+  const { token, user } = response.data.data;
+  
+  localStorage.setItem('token', token);
+  authStore.set({
+    user,
+    token,
+    isAuthenticated: true,
+  });
+};
+```
+
+## 数据库操作规范
+
+### MongoDB 操作 [P0]
+
+【必须】使用统一的数据访问层：
+
+```go
+// ✅ 正确 - Repository 模式
+type AssetRepository struct {
+    db *mongo.Database
+}
+
+func (r *AssetRepository) Create(ctx context.Context, asset *models.Asset) error {
+    collection := r.db.Collection("assets")
+    _, err := collection.InsertOne(ctx, asset)
+    return err
+}
+
+func (r *AssetRepository) FindByID(ctx context.Context, id string) (*models.Asset, error) {
+    collection := r.db.Collection("assets")
+    var asset models.Asset
+    
+    objectID, err := primitive.ObjectIDFromHex(id)
+    if err != nil {
+        return nil, err
+    }
+    
+    err = collection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&asset)
+    if err != nil {
+        return nil, err
+    }
+    
+    return &asset, nil
+}
+```
+
+## 错误处理规范
+
+### 统一错误处理 [P0]
+
+```go
+// ✅ 后端错误处理
+type AppError struct {
+    Code    int    `json:"code"`
+    Message string `json:"message"`
+    Details string `json:"details,omitempty"`
+}
+
+func (e *AppError) Error() string {
+    return e.Message
+}
+
+var (
+    ErrNotFound     = &AppError{Code: 404, Message: "资源未找到"}
+    ErrUnauthorized = &AppError{Code: 401, Message: "未授权访问"}
+    ErrValidation   = &AppError{Code: 400, Message: "数据验证失败"}
+)
+```
+
+```typescript
+// ✅ 前端错误处理
+export class APIError extends Error {
+  constructor(
+    public code: number,
+    public message: string,
+    public details?: string
+  ) {
+    super(message);
+    this.name = 'APIError';
+  }
+}
+
+// API 响应拦截器
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.data) {
+      const { code, message, details } = error.response.data;
+      throw new APIError(code, message, details);
+    }
+    throw error;
+  }
+);
+```
+
+## 开发工作流规范
+
+### 开发环境启动 [P0]
+
+【必须】使用提供的启动脚本：
+
+```bash
+# Windows 环境
+start-dev.bat
+
+# 或手动启动
+# 1. 启动后端服务
+go run cmd/main.go -config config.yaml
+
+# 2. 启动前端开发服务器 (新终端)
+cd web
+npm install
+npm run dev
+```
+
+### 构建部署 [P0]
+
+```bash
+# 构建前端
+cd web
+npm run build
+
+# 构建后端
+go build -o stellar cmd/main.go
+
+# 运行生产环境
+./stellar -config config.yaml
+```
+
+## 重构迁移规范
+
+### 从原项目迁移 [P1]
+
+【参考】原项目功能迁移优先级：
+
+**高优先级功能:**
+- [ ] 用户认证系统
+- [ ] 项目管理
+- [ ] 资产管理
+- [ ] 子域名枚举
+- [ ] 端口扫描
+- [ ] 漏洞扫描
+
+**中优先级功能:**
+- [ ] 敏感信息检测
+- [ ] 网页爬虫
+- [ ] 页面监控
+- [ ] 插件系统
+- [ ] 节点管理
+
+**低优先级功能:**
+- [ ] 高级报告
+- [ ] 数据导出
+- [ ] 系统配置
+
+### UI/UX 迁移策略 [P1]
+
+【参考】从 ScopeSentry-UI-main 迁移：
+- 保持相似的页面布局和用户体验
+- 使用 shadcn-svelte 替代 Element Plus 组件
+- 保持原有的功能逻辑和交互模式
+- 优化性能和响应式设计
+
+## 开发环境规范 [P0]
+
+### 系统要求
+【必须】遵循：
+- **操作系统**: Windows 10+ (x64)
+- **Shell环境**: PowerShell 7+ (`pwsh.exe`)
+- **开发工具**: 
+  - Visual Studio Code 或 JetBrains GoLand
+  - Git 2.0+
+  - Go 1.21+
+  - Node.js 20+
+  - pnpm 8+
+
+### 本地开发配置
+【必须】配置：
+```powershell
+# 安装开发依赖
+winget install Microsoft.PowerShell
+winget install Git.Git
+winget install GoLang.Go
+winget install OpenJS.NodeJS
+npm install -g pnpm
+
+# 配置开发环境
+git config --global core.autocrlf true
+go env -w GO111MODULE=on
+go env -w GOPROXY=https://goproxy.cn,direct
+```
+
+### 开发工作流
+【必须】使用 PowerShell 7 启动开发环境：
+```powershell
+# 启动后端服务
+cd $PROJECT_ROOT
+go run cmd/main.go -config config.yaml
+
+# 启动前端开发服务器 (新终端)
+cd web
+pnpm install
+pnpm dev
+```
+
+## 部署环境规范 [P0]
+
+### 服务器要求
+【必须】满足：
+- **操作系统**: Linux (Ubuntu 22.04+ / CentOS 8+)
+- **CPU**: 4+ 核心
+- **内存**: 8GB+
+- **存储**: 100GB+ SSD
+- **网络**: 100Mbps+
+
+### 依赖服务
+【必须】部署：
+- MongoDB 6.0+
+- Redis 7.0+
+- Nginx 1.20+
+
+### 部署方式
+
+#### 单机部署
+```bash
+# 安装依赖
+apt update && apt install -y mongodb redis-server nginx
+
+# 构建项目
+git clone https://github.com/StellarServer/StellarServer.git
+cd StellarServer
+go build -o stellar cmd/main.go
+cd web && pnpm install && pnpm build
+
+# 启动服务
+./stellar -config config.yaml
+```
+
+#### Docker 部署
+```bash
+# 构建镜像
+docker build -t stellarserver .
+
+# 运行容器
+docker run -d \
+  -p 8082:8082 \
+  -v /data/stellar:/app/data \
+  -e MONGODB_IP=mongodb \
+  -e REDIS_IP=redis \
+  --name stellarserver \
+  stellarserver
+```
+
+#### 分布式部署
+【必须】配置：
+- 主节点：负责任务分发和结果聚合
+- 工作节点：执行扫描任务
+- 负载均衡：使用 Nginx 或云服务商提供的负载均衡
+
+```bash
+# 主节点配置
+export NODE_MODE=master
+export MONGODB_IP=<主数据库地址>
+export REDIS_IP=<主缓存地址>
+./stellar -config config.yaml
+
+# 工作节点配置
+export NODE_MODE=worker
+export MASTER_NODE=<主节点地址>
+export WORKER_TOKEN=<工作节点令牌>
+./stellar -config config.yaml
+```
+
+### 环境变量配置
+【必须】设置：
+```bash
+# 数据库配置
+export MONGODB_IP=127.0.0.1
+export MONGODB_PORT=27017
+export MONGODB_USER=root
+export MONGODB_PASSWORD=<安全密码>
+export MONGODB_DATABASE=StellarServer
+
+# Redis配置
+export REDIS_IP=127.0.0.1
+export REDIS_PORT=6379
+export REDIS_PASSWORD=<安全密码>
+
+# 系统配置
+export TIMEZONE=Asia/Shanghai
+export JWT_SECRET=<随机密钥>
+export NODE_MODE=master|worker
+export LOG_LEVEL=info
+
+# 安全配置
+export ENABLE_TLS=true
+export TLS_CERT=/path/to/cert.pem
+export TLS_KEY=/path/to/key.pem
+```
+
+### 性能优化
+【建议】配置：
+- 系统参数优化
+```bash
+# 调整系统限制
+ulimit -n 65535
+sysctl -w net.ipv4.tcp_max_syn_backlog=8192
+sysctl -w net.core.somaxconn=8192
+```
+
+- MongoDB 优化
+```bash
+# 配置 MongoDB WiredTiger 引擎
+mongod --wiredTigerCacheSizeGB 4
+```
+
+- Redis 优化
+```bash
+# 配置 Redis 最大内存
+redis-cli config set maxmemory 4gb
+redis-cli config set maxmemory-policy allkeys-lru
+```
+
+### 监控告警
+【必须】配置：
+- 系统监控：CPU、内存、磁盘、网络
+- 服务监控：进程状态、API 响应时间
+- 业务监控：扫描任务、资产数量、漏洞统计
+- 告警通道：邮件、Webhook、企业微信
+
+## 🔍 检查清单
+
+### 后端开发 [P0]
+- [ ] **[P0]** API 路由：是否遵循 RESTful 设计，使用 `/api/v1/` 前缀？
+- [ ] **[P0]** 兼容性：API 是否与原 ScopeSentry 项目保持兼容？
+- [ ] **[P0]** 错误处理：是否使用统一的错误响应格式？
+- [ ] **[P0]** 数据库操作：是否使用 Repository 模式封装数据访问？
+- [ ] **[P0]** 认证授权：是否正确实现 JWT 中间件？
+
+### 前端开发 [P0]
+- [ ] **[P0]** 项目结构：前端代码是否在 `web/` 目录下？
+- [ ] **[P0]** 技术栈：是否使用 Svelte 5 + SvelteKit + TypeScript？
+- [ ] **[P0]** UI 组件：是否使用 shadcn-svelte + Tailwind CSS？
+- [ ] **[P0]** API 调用：是否使用统一的 Axios 客户端？
+- [ ] **[P0]** 功能迁移：是否正确迁移原 Vue 项目的核心功能？
+
+### 全栈集成 [P0]
+- [ ] **[P0]** API 通信：前后端 API 接口是否保持一致？
+- [ ] **[P0]** 认证流程：JWT 认证是否在前后端正确实现？
+- [ ] **[P0]** 错误处理：前后端错误处理是否统一？
+- [ ] **[P0]** 开发环境：是否可以通过 `start-dev.bat` 正常启动？
+- [ ] **[P0]** 功能完整性：核心安全扫描功能是否正常工作？
+
+### 重构质量 [P1]
+- [ ] **[P1]** 性能优化：重构后的性能是否优于原项目？
+- [ ] **[P1]** 代码质量：代码是否遵循 Go 和 Svelte 最佳实践？
+- [ ] **[P1]** 可维护性：项目结构是否清晰、模块化？
+- [ ] **[P1]** 文档完整性：是否有完整的 API 文档和开发文档？
