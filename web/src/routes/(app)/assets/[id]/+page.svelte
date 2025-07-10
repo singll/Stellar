@@ -3,26 +3,30 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui/button';
-	import {
-		Card,
-		CardContent,
-		CardDescription,
-		CardHeader,
-		CardTitle
-	} from '$lib/components/ui/card';
-	import { Badge } from '$lib/components/ui/badge';
 	import { assetApi } from '$lib/api/asset';
 	import type { Asset } from '$lib/types/asset';
 	import { notifications } from '$lib/stores/notifications';
 	import { goto } from '$app/navigation';
+	import AssetDetails from '$lib/components/assets/AssetDetails.svelte';
+	import Icon from '$lib/components/ui/Icon.svelte';
 
-	let asset: Asset | null = null;
-	let loading = true;
+	let asset: Asset | null = $state(null);
+	let loading = $state(true);
+	let assetType = $derived($page.url.searchParams.get('type') || '');
 
 	async function loadAsset() {
+		if (!assetType) {
+			notifications.add({
+				type: 'error',
+				message: '缺少资产类型参数'
+			});
+			goto('/assets');
+			return;
+		}
+
 		try {
 			loading = true;
-			const response = await assetApi.getAssetById($page.params.id);
+			const response = await assetApi.getAssetById($page.params.id, assetType);
 			asset = response.data;
 		} catch (error) {
 			notifications.add({
@@ -35,29 +39,13 @@
 		}
 	}
 
-	async function handleScan() {
-		try {
-			await assetApi.scanAsset($page.params.id);
-			notifications.add({
-				type: 'success',
-				message: '扫描任务已启动'
-			});
-			loadAsset();
-		} catch (error) {
-			notifications.add({
-				type: 'error',
-				message: '启动扫描失败'
-			});
-		}
-	}
-
 	async function handleDelete() {
-		if (!confirm('确定要删除此资产吗？')) {
+		if (!asset || !confirm('确定要删除此资产吗？')) {
 			return;
 		}
 
 		try {
-			await assetApi.deleteAsset($page.params.id);
+			await assetApi.deleteAsset($page.params.id, assetType);
 			notifications.add({
 				type: 'success',
 				message: '资产已删除'
@@ -71,113 +59,78 @@
 		}
 	}
 
+	function handleEdit() {
+		if (!asset) return;
+		goto(`/assets/${asset.id}/edit?type=${assetType}`);
+	}
+
+	function handleScan() {
+		// TODO: 实现扫描功能
+		notifications.add({
+			type: 'info',
+			message: '扫描功能正在开发中'
+		});
+	}
+
 	onMount(() => {
 		loadAsset();
 	});
 </script>
 
-<div class="container mx-auto p-4 space-y-4">
-	{#if loading}
-		<div class="text-center py-8">加载中...</div>
-	{:else if asset}
-		<div class="flex justify-between items-start mb-4">
+<svelte:head>
+	<title>资产详情 - Stellar</title>
+</svelte:head>
+
+<div class="container mx-auto p-4 space-y-6">
+	<!-- 头部 -->
+	<div class="flex items-center justify-between">
+		<div class="flex items-center gap-4">
+			<Button variant="ghost" size="sm" on:click={() => goto('/assets')}>
+				<ArrowLeft class="h-4 w-4" />
+				返回
+			</Button>
 			<div>
-				<h1 class="text-2xl font-bold">{asset.name}</h1>
-				<p class="text-muted-foreground">{asset.description || '暂无描述'}</p>
-			</div>
-			<div class="flex gap-2">
-				<Button variant="outline" on:click={() => goto(`/assets/${asset.id}/edit`)}>编辑</Button>
-				<Button variant="outline" on:click={handleScan}>扫描</Button>
-				<Button variant="destructive" on:click={handleDelete}>删除</Button>
+				<h1 class="text-2xl font-bold">资产详情</h1>
+				<p class="text-muted-foreground">查看资产的详细信息和变更历史</p>
 			</div>
 		</div>
 
-		<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-			<!-- 基本信息 -->
-			<Card>
-				<CardHeader>
-					<CardTitle>基本信息</CardTitle>
-				</CardHeader>
-				<CardContent class="space-y-4">
-					<div class="grid grid-cols-2 gap-4">
-						<div>
-							<div class="text-sm text-muted-foreground">类型</div>
-							<div>{asset.type}</div>
-						</div>
-						<div>
-							<div class="text-sm text-muted-foreground">状态</div>
-							<div>
-								<Badge variant={asset.status === 'online' ? 'default' : 'destructive'}>
-									{asset.status === 'online' ? '在线' : '离线'}
-								</Badge>
-							</div>
-						</div>
-						<div>
-							<div class="text-sm text-muted-foreground">URL</div>
-							<div>{asset.url || '-'}</div>
-						</div>
-						<div>
-							<div class="text-sm text-muted-foreground">IP</div>
-							<div>{asset.ip || '-'}</div>
-						</div>
-						<div>
-							<div class="text-sm text-muted-foreground">风险等级</div>
-							<div>
-								<Badge
-									variant={asset.riskLevel === 'high'
-										? 'destructive'
-										: asset.riskLevel === 'medium'
-											? 'secondary'
-											: 'default'}
-								>
-									{asset.riskLevel === 'high' ? '高' : asset.riskLevel === 'medium' ? '中' : '低'}
-								</Badge>
-							</div>
-						</div>
-						<div>
-							<div class="text-sm text-muted-foreground">最后扫描</div>
-							<div>{new Date(asset.lastScan).toLocaleString()}</div>
-						</div>
-					</div>
-				</CardContent>
-			</Card>
+		{#if asset}
+			<div class="flex items-center gap-2">
+				<Button variant="outline" size="sm" on:click={handleEdit}>
+					<Icon name="edit" class="h-4 w-4 mr-2" />
+					编辑
+				</Button>
+				<Button variant="outline" size="sm" on:click={handleScan}>
+					<Icon name="wifi" class="h-4 w-4 mr-2" />
+					扫描
+				</Button>
+				<Button variant="destructive" size="sm" on:click={handleDelete}>
+					<Icon name="trash" class="h-4 w-4 mr-2" />
+					删除
+				</Button>
+			</div>
+		{/if}
+	</div>
 
-			<!-- 标签 -->
-			<Card>
-				<CardHeader>
-					<CardTitle>标签</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div class="flex flex-wrap gap-2">
-						{#if asset.tags && asset.tags.length > 0}
-							{#each asset.tags as tag}
-								<Badge variant="outline">{tag}</Badge>
-							{/each}
-						{:else}
-							<div class="text-muted-foreground">暂无标签</div>
-						{/if}
-					</div>
-				</CardContent>
-			</Card>
-
-			<!-- 时间信息 -->
-			<Card>
-				<CardHeader>
-					<CardTitle>时间信息</CardTitle>
-				</CardHeader>
-				<CardContent class="space-y-4">
-					<div class="grid grid-cols-2 gap-4">
-						<div>
-							<div class="text-sm text-muted-foreground">创建时间</div>
-							<div>{new Date(asset.createdAt).toLocaleString()}</div>
-						</div>
-						<div>
-							<div class="text-sm text-muted-foreground">更新时间</div>
-							<div>{new Date(asset.updatedAt).toLocaleString()}</div>
-						</div>
-					</div>
-				</CardContent>
-			</Card>
+	<!-- 内容 -->
+	{#if loading}
+		<div class="flex items-center justify-center py-12">
+			<div class="text-center">
+				<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+				<p class="text-muted-foreground">加载中...</p>
+			</div>
+		</div>
+	{:else if asset}
+		<AssetDetails {asset} />
+	{:else}
+		<div class="flex items-center justify-center py-12">
+			<div class="text-center">
+				<h3 class="text-lg font-semibold mb-2">未找到资产</h3>
+				<p class="text-muted-foreground mb-4">请检查资产ID和类型参数是否正确</p>
+				<Button on:click={() => goto('/assets')}>返回资产列表</Button>
+			</div>
 		</div>
 	{/if}
 </div>
+"

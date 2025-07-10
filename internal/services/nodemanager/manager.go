@@ -12,7 +12,6 @@ import (
 	"github.com/StellarServer/internal/models"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -31,6 +30,7 @@ const (
 type NodeManager struct {
 	db          *mongo.Database
 	redisClient *redis.Client
+	nodeRepo    models.NodeRepository
 	nodes       map[string]*models.Node
 	nodesMutex  sync.RWMutex
 	ctx         context.Context
@@ -79,10 +79,14 @@ func NewNodeManager(db *mongo.Database, redisClient *redis.Client, config NodeMa
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	
+	// 创建节点仓库
+	nodeRepo := models.NewNodeRepository(db)
 
 	return &NodeManager{
 		db:          db,
 		redisClient: redisClient,
+		nodeRepo:    nodeRepo,
 		nodes:       make(map[string]*models.Node),
 		ctx:         ctx,
 		cancel:      cancel,
@@ -130,15 +134,9 @@ func (m *NodeManager) RegisterNode(req models.NodeRegistrationRequest) (*models.
 	}
 
 	// 检查节点名称是否已存在
-	var existingNode models.Node
-	err := m.db.Collection("nodes").FindOne(
-		context.Background(),
-		bson.M{"name": req.Name},
-	).Decode(&existingNode)
+	_, err := m.nodeRepo.GetByName(context.Background(), req.Name)
 	if err == nil {
 		return nil, errors.New("节点名称已存在")
-	} else if err != mongo.ErrNoDocuments {
-		return nil, err
 	}
 
 	// 生成API密钥
@@ -149,7 +147,6 @@ func (m *NodeManager) RegisterNode(req models.NodeRegistrationRequest) (*models.
 
 	// 创建节点
 	node := models.Node{
-		ID:                primitive.NewObjectID(),
 		Name:              req.Name,
 		Role:              req.Role,
 		Status:            models.NodeStatusRegisting,
@@ -171,7 +168,7 @@ func (m *NodeManager) RegisterNode(req models.NodeRegistrationRequest) (*models.
 	node.Config = req.Config
 
 	// 保存节点到数据库
-	_, err = m.db.Collection("nodes").InsertOne(context.Background(), node)
+	err = m.nodeRepo.Create(context.Background(), &node)
 	if err != nil {
 		return nil, err
 	}
@@ -200,12 +197,6 @@ func (m *NodeManager) RegisterNode(req models.NodeRegistrationRequest) (*models.
 
 // UpdateNodeStatus 更新节点状态
 func (m *NodeManager) UpdateNodeStatus(nodeID string, heartbeat models.NodeHeartbeat) error {
-	// 验证节点ID
-	objID, err := primitive.ObjectIDFromHex(nodeID)
-	if err != nil {
-		return errors.New("无效的节点ID")
-	}
-
 	// 获取节点
 	m.nodesMutex.RLock()
 	node, exists := m.nodes[nodeID]
@@ -221,7 +212,7 @@ func (m *NodeManager) UpdateNodeStatus(nodeID string, heartbeat models.NodeHeart
 	// 更新Redis中的心跳记录
 	heartbeatKey := nodeHeartbeatPrefix + nodeID
 	heartbeatData, _ := bson.Marshal(heartbeat)
-	err = m.redisClient.Set(m.ctx, heartbeatKey, heartbeatData, time.Duration(m.config.HeartbeatTimeout)*time.Second).Err()
+	err := m.redisClient.Set(m.ctx, heartbeatKey, heartbeatData, time.Duration(m.config.HeartbeatTimeout)*time.Second).Err()
 	if err != nil {
 		return err
 	}
@@ -229,37 +220,37 @@ func (m *NodeManager) UpdateNodeStatus(nodeID string, heartbeat models.NodeHeart
 	// 更新节点状态
 	wasOffline := node.Status == models.NodeStatusOffline
 
-	m.nodesMutex.Lock()
-	node.Status = models.NodeStatusOnline
-	node.LastHeartbeatTime = now
-	node.StatusInfo.CpuUsage = heartbeat.CpuUsage
-	node.StatusInfo.MemoryUsage = heartbeat.MemoryUsage
-	node.StatusInfo.RunningTasks = heartbeat.RunningTasks
-	node.StatusInfo.QueuedTasks = heartbeat.QueuedTasks
-	node.StatusInfo.LastUpdateTime = now
-	m.nodesMutex.Unlock()
-
-	// 更新数据库
-	update := bson.M{
-		"$set": bson.M{
-			"status":                    models.NodeStatusOnline,
-			"lastHeartbeatTime":         now,
-			"nodeStatus.cpuUsage":       heartbeat.CpuUsage,
-			"nodeStatus.memoryUsage":    heartbeat.MemoryUsage,
-			"nodeStatus.runningTasks":   heartbeat.RunningTasks,
-			"nodeStatus.queuedTasks":    heartbeat.QueuedTasks,
-			"nodeStatus.lastUpdateTime": now,
-		},
+	// 更新节点状态信息
+	nodeStatus := models.NodeStatus{
+		CpuUsage:       heartbeat.CpuUsage,
+		MemoryUsage:    heartbeat.MemoryUsage,
+		RunningTasks:   heartbeat.RunningTasks,
+		QueuedTasks:    heartbeat.QueuedTasks,
+		LastUpdateTime: now,
 	}
 
-	_, err = m.db.Collection("nodes").UpdateOne(
-		context.Background(),
-		bson.M{"_id": objID},
-		update,
-	)
+	// 更新数据库
+	err = m.nodeRepo.UpdateStatus(context.Background(), nodeID, models.NodeStatusOnline)
 	if err != nil {
 		return err
 	}
+
+	err = m.nodeRepo.UpdateLastHeartbeat(context.Background(), nodeID, now)
+	if err != nil {
+		return err
+	}
+
+	err = m.nodeRepo.UpdateNodeStatus(context.Background(), nodeID, nodeStatus)
+	if err != nil {
+		return err
+	}
+
+	// 更新内存中的节点信息
+	m.nodesMutex.Lock()
+	node.Status = models.NodeStatusOnline
+	node.LastHeartbeatTime = now
+	node.StatusInfo = nodeStatus
+	m.nodesMutex.Unlock()
 
 	// 如果节点之前是离线状态，现在是在线状态，发送上线事件
 	if wasOffline {
@@ -284,12 +275,6 @@ func (m *NodeManager) UpdateNodeStatus(nodeID string, heartbeat models.NodeHeart
 
 // UpdateNodeConfig 更新节点配置
 func (m *NodeManager) UpdateNodeConfig(nodeID string, config models.NodeConfig) error {
-	// 验证节点ID
-	objID, err := primitive.ObjectIDFromHex(nodeID)
-	if err != nil {
-		return errors.New("无效的节点ID")
-	}
-
 	// 获取节点
 	m.nodesMutex.RLock()
 	node, exists := m.nodes[nodeID]
@@ -305,17 +290,7 @@ func (m *NodeManager) UpdateNodeConfig(nodeID string, config models.NodeConfig) 
 	m.nodesMutex.Unlock()
 
 	// 更新数据库
-	update := bson.M{
-		"$set": bson.M{
-			"config": config,
-		},
-	}
-
-	_, err = m.db.Collection("nodes").UpdateOne(
-		context.Background(),
-		bson.M{"_id": objID},
-		update,
-	)
+	err := m.nodeRepo.UpdateConfig(context.Background(), nodeID, config)
 	if err != nil {
 		return err
 	}
@@ -346,7 +321,18 @@ func (m *NodeManager) GetNode(nodeID string) (*models.Node, error) {
 	m.nodesMutex.RUnlock()
 
 	if !exists {
-		return nil, errors.New("节点不存在")
+		// 尝试从数据库获取
+		dbNode, err := m.nodeRepo.GetByID(context.Background(), nodeID)
+		if err != nil {
+			return nil, err
+		}
+		
+		// 添加到内存中
+		m.nodesMutex.Lock()
+		m.nodes[nodeID] = dbNode
+		m.nodesMutex.Unlock()
+		
+		return dbNode, nil
 	}
 
 	return node, nil
@@ -397,17 +383,8 @@ func (m *NodeManager) GetNodesByStatus(status string) []*models.Node {
 
 // RemoveNode 移除节点
 func (m *NodeManager) RemoveNode(nodeID string) error {
-	// 验证节点ID
-	objID, err := primitive.ObjectIDFromHex(nodeID)
-	if err != nil {
-		return errors.New("无效的节点ID")
-	}
-
 	// 从数据库中删除节点
-	_, err = m.db.Collection("nodes").DeleteOne(
-		context.Background(),
-		bson.M{"_id": objID},
-	)
+	err := m.nodeRepo.Delete(context.Background(), nodeID)
 	if err != nil {
 		return err
 	}
@@ -444,32 +421,25 @@ func (m *NodeManager) RemoveNode(nodeID string) error {
 // loadNodes 从数据库加载所有节点
 func (m *NodeManager) loadNodes() error {
 	// 查询所有节点
-	cursor, err := m.db.Collection("nodes").Find(
-		context.Background(),
-		bson.M{},
-	)
+	params := models.NodeQueryParams{
+		Page:     1,
+		PageSize: 1000, // 加载所有节点
+	}
+	
+	nodes, _, err := m.nodeRepo.List(context.Background(), params)
 	if err != nil {
 		return err
 	}
-	defer cursor.Close(context.Background())
 
 	// 清空当前节点
 	m.nodesMutex.Lock()
 	m.nodes = make(map[string]*models.Node)
-	m.nodesMutex.Unlock()
-
-	// 加载节点
-	for cursor.Next(context.Background()) {
-		var node models.Node
-		if err := cursor.Decode(&node); err != nil {
-			return err
-		}
-
-		// 添加到内存中
-		m.nodesMutex.Lock()
-		m.nodes[node.ID.Hex()] = &node
-		m.nodesMutex.Unlock()
+	
+	// 加载节点到内存
+	for _, node := range nodes {
+		m.nodes[node.ID.Hex()] = node
 	}
+	m.nodesMutex.Unlock()
 
 	return nil
 }
@@ -505,12 +475,7 @@ func (m *NodeManager) checkNodeHeartbeats() {
 			node.Status = models.NodeStatusOffline
 
 			// 更新数据库
-			objID, _ := primitive.ObjectIDFromHex(id)
-			_, err := m.db.Collection("nodes").UpdateOne(
-				context.Background(),
-				bson.M{"_id": objID},
-				bson.M{"$set": bson.M{"status": models.NodeStatusOffline}},
-			)
+			err := m.nodeRepo.UpdateStatus(context.Background(), id, models.NodeStatusOffline)
 			if err != nil {
 				continue
 			}
@@ -527,11 +492,7 @@ func (m *NodeManager) checkNodeHeartbeats() {
 		// 自动移除长时间离线的节点
 		if m.config.EnableAutoRemove && node.Status == models.NodeStatusOffline && now.Sub(node.LastHeartbeatTime) > autoRemoveTime {
 			// 从数据库中删除节点
-			objID, _ := primitive.ObjectIDFromHex(id)
-			_, err := m.db.Collection("nodes").DeleteOne(
-				context.Background(),
-				bson.M{"_id": objID},
-			)
+			err := m.nodeRepo.Delete(context.Background(), id)
 			if err != nil {
 				continue
 			}

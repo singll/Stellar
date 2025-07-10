@@ -15,7 +15,7 @@
 		CardTitle
 	} from '$lib/components/ui/card';
 	import { Checkbox } from '$lib/components/ui/checkbox';
-	import { ArrowLeft, Save, TestTube } from 'lucide-svelte';
+	import Icon from '$lib/components/ui/Icon.svelte';
 
 	// 表单状态
 	let formData: CreateProjectRequest = $state({
@@ -69,7 +69,7 @@
 		loading = true;
 
 		try {
-			const project = await ProjectAPI.createProject({
+			const response = await ProjectAPI.createProject({
 				...formData,
 				name: formData.name.trim(),
 				description: formData.description?.trim() || undefined,
@@ -82,7 +82,7 @@
 			});
 
 			// 跳转到项目详情页
-			await goto(`/projects/${project.id}`);
+			await goto(`/projects/${response.id}`);
 		} catch (error) {
 			notifications.add({
 				type: 'error',
@@ -132,8 +132,8 @@
 	<!-- 页面标题 -->
 	<div class="mb-6">
 		<div class="flex items-center gap-4 mb-4">
-			<Button variant="ghost" href="/projects" class="flex items-center gap-2">
-				<ArrowLeft class="h-4 w-4" />
+			<Button variant="ghost" onclick={() => goto('/projects')} class="flex items-center gap-2">
+				<Icon name="chevron-left" class="h-4 w-4" />
 				返回项目列表
 			</Button>
 		</div>
@@ -208,7 +208,7 @@
 							disabled={loading || !formData.target?.trim()}
 							class="flex items-center gap-2"
 						>
-							<TestTube class="h-4 w-4" />
+							<Icon name="check" class="h-4 w-4" />
 							测试
 						</Button>
 					</div>
@@ -248,21 +248,28 @@
 
 				<!-- 提交按钮 -->
 				<div class="flex items-center gap-4 pt-4 border-t">
-					<Button
+					<button
 						type="submit"
 						disabled={loading || !formData.name.trim()}
-						class="flex items-center gap-2"
+						class="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 					>
 						{#if loading}
 							<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
 							创建中...
 						{:else}
-							<Save class="h-4 w-4" />
+							<Icon name="check" class="h-4 w-4" />
 							创建项目
 						{/if}
-					</Button>
+					</button>
 
-					<Button type="button" variant="outline" href="/projects" disabled={loading}>取消</Button>
+					<button
+						type="button"
+						onclick={() => goto('/projects')}
+						disabled={loading}
+						class="inline-flex items-center gap-2 border border-gray-300 bg-white text-gray-700 px-4 py-2 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+					>
+						取消
+					</button>
 				</div>
 			</form>
 		</CardContent>

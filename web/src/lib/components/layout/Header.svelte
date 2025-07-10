@@ -2,7 +2,7 @@
 	import { auth } from '$lib/stores/auth';
 	import { Button } from '$lib/components/ui/button';
 	import { authApi } from '$lib/api/auth';
-	import { Moon, Sun } from 'lucide-svelte';
+	import Icon from '$lib/components/ui/Icon.svelte';
 	import { themeStore } from '$lib/stores/theme';
 
 	let isDark = $derived($themeStore.mode === 'dark');

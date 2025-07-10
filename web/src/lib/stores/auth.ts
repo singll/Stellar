@@ -67,7 +67,7 @@ export const auth = {
 		// 防止重复调用
 		if (isLoggingOut) return;
 		isLoggingOut = true;
-		
+
 		try {
 			// 尝试调用logout API，但不让错误阻止客户端清理
 			await authApi.logout();
@@ -84,7 +84,7 @@ export const auth = {
 					goto('/login');
 				}
 			}
-			
+
 			// 重置标志
 			setTimeout(() => {
 				isLoggingOut = false;

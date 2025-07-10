@@ -19,15 +19,15 @@
 		CardTitle
 	} from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
-	import { Search } from 'lucide-svelte';
+	import Icon from '$lib/components/ui/Icon.svelte';
 	import { assetApi } from '$lib/api/asset';
 	import type { Asset } from '$lib/types/asset';
 	import { notifications } from '$lib/stores/notifications';
 	import { goto } from '$app/navigation';
 
-	let assets: Asset[] = [];
-	let loading = true;
-	let searchQuery = '';
+	let assets: Asset[] = $state([]);
+	let loading = $state(true);
+	let searchQuery = $state('');
 
 	async function loadAssets() {
 		try {
@@ -64,11 +64,11 @@
 			<div class="flex justify-between items-center mb-4">
 				<div class="flex gap-2 items-center">
 					<div class="relative">
-						<Search class="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+						<Icon name="search" class="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
 						<Input type="search" placeholder="搜索资产..." class="pl-8" bind:value={searchQuery} />
 					</div>
 				</div>
-				<Button on:click={() => goto('/assets/new')}>添加资产</Button>
+				<Button onclick={() => goto('/assets/new')}>添加资产</Button>
 			</div>
 
 			<!-- 资产列表 -->
@@ -97,8 +97,8 @@
 							{#each assets as asset}
 								<tr
 									class="cursor-pointer hover:bg-muted/50 border-b transition-colors"
-									on:click={() => handleAssetClick(asset.id)}
-									on:keydown={(e) => {
+									onclick={() => handleAssetClick(asset.id)}
+									onkeydown={(e) => {
 										if (e.key === 'Enter' || e.key === ' ') {
 											handleAssetClick(asset.id);
 										}
@@ -106,29 +106,35 @@
 									role="button"
 									tabindex="0"
 								>
-									<TableCell>{asset.name}</TableCell>
-									<TableCell>{asset.type}</TableCell>
-									<TableCell>{asset.url || asset.ip}</TableCell>
 									<TableCell>
-										<Badge variant={asset.status === 'online' ? 'default' : 'destructive'}>
-											{asset.status === 'online' ? '在线' : '离线'}
-										</Badge>
+										{#if asset.type === 'domain'}
+											{(asset as any).domain}
+										{:else if asset.type === 'ip'}
+											{(asset as any).ip}
+										{:else if asset.type === 'url'}
+											{(asset as any).url}
+										{:else if asset.type === 'app'}
+											{(asset as any).appName}
+										{:else}
+											{asset.id}
+										{/if}
 									</TableCell>
-									<TableCell>{new Date(asset.lastScan).toLocaleString()}</TableCell>
+									<TableCell>{asset.type}</TableCell>
 									<TableCell>
-										<Badge
-											variant={asset.riskLevel === 'high'
-												? 'destructive'
-												: asset.riskLevel === 'medium'
-													? 'secondary'
-													: 'default'}
-										>
-											{asset.riskLevel === 'high'
-												? '高'
-												: asset.riskLevel === 'medium'
-													? '中'
-													: '低'}
-										</Badge>
+										{#if asset.type === 'url' || asset.type === 'http'}
+											{(asset as any).url}
+										{:else if asset.type === 'ip' || asset.type === 'port'}
+											{(asset as any).ip}
+										{:else}
+											-
+										{/if}
+									</TableCell>
+									<TableCell>
+										<Badge variant="default">正常</Badge>
+									</TableCell>
+									<TableCell>{new Date(asset.lastScanTime).toLocaleString()}</TableCell>
+									<TableCell>
+										<Badge variant="default">正常</Badge>
 									</TableCell>
 								</tr>
 							{/each}

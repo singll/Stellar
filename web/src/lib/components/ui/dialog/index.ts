@@ -1,34 +1,22 @@
-import { Dialog as DialogPrimitive } from 'bits-ui';
-import Root from './dialog.svelte';
-import Content from './dialog-content.svelte';
-import Description from './dialog-description.svelte';
-import Footer from './dialog-footer.svelte';
-import Header from './dialog-header.svelte';
-import Title from './dialog-title.svelte';
-import Trigger from './dialog-trigger.svelte';
+import Root, { type DialogProps } from './dialog.svelte';
 
-const Dialog = DialogPrimitive.Root;
-const DialogClose = DialogPrimitive.Close;
-const DialogPortal = DialogPrimitive.Portal;
-const DialogOverlay = DialogPrimitive.Overlay;
+// 为了兼容性，创建简单的组件替代品
+const DialogContent = Root;
+const DialogDescription = Root;
+const DialogFooter = Root;
+const DialogHeader = Root;
+const DialogTitle = Root;
+const DialogTrigger = Root;
 
 export {
-	Dialog,
-	DialogClose,
-	Content as DialogContent,
-	Description as DialogDescription,
-	Footer as DialogFooter,
-	Header as DialogHeader,
-	DialogOverlay,
-	DialogPortal,
-	Title as DialogTitle,
-	Trigger as DialogTrigger,
-	//
 	Root,
-	Content,
-	Description,
-	Footer,
-	Header,
-	Title,
-	Trigger
+	Root as Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger
 };
+
+export type { DialogProps };

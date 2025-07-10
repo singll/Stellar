@@ -19,7 +19,13 @@ export class ProjectAPI {
 	 * @returns 项目列表
 	 */
 	static async getProjects(params?: ProjectQueryParams): Promise<ProjectListResponse> {
-		const response = await api.get('/projects', { params });
+		// 后端实际路径由于路由重复问题是 /projects/projects
+		const requestData = {
+			search: params?.search || '',
+			pageIndex: params?.page || 1,
+			pageSize: params?.limit || 20
+		};
+		const response = await api.post('/projects/projects', requestData);
 		return response.data;
 	}
 
@@ -29,7 +35,7 @@ export class ProjectAPI {
 	 * @returns 项目详情
 	 */
 	static async getProject(id: string): Promise<ProjectResponse> {
-		const response = await api.get(`/projects/${id}`);
+		const response = await api.get(`/projects/projects/${id}`);
 		return response.data;
 	}
 
@@ -39,7 +45,7 @@ export class ProjectAPI {
 	 * @returns 创建的项目
 	 */
 	static async createProject(project: CreateProjectRequest): Promise<ProjectResponse> {
-		const response = await api.post('/projects', project);
+		const response = await api.post('/projects/projects', project);
 		return response.data;
 	}
 
@@ -67,7 +73,8 @@ export class ProjectAPI {
 	 * @returns 项目统计
 	 */
 	static async getProjectStats(): Promise<ProjectStats> {
-		const response = await api.get('/projects/stats');
+		// 使用正确的统计API路径
+		const response = await api.post('/statistics/dashboard/stats', {});
 		return response.data.data;
 	}
 

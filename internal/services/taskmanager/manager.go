@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/StellarServer/internal/models"
+	"github.com/StellarServer/internal/services/taskmanager/executors"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -15,19 +16,20 @@ import (
 
 // TaskManager 任务管理器
 type TaskManager struct {
-	db           *mongo.Database
-	redisClient  *redis.Client
-	nodeManager  NodeManager
-	tasks        map[string]*TaskInfo
-	tasksMutex   sync.RWMutex
-	ctx          context.Context
-	cancel       context.CancelFunc
-	eventChan    chan TaskEvent
-	config       TaskManagerConfig
-	queues       map[string]*TaskQueue
-	queuesMutex  sync.RWMutex
-	dispatcher   *TaskDispatcher
-	queueManager *QueueManager
+	db            *mongo.Database
+	redisClient   *redis.Client
+	nodeManager   NodeManager
+	tasks         map[string]*TaskInfo
+	tasksMutex    sync.RWMutex
+	ctx           context.Context
+	cancel        context.CancelFunc
+	eventChan     chan TaskEvent
+	config        TaskManagerConfig
+	queues        map[string]*TaskQueue
+	queuesMutex   sync.RWMutex
+	dispatcher    *TaskDispatcher
+	queueManager  *QueueManager
+	executor      *ExecutionEngine
 }
 
 // TaskManagerConfig 任务管理器配置
@@ -88,16 +90,71 @@ func NewTaskManager(db *mongo.Database, redisClient *redis.Client, nodeManager N
 	// 创建任务分发器
 	dispatcher := NewTaskDispatcher(db, redisClient, nodeManager, queueManager, config.MaxConcurrentTasks)
 
-	return &TaskManager{
+	// 创建执行引擎
+	executorConfig := ExecutionConfig{
+		MaxConcurrentTasks: config.MaxConcurrentTasks,
+		DefaultTimeout:     time.Duration(config.TaskTimeout) * time.Second,
+		EnableRetry:        config.EnableRetry,
+		MaxRetries:         config.MaxRetries,
+		RetryInterval:      time.Duration(config.RetryInterval) * time.Second,
+		ResultBufferSize:   100,
+	}
+	executor := NewExecutionEngine(db, redisClient, executorConfig)
+
+	tm := &TaskManager{
 		db:           db,
 		redisClient:  redisClient,
 		nodeManager:  nodeManager,
 		dispatcher:   dispatcher,
 		queueManager: queueManager,
+		executor:     executor,
 		config:       config,
 		ctx:          ctx,
 		cancel:       cancel,
+		tasks:        make(map[string]*TaskInfo),
+		queues:       make(map[string]*TaskQueue),
+		eventChan:    make(chan TaskEvent, 100),
 	}
+
+	// 注册默认执行器
+	tm.registerDefaultExecutors()
+
+	return tm
+}
+
+// registerDefaultExecutors 注册默认执行器
+func (tm *TaskManager) registerDefaultExecutors() {
+	// 注册子域名枚举执行器
+	subdomainExecutor := executors.NewSubdomainExecutor(executors.SubdomainConfig{
+		MaxWorkers:     50,
+		Timeout:        5 * time.Second,
+		DNSServers:     []string{"8.8.8.8", "1.1.1.1", "114.114.114.114"},
+		EnableWildcard: true,
+		MaxRetries:     3,
+	})
+	tm.executor.RegisterExecutor("subdomain_enum", subdomainExecutor)
+
+	// 注册端口扫描执行器
+	portScanExecutor := executors.NewPortScanExecutor(executors.PortScanConfig{
+		MaxWorkers:     100,
+		Timeout:        30 * time.Second,
+		ConnectTimeout: 3 * time.Second,
+		EnableBanner:   true,
+		BannerTimeout:  5 * time.Second,
+		MaxRetries:     2,
+	})
+	tm.executor.RegisterExecutor("port_scan", portScanExecutor)
+
+	// 注册资产发现执行器
+	assetDiscoveryExecutor := executors.NewAssetDiscoveryExecutor(tm.db, executors.AssetDiscoveryConfig{
+		EnableDomainAssets:    true,
+		EnableSubdomainAssets: true,
+		EnableIPAssets:        true,
+		EnablePortAssets:      true,
+		EnableURLAssets:       true,
+		AutoCreateAssets:      true,
+	})
+	tm.executor.RegisterExecutor("asset_discovery", assetDiscoveryExecutor)
 }
 
 // Start 启动任务管理器
@@ -122,16 +179,41 @@ func (tm *TaskManager) Start() error {
 func (tm *TaskManager) Stop() {
 	tm.cancel()
 	tm.dispatcher.Stop()
+	tm.executor.Shutdown()
 }
 
 // SubmitTask 提交任务
 func (tm *TaskManager) SubmitTask(task *models.Task) error {
-	return tm.dispatcher.SubmitTask(task)
+	// 先保存任务到数据库
+	if err := tm.saveTask(task); err != nil {
+		return err
+	}
+
+	// 直接使用执行引擎执行任务
+	return tm.executor.ExecuteTask(task)
+}
+
+// saveTask 保存任务到数据库
+func (tm *TaskManager) saveTask(task *models.Task) error {
+	collection := tm.db.Collection("tasks")
+	
+	if task.ID.IsZero() {
+		task.ID = primitive.NewObjectID()
+	}
+	
+	if task.CreatedAt.IsZero() {
+		task.CreatedAt = time.Now()
+	}
+	
+	task.UpdatedAt = time.Now()
+	
+	_, err := collection.InsertOne(tm.ctx, task)
+	return err
 }
 
 // CancelTask 取消任务
 func (tm *TaskManager) CancelTask(taskID string) error {
-	return tm.dispatcher.CancelTask(taskID)
+	return tm.executor.CancelTask(taskID)
 }
 
 // GetTask 获取任务
@@ -215,7 +297,41 @@ func (tm *TaskManager) UpdateTaskStatus(taskID string, status string, progress f
 
 // GetTaskResult 获取任务结果
 func (tm *TaskManager) GetTaskResult(taskID string) (*models.TaskResult, error) {
-	return tm.dispatcher.GetTaskResult(taskID)
+	objID, err := primitive.ObjectIDFromHex(taskID)
+	if err != nil {
+		return nil, err
+	}
+
+	var result models.TaskResult
+	err = tm.db.Collection("task_results").FindOne(tm.ctx, bson.M{"task_id": objID}).Decode(&result)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+// GetRunningTasks 获取运行中的任务
+func (tm *TaskManager) GetRunningTasks() []string {
+	return tm.executor.GetRunningTasks()
+}
+
+// GetExecutors 获取已注册的执行器
+func (tm *TaskManager) GetExecutors() map[string]models.ExecutorInfo {
+	return tm.executor.GetExecutors()
+}
+
+// RegisterExecutor 注册执行器
+func (tm *TaskManager) RegisterExecutor(taskType string, executor TaskExecutor) error {
+	return tm.executor.RegisterExecutor(taskType, executor)
+}
+
+// UnregisterExecutor 注销执行器
+func (tm *TaskManager) UnregisterExecutor(taskType string) error {
+	return tm.executor.UnregisterExecutor(taskType)
 }
 
 // SaveTaskResult 保存任务结果

@@ -12,20 +12,7 @@
 		CardTitle
 	} from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
-	import {
-		ArrowLeft,
-		Edit,
-		Settings,
-		Share,
-		Download,
-		Play,
-		Pause,
-		MoreHorizontal,
-		Users,
-		Activity,
-		Target,
-		Shield
-	} from 'lucide-svelte';
+	import Icon from '$lib/components/ui/Icon.svelte';
 
 	// 从页面数据获取初始数据
 	let { data } = $props();
@@ -192,12 +179,12 @@
 						disabled={loading}
 						class="flex items-center gap-2"
 					>
-						<Pause class="h-4 w-4" />
+						<Icon name="pause" class="h-4 w-4" />
 						暂停扫描
 					</Button>
 				{:else}
 					<Button onclick={handleStartScan} disabled={loading} class="flex items-center gap-2">
-						<Play class="h-4 w-4" />
+						<Icon name="play" class="h-4 w-4" />
 						开始扫描
 					</Button>
 				{/if}
@@ -213,7 +200,7 @@
 
 				<div class="relative">
 					<Button variant="outline" class="flex items-center gap-2">
-						<MoreHorizontal class="h-4 w-4" />
+						<Icon name="more-horizontal" class="h-4 w-4" />
 						更多
 					</Button>
 					<!-- TODO: 实现下拉菜单 -->
@@ -227,7 +214,7 @@
 		<Card>
 			<CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
 				<CardTitle class="text-sm font-medium">总资产数</CardTitle>
-				<Target class="h-4 w-4 text-muted-foreground" />
+				<Icon name="folder" class="h-4 w-4 text-muted-foreground" />
 			</CardHeader>
 			<CardContent>
 				<div class="text-2xl font-bold">{project.assets_count || 0}</div>
@@ -238,7 +225,7 @@
 		<Card>
 			<CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
 				<CardTitle class="text-sm font-medium">发现漏洞</CardTitle>
-				<Shield class="h-4 w-4 text-muted-foreground" />
+				<Icon name="shield" class="h-4 w-4 text-muted-foreground" />
 			</CardHeader>
 			<CardContent>
 				<div class="text-2xl font-bold text-red-600">{project.vulnerabilities_count || 0}</div>
@@ -249,7 +236,7 @@
 		<Card>
 			<CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
 				<CardTitle class="text-sm font-medium">运行任务</CardTitle>
-				<Activity class="h-4 w-4 text-muted-foreground" />
+				<Icon name="activity" class="h-4 w-4 text-muted-foreground" />
 			</CardHeader>
 			<CardContent>
 				<div class="text-2xl font-bold">{project.tasks_count || 0}</div>
@@ -260,7 +247,7 @@
 		<Card>
 			<CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
 				<CardTitle class="text-sm font-medium">项目成员</CardTitle>
-				<Users class="h-4 w-4 text-muted-foreground" />
+				<Icon name="user" class="h-4 w-4 text-muted-foreground" />
 			</CardHeader>
 			<CardContent>
 				<div class="text-2xl font-bold">{members.length}</div>
@@ -282,13 +269,13 @@
 				<CardContent class="space-y-4">
 					{#if project.target}
 						<div>
-							<label class="text-sm font-medium text-gray-500">扫描目标</label>
+							<div class="text-sm font-medium text-gray-500">扫描目标</div>
 							<p class="mt-1 font-mono text-blue-600">{project.target}</p>
 						</div>
 					{/if}
 
 					<div>
-						<label class="text-sm font-medium text-gray-500">项目颜色</label>
+						<div class="text-sm font-medium text-gray-500">项目颜色</div>
 						<div class="mt-1 flex items-center gap-2">
 							<div class="w-4 h-4 rounded-full bg-{project.color || 'blue'}-500"></div>
 							<span class="capitalize">{project.color || 'blue'}</span>
@@ -296,12 +283,12 @@
 					</div>
 
 					<div>
-						<label class="text-sm font-medium text-gray-500">可见性</label>
+						<div class="text-sm font-medium text-gray-500">可见性</div>
 						<p class="mt-1">{project.is_private ? '私有项目' : '公开项目'}</p>
 					</div>
 
 					<div>
-						<label class="text-sm font-medium text-gray-500">创建者</label>
+						<div class="text-sm font-medium text-gray-500">创建者</div>
 						<p class="mt-1">{project.created_by || '未知'}</p>
 					</div>
 				</CardContent>
@@ -320,7 +307,7 @@
 							href="/projects/{project.id}/assets"
 							class="flex items-center gap-2 h-auto py-4 flex-col"
 						>
-							<Target class="h-6 w-6" />
+							<Icon name="folder" class="h-6 w-6" />
 							<span class="text-sm">资产管理</span>
 						</Button>
 
@@ -329,7 +316,7 @@
 							href="/projects/{project.id}/vulnerabilities"
 							class="flex items-center gap-2 h-auto py-4 flex-col"
 						>
-							<Shield class="h-6 w-6" />
+							<Icon name="shield" class="h-6 w-6" />
 							<span class="text-sm">漏洞报告</span>
 						</Button>
 
@@ -338,7 +325,7 @@
 							href="/projects/{project.id}/tasks"
 							class="flex items-center gap-2 h-auto py-4 flex-col"
 						>
-							<Activity class="h-6 w-6" />
+							<Icon name="activity" class="h-6 w-6" />
 							<span class="text-sm">任务管理</span>
 						</Button>
 
@@ -347,7 +334,7 @@
 							onclick={() => handleExport('json')}
 							class="flex items-center gap-2 h-auto py-4 flex-col"
 						>
-							<Download class="h-6 w-6" />
+							<Icon name="download" class="h-6 w-6" />
 							<span class="text-sm">导出数据</span>
 						</Button>
 					</div>

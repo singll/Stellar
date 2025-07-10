@@ -4,10 +4,16 @@
 -->
 <script lang="ts">
 	import { Dialog as DialogPrimitive } from 'bits-ui';
+	import type { Snippet } from 'svelte';
 
-	type $$Props = DialogPrimitive.TriggerProps;
+	interface Props extends DialogPrimitive.TriggerProps {
+		children: Snippet;
+		ref?: HTMLButtonElement | null;
+	}
+
+	let { ref = $bindable(null), children, ...restProps }: Props = $props();
 </script>
 
-<DialogPrimitive.Trigger {...$$restProps}>
-	<slot />
+<DialogPrimitive.Trigger bind:ref {...restProps}>
+	{@render children()}
 </DialogPrimitive.Trigger>

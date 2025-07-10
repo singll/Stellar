@@ -1,4 +1,4 @@
-.PHONY: dev dev-stop build clean help install-deps check-deps status logs
+.PHONY: dev dev-stop build clean help install-deps check-deps status logs test test-backend test-frontend test-e2e test-all
 
 # ====================================================================================
 # 开发环境
@@ -98,6 +98,56 @@ install-deps:
 	@echo "依赖安装完成"
 
 # ====================================================================================
+# 测试
+# 运行后端、前端和端到端测试
+# ====================================================================================
+
+# 运行后端测试
+test-backend:
+	@echo "运行后端测试..."
+	@echo "======================================"
+	@go test -v -race -cover ./internal/api/... ./internal/utils/... ./internal/models/... ./internal/services/...
+
+# 运行前端测试
+test-frontend:
+	@echo "运行前端测试..."
+	@echo "======================================"
+	@cd web && pnpm test
+
+# 运行前端测试覆盖率
+test-frontend-coverage:
+	@echo "运行前端测试覆盖率..."
+	@echo "======================================"
+	@cd web && pnpm test:coverage
+
+# 运行端到端测试
+test-e2e:
+	@echo "运行端到端测试..."
+	@echo "======================================"
+	@echo "检查开发环境是否运行..."
+	@if ! lsof -Pi :8090 -sTCP:LISTEN -t >/dev/null 2>&1; then \
+		echo "错误: 后端服务未运行，请先运行 'make dev'"; \
+		exit 1; \
+	fi
+	@if ! lsof -Pi :5173 -sTCP:LISTEN -t >/dev/null 2>&1; then \
+		echo "错误: 前端服务未运行，请先运行 'make dev'"; \
+		exit 1; \
+	fi
+	@cd web && pnpm test:e2e
+
+# 运行所有测试
+test-all: test-backend test-frontend test-e2e
+	@echo "所有测试完成！"
+
+# 快速测试（不包括端到端测试）
+test:
+	@echo "运行快速测试（后端+前端）..."
+	@echo "======================================"
+	@$(MAKE) test-backend
+	@$(MAKE) test-frontend
+	@echo "快速测试完成！"
+
+# ====================================================================================
 # 构建
 # 构建前端并将其嵌入到Go二进制文件中
 # ====================================================================================
@@ -139,6 +189,14 @@ help:
 	@echo "  make status       - 查看开发环境状态"
 	@echo "  make logs         - 查看实时日志"
 	@echo ""
+	@echo "测试命令:"
+	@echo "  make test         - 运行快速测试（后端+前端）"
+	@echo "  make test-backend - 运行后端测试"
+	@echo "  make test-frontend - 运行前端测试"
+	@echo "  make test-frontend-coverage - 运行前端测试覆盖率"
+	@echo "  make test-e2e     - 运行端到端测试（需要开发环境运行）"
+	@echo "  make test-all     - 运行所有测试"
+	@echo ""
 	@echo "依赖管理:"
 	@echo "  make check-deps   - 检查系统依赖和数据库连接"
 	@echo "  make install-deps - 安装项目依赖"
@@ -154,4 +212,5 @@ help:
 	@echo "快速开始:"
 	@echo "  1. make check-deps  # 检查依赖"
 	@echo "  2. make install-deps # 安装依赖"
-	@echo "  3. make dev         # 启动开发环境" 
+	@echo "  3. make dev         # 启动开发环境"
+	@echo "  4. make test        # 运行测试" 

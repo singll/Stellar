@@ -6,6 +6,14 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// ExecutorInfo 执行器信息
+type ExecutorInfo struct {
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Description string `json:"description"`
+	Author      string `json:"author"`
+}
+
 // TaskStatus 任务状态
 const (
 	TaskStatusPending   = "pending"   // 等待中
@@ -35,40 +43,44 @@ const (
 
 // Task 任务基础模型
 type Task struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	Name        string             `bson:"name" json:"name"`               // 任务名称
-	Description string             `bson:"description" json:"description"` // 任务描述
-	Type        string             `bson:"type" json:"type"`               // 任务类型
-	Status      string             `bson:"status" json:"status"`           // 任务状态
-	Priority    int                `bson:"priority" json:"priority"`       // 优先级
-	ProjectID   primitive.ObjectID `bson:"projectId" json:"projectId"`     // 所属项目
-	CreatedBy   primitive.ObjectID `bson:"createdBy" json:"createdBy"`     // 创建者
-	CreatedAt   time.Time          `bson:"createdAt" json:"createdAt"`     // 创建时间
-	StartedAt   time.Time          `bson:"startedAt" json:"startedAt"`     // 开始时间
-	CompletedAt time.Time          `bson:"completedAt" json:"completedAt"` // 完成时间
-	Timeout     int                `bson:"timeout" json:"timeout"`         // 超时时间(秒)
-	RetryCount  int                `bson:"retryCount" json:"retryCount"`   // 重试次数
-	MaxRetries  int                `bson:"maxRetries" json:"maxRetries"`   // 最大重试次数
-	Progress    float64            `bson:"progress" json:"progress"`       // 进度(0-100)
-	NodeID      string             `bson:"nodeId" json:"nodeId"`           // 执行节点ID
-	DependsOn   []string           `bson:"dependsOn" json:"dependsOn"`     // 依赖任务ID
-	Tags        []string           `bson:"tags" json:"tags"`               // 标签
-	Error       string             `bson:"error" json:"error"`             // 错误信息
-	ResultID    primitive.ObjectID `bson:"resultId" json:"resultId"`       // 结果ID
-	Params      interface{}        `bson:"params" json:"params"`           // 任务参数
-	CallbackURL string             `bson:"callbackUrl" json:"callbackUrl"` // 回调URL
+	ID          primitive.ObjectID     `bson:"_id,omitempty" json:"id"`
+	Name        string                 `bson:"name" json:"name"`               // 任务名称
+	Description string                 `bson:"description" json:"description"` // 任务描述
+	Type        string                 `bson:"type" json:"type"`               // 任务类型
+	Status      string                 `bson:"status" json:"status"`           // 任务状态
+	Priority    int                    `bson:"priority" json:"priority"`       // 优先级
+	ProjectID   primitive.ObjectID     `bson:"projectId" json:"projectId"`     // 所属项目
+	CreatedBy   primitive.ObjectID     `bson:"createdBy" json:"createdBy"`     // 创建者
+	CreatedAt   time.Time              `bson:"createdAt" json:"createdAt"`     // 创建时间
+	UpdatedAt   time.Time              `bson:"updatedAt" json:"updatedAt"`     // 更新时间
+	StartedAt   time.Time              `bson:"startedAt" json:"startedAt"`     // 开始时间
+	CompletedAt time.Time              `bson:"completedAt" json:"completedAt"` // 完成时间
+	Timeout     int                    `bson:"timeout" json:"timeout"`         // 超时时间(秒)
+	RetryCount  int                    `bson:"retryCount" json:"retryCount"`   // 重试次数
+	MaxRetries  int                    `bson:"maxRetries" json:"maxRetries"`   // 最大重试次数
+	Progress    float64                `bson:"progress" json:"progress"`       // 进度(0-100)
+	NodeID      string                 `bson:"nodeId" json:"nodeId"`           // 执行节点ID
+	DependsOn   []string               `bson:"dependsOn" json:"dependsOn"`     // 依赖任务ID
+	Tags        []string               `bson:"tags" json:"tags"`               // 标签
+	Error       string                 `bson:"error" json:"error"`             // 错误信息
+	ResultID    primitive.ObjectID     `bson:"resultId" json:"resultId"`       // 结果ID
+	Params      interface{}            `bson:"params" json:"params"`           // 任务参数
+	Config      map[string]interface{} `bson:"config,omitempty" json:"config,omitempty"` // 任务配置
+	CallbackURL string                 `bson:"callbackUrl" json:"callbackUrl"` // 回调URL
 }
 
 // TaskResult 任务结果
 type TaskResult struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	TaskID      primitive.ObjectID `bson:"taskId" json:"taskId"`           // 任务ID
-	Status      string             `bson:"status" json:"status"`           // 结果状态
-	Data        interface{}        `bson:"data" json:"data"`               // 结果数据
-	Summary     string             `bson:"summary" json:"summary"`         // 结果摘要
-	CreatedAt   time.Time          `bson:"createdAt" json:"createdAt"`     // 创建时间
-	CompletedAt time.Time          `bson:"completedAt" json:"completedAt"` // 完成时间
-	Error       string             `bson:"error" json:"error"`             // 错误信息
+	ID        primitive.ObjectID     `bson:"_id,omitempty" json:"id"`
+	TaskID    primitive.ObjectID     `bson:"taskId" json:"taskId"`           // 任务ID
+	Status    string                 `bson:"status" json:"status"`           // 结果状态
+	Data      map[string]interface{} `bson:"data" json:"data"`               // 结果数据
+	Summary   string                 `bson:"summary" json:"summary"`         // 结果摘要
+	StartTime time.Time              `bson:"startTime" json:"startTime"`     // 开始时间
+	EndTime   time.Time              `bson:"endTime" json:"endTime"`         // 结束时间
+	CreatedAt time.Time              `bson:"createdAt" json:"createdAt"`     // 创建时间
+	UpdatedAt time.Time              `bson:"updatedAt" json:"updatedAt"`     // 更新时间
+	Error     string                 `bson:"error" json:"error"`             // 错误信息
 }
 
 // TaskQueue 任务队列

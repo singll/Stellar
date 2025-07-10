@@ -9,7 +9,7 @@
 	} from '$lib/components/ui/card';
 
 	import { Button } from '$lib/components/ui/button';
-	import { MoreHorizontal, Target, Shield, Activity } from 'lucide-svelte';
+	import Icon from '$lib/components/ui/Icon.svelte';
 
 	interface Props {
 		project: Project;
@@ -85,7 +85,7 @@
 				<!-- 目标地址 -->
 				{#if project.target}
 					<div class="flex items-center gap-2 mb-2 text-sm text-gray-600">
-						<Target class="h-4 w-4" />
+						<Icon name="folder" class="h-4 w-4" />
 						<span class="font-mono text-blue-600">{project.target}</span>
 					</div>
 				{/if}
@@ -113,7 +113,7 @@
 						class="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
 						onclick={() => (showMenu = !showMenu)}
 					>
-						<MoreHorizontal class="h-4 w-4" />
+						<Icon name="more-horizontal" class="h-4 w-4" />
 					</Button>
 
 					<!-- 下拉菜单 -->
@@ -184,19 +184,19 @@
 			<!-- 项目统计 -->
 			<div class="grid grid-cols-3 gap-4 text-center">
 				<div class="flex flex-col items-center">
-					<Target class="h-5 w-5 text-gray-400 mb-1" />
+					<Icon name="folder" class="h-5 w-5 text-gray-400 mb-1" />
 					<div class="text-lg font-semibold">{project.assets_count || 0}</div>
 					<div class="text-xs text-gray-500">资产</div>
 				</div>
 
 				<div class="flex flex-col items-center">
-					<Shield class="h-5 w-5 text-red-400 mb-1" />
+					<Icon name="shield" class="h-5 w-5 text-red-400 mb-1" />
 					<div class="text-lg font-semibold text-red-600">{project.vulnerabilities_count || 0}</div>
 					<div class="text-xs text-gray-500">漏洞</div>
 				</div>
 
 				<div class="flex flex-col items-center">
-					<Activity class="h-5 w-5 text-blue-400 mb-1" />
+					<Icon name="activity" class="h-5 w-5 text-blue-400 mb-1" />
 					<div class="text-lg font-semibold">{project.tasks_count || 0}</div>
 					<div class="text-xs text-gray-500">任务</div>
 				</div>

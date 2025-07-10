@@ -67,7 +67,19 @@ export interface ProjectListResponse {
 }
 
 export interface ProjectResponse {
-	data: Project;
+	id: string;
+	name: string;
+	description?: string;
+	target?: string;
+	scan_status?: string;
+	color?: string;
+	is_private?: boolean;
+	assets_count?: number;
+	vulnerabilities_count?: number;
+	tasks_count?: number;
+	created_by?: string;
+	created_at: string;
+	updated_at: string;
 }
 
 // 项目颜色选项

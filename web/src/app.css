@@ -1,3 +1,6 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -45,48 +48,48 @@
 
 @layer base {
 	:root {
-		--background: 0 0% 100%;
-		--foreground: 222.2 84% 4.9%;
-		--card: 0 0% 100%;
-		--card-foreground: 222.2 84% 4.9%;
-		--popover: 0 0% 100%;
-		--popover-foreground: 222.2 84% 4.9%;
-		--primary: 221.2 83.2% 53.3%;
-		--primary-foreground: 210 40% 98%;
-		--secondary: 210 40% 96.1%;
-		--secondary-foreground: 222.2 47.4% 11.2%;
-		--muted: 210 40% 96.1%;
-		--muted-foreground: 215.4 16.3% 46.9%;
-		--accent: 210 40% 96.1%;
-		--accent-foreground: 222.2 47.4% 11.2%;
-		--destructive: 0 84.2% 60.2%;
-		--destructive-foreground: 210 40% 98%;
-		--border: 214.3 31.8% 91.4%;
-		--input: 214.3 31.8% 91.4%;
-		--ring: 221.2 83.2% 53.3%;
-		--radius: 0.5rem;
+		--background: 255 255 255;
+		--foreground: 15 23 42;
+		--card: 255 255 255;
+		--card-foreground: 15 23 42;
+		--popover: 255 255 255;
+		--popover-foreground: 15 23 42;
+		--primary: 37 99 235;
+		--primary-foreground: 248 250 252;
+		--secondary: 241 245 249;
+		--secondary-foreground: 15 23 42;
+		--muted: 241 245 249;
+		--muted-foreground: 100 116 139;
+		--accent: 241 245 249;
+		--accent-foreground: 15 23 42;
+		--destructive: 239 68 68;
+		--destructive-foreground: 248 250 252;
+		--border: 226 232 240;
+		--input: 226 232 240;
+		--ring: 37 99 235;
+		--radius: 0.75rem;
 	}
 
 	.dark {
-		--background: 222.2 84% 4.9%;
-		--foreground: 210 40% 98%;
-		--card: 222.2 84% 4.9%;
-		--card-foreground: 210 40% 98%;
-		--popover: 222.2 84% 4.9%;
-		--popover-foreground: 210 40% 98%;
-		--primary: 217.2 91.2% 59.8%;
-		--primary-foreground: 222.2 47.4% 11.2%;
-		--secondary: 217.2 32.6% 17.5%;
-		--secondary-foreground: 210 40% 98%;
-		--muted: 217.2 32.6% 17.5%;
-		--muted-foreground: 215 20.2% 65.1%;
-		--accent: 217.2 32.6% 17.5%;
-		--accent-foreground: 210 40% 98%;
-		--destructive: 0 62.8% 30.6%;
-		--destructive-foreground: 210 40% 98%;
-		--border: 217.2 32.6% 17.5%;
-		--input: 217.2 32.6% 17.5%;
-		--ring: 224.3 76.3% 48%;
+		--background: 2 6 23;
+		--foreground: 248 250 252;
+		--card: 15 23 42;
+		--card-foreground: 248 250 252;
+		--popover: 15 23 42;
+		--popover-foreground: 248 250 252;
+		--primary: 96 165 250;
+		--primary-foreground: 2 6 23;
+		--secondary: 30 41 59;
+		--secondary-foreground: 248 250 252;
+		--muted: 30 41 59;
+		--muted-foreground: 148 163 184;
+		--accent: 30 41 59;
+		--accent-foreground: 248 250 252;
+		--destructive: 220 38 38;
+		--destructive-foreground: 248 250 252;
+		--border: 30 41 59;
+		--input: 30 41 59;
+		--ring: 147 197 253;
 	}
 }
 
@@ -95,7 +98,7 @@
 		@apply border-border;
 	}
 	body {
-		@apply bg-background text-foreground;
+		@apply bg-background text-foreground antialiased;
 		font-feature-settings:
 			'rlig' 1,
 			'calt' 1;
@@ -109,139 +112,141 @@ body {
 	padding: 0;
 }
 
+/* 现代化组件样式 */
 @layer components {
-	/* 主题相关组件样式 */
-	.bg-primary {
-		background-color: var(--color-primary);
-		color: var(--color-primary-foreground);
+	/* 玻璃态效果 */
+	.glass {
+		@apply bg-white/80 backdrop-blur-md border border-white/20;
+	}
+	
+	.glass-dark {
+		@apply bg-slate-900/80 backdrop-blur-md border border-slate-700/50;
 	}
 
-	.bg-secondary {
-		background-color: var(--color-secondary);
-		color: var(--color-secondary-foreground);
+	/* 现代化卡片 */
+	.modern-card {
+		@apply bg-white/90 backdrop-blur-sm border border-slate-200 rounded-2xl shadow-soft hover:shadow-medium transition-all duration-300;
 	}
 
-	.bg-accent {
-		background-color: var(--color-accent);
-		color: var(--color-accent-foreground);
+	.modern-card-dark {
+		@apply bg-slate-800/90 backdrop-blur-sm border border-slate-700 rounded-2xl shadow-soft;
 	}
 
-	.text-primary {
-		color: var(--color-primary);
+	/* 现代化按钮 */
+	.modern-btn {
+		@apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
 	}
 
-	.text-secondary {
-		color: var(--color-secondary);
+	.modern-btn-primary {
+		@apply modern-btn bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 shadow-soft hover:shadow-medium;
 	}
 
-	.text-accent {
-		color: var(--color-accent);
+	.modern-btn-secondary {
+		@apply modern-btn bg-slate-100 text-slate-900 hover:bg-slate-200 focus:ring-slate-500;
 	}
 
-	.border-primary {
-		border-color: var(--color-primary);
+	.modern-btn-ghost {
+		@apply modern-btn text-slate-700 hover:bg-slate-100 focus:ring-slate-500;
 	}
 
-	.border-secondary {
-		border-color: var(--color-secondary);
+	/* 现代化输入框 */
+	.modern-input {
+		@apply w-full rounded-lg border border-slate-300 bg-white/50 backdrop-blur-sm px-3 py-2 text-sm placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all duration-200;
 	}
 
-	.border-accent {
-		border-color: var(--color-accent);
+	/* 渐变背景 */
+	.gradient-bg {
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 	}
 
-	/* 功能色彩组件样式 */
-	.bg-success {
-		background-color: var(--color-success);
-		color: var(--color-success-foreground);
+	.gradient-bg-light {
+		background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
 	}
 
-	.bg-warning {
-		background-color: var(--color-warning);
-		color: var(--color-warning-foreground);
+	/* 动态阴影 */
+	.dynamic-shadow {
+		@apply transition-shadow duration-300 hover:shadow-xl;
 	}
 
-	.bg-error {
-		background-color: var(--color-error);
-		color: var(--color-error-foreground);
+	/* 现代化状态徽章 */
+	.status-badge {
+		@apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
 	}
 
-	.bg-info {
-		background-color: var(--color-info);
-		color: var(--color-info-foreground);
+	.status-success {
+		@apply status-badge bg-green-100 text-green-700 ring-1 ring-green-600/20;
 	}
 
-	.text-success {
-		color: var(--color-success);
+	.status-warning {
+		@apply status-badge bg-yellow-100 text-yellow-700 ring-1 ring-yellow-600/20;
 	}
 
-	.text-warning {
-		color: var(--color-warning);
+	.status-error {
+		@apply status-badge bg-red-100 text-red-700 ring-1 ring-red-600/20;
 	}
 
-	.text-error {
-		color: var(--color-error);
+	.status-info {
+		@apply status-badge bg-blue-100 text-blue-700 ring-1 ring-blue-600/20;
 	}
 
-	.text-info {
-		color: var(--color-info);
+	/* 现代化导航 */
+	.nav-item {
+		@apply flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200 hover:bg-slate-100 focus:bg-slate-100 focus:outline-none;
 	}
 
-	/* 语义色彩组件样式 */
-	.bg-app {
-		background-color: var(--color-background);
-		color: var(--color-foreground);
+	.nav-item-active {
+		@apply nav-item bg-blue-100 text-blue-700 hover:bg-blue-200;
 	}
 
-	.bg-card {
-		background-color: var(--color-card);
-		color: var(--color-card-foreground);
+	/* Notification styles */
+	.notification-container {
+		@apply fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none;
 	}
 
-	.bg-header {
-		background-color: var(--color-card);
-		color: var(--color-card-foreground);
+	.notification {
+		@apply pointer-events-auto relative flex w-full max-w-sm items-center justify-between space-x-4 overflow-hidden rounded-xl border p-4 shadow-hard backdrop-blur-sm transition-all;
 	}
 
-	.border-app {
-		border-color: var(--color-border);
+	.notification-success {
+		@apply notification bg-green-50/90 text-green-800 border-green-200;
 	}
-}
 
-.theme-preview {
-	@apply relative isolate overflow-hidden rounded-lg bg-white px-6 py-24 shadow-2xl sm:px-24 xl:py-32;
-}
+	.notification-error {
+		@apply notification bg-red-50/90 text-red-800 border-red-200;
+	}
 
-.theme-preview::before {
-	content: '';
-	@apply absolute inset-0 -z-10 bg-gradient-to-br from-primary/20 to-secondary/20;
-}
+	.notification-warning {
+		@apply notification bg-yellow-50/90 text-yellow-800 border-yellow-200;
+	}
 
-.theme-preview::after {
-	content: '';
-	@apply absolute inset-0 -z-10 bg-gradient-to-br from-accent/10 to-muted/10;
-}
+	.notification-info {
+		@apply notification bg-blue-50/90 text-blue-800 border-blue-200;
+	}
 
-.notification-container {
-	@apply fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none;
-}
+	/* Loading animations */
+	.loading-dots {
+		@apply inline-flex space-x-1;
+	}
 
-.notification {
-	@apply pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all;
-}
+	.loading-dots > div {
+		@apply h-2 w-2 bg-current rounded-full animate-pulse;
+		animation-delay: calc(var(--i) * 0.2s);
+	}
 
-.notification-success {
-	@apply bg-green-50 text-green-800 border-green-200;
-}
+	/* Form enhancements */
+	.form-field {
+		@apply space-y-2;
+	}
 
-.notification-error {
-	@apply bg-red-50 text-red-800 border-red-200;
-}
+	.form-label {
+		@apply text-sm font-medium text-slate-700;
+	}
 
-.notification-warning {
-	@apply bg-yellow-50 text-yellow-800 border-yellow-200;
-}
+	.form-error {
+		@apply text-sm text-red-600;
+	}
 
-.notification-info {
-	@apply bg-blue-50 text-blue-800 border-blue-200;
+	.form-helper {
+		@apply text-xs text-slate-500;
+	}
 }

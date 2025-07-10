@@ -15,7 +15,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/StellarServer/internal/models"
 	"github.com/StellarServer/internal/utils"
@@ -69,491 +68,156 @@ type CreateAssetRequest struct {
 func (h *AssetHandler) CreateAsset(c *gin.Context) {
 	var req CreateAssetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的请求参数",
+			"details": err.Error(),
+		})
 		return
 	}
 
-	var err error
-
+	// 验证项目ID
 	projectID, err := primitive.ObjectIDFromHex(req.ProjectID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的项目ID",
+		})
 		return
 	}
 
+	// 验证项目是否存在
 	var project models.Project
 	err = h.DB.Collection("projects").FindOne(c, bson.M{"_id": projectID}).Decode(&project)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{
+				"code":    404,
+				"message": "项目不存在",
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    500,
+				"message": "查询项目失败",
+				"details": err.Error(),
+			})
+		}
 		return
 	}
 
 	now := time.Now()
 
+	// 创建基础资产
+	baseAsset := models.BaseAsset{
+		CreatedAt:    now,
+		UpdatedAt:    now,
+		LastScanTime: now,
+		Type:         req.Type,
+		ProjectID:    projectID,
+		Tags:         req.Tags,
+		TaskName:     req.TaskName,
+		RootDomain:   req.RootDomain,
+	}
+
+	// 根据类型创建具体资产
+	var asset interface{}
+	var id primitive.ObjectID
+
 	switch req.Type {
 	case models.AssetTypeDomain:
-		asset := &models.DomainAsset{
-			BaseAsset: models.BaseAsset{
-				CreatedAt:    now,
-				UpdatedAt:    now,
-				LastScanTime: now,
-				Type:         req.Type,
-				ProjectID:    projectID,
-				Tags:         req.Tags,
-				TaskName:     req.TaskName,
-				RootDomain:   req.RootDomain,
-			},
+		domainAsset := &models.DomainAsset{
+			BaseAsset: baseAsset,
 		}
+		// 填充域名特定字段
 		if domain, ok := req.Data["domain"].(string); ok {
-			asset.Domain = domain
+			domainAsset.Domain = domain
 		}
 		if ips, ok := req.Data["ips"].([]interface{}); ok {
 			for _, ip := range ips {
 				if ipStr, ok := ip.(string); ok {
-					asset.IPs = append(asset.IPs, ipStr)
+					domainAsset.IPs = append(domainAsset.IPs, ipStr)
 				}
 			}
 		}
 		if whois, ok := req.Data["whois"].(string); ok {
-			asset.Whois = whois
+			domainAsset.Whois = whois
 		}
 		if icpInfo, ok := req.Data["icpInfo"].(map[string]interface{}); ok {
-			asset.ICPInfo = &models.ICPInfo{
+			domainAsset.ICPInfo = &models.ICPInfo{
 				ICPNo:       utils.GetStringFromMap(icpInfo, "icpNo"),
 				CompanyName: utils.GetStringFromMap(icpInfo, "companyName"),
 				CompanyType: utils.GetStringFromMap(icpInfo, "companyType"),
 				UpdateTime:  utils.GetStringFromMap(icpInfo, "updateTime"),
 			}
 		}
-		id, err := h.AssetRepo.CreateAsset(c, req.Type, asset)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		asset.ID = id
-		c.JSON(http.StatusOK, gin.H{"data": asset})
-		return
+		asset = domainAsset
 
 	case models.AssetTypeSubdomain:
-		asset := &models.SubdomainAsset{
-			BaseAsset: models.BaseAsset{
-				CreatedAt:    now,
-				UpdatedAt:    now,
-				LastScanTime: now,
-				Type:         req.Type,
-				ProjectID:    projectID,
-				Tags:         req.Tags,
-				TaskName:     req.TaskName,
-				RootDomain:   req.RootDomain,
-			},
+		subdomainAsset := &models.SubdomainAsset{
+			BaseAsset: baseAsset,
 		}
+		// 填充子域名特定字段
 		if host, ok := req.Data["host"].(string); ok {
-			asset.Host = host
+			subdomainAsset.Host = host
 		}
 		if ips, ok := req.Data["ips"].([]interface{}); ok {
 			for _, ip := range ips {
 				if ipStr, ok := ip.(string); ok {
-					asset.IPs = append(asset.IPs, ipStr)
+					subdomainAsset.IPs = append(subdomainAsset.IPs, ipStr)
 				}
 			}
 		}
 		if cname, ok := req.Data["cname"].(string); ok {
-			asset.CNAME = cname
+			subdomainAsset.CNAME = cname
 		}
 		if dnsType, ok := req.Data["dnsType"].(string); ok {
-			asset.Type = dnsType
+			subdomainAsset.Type = dnsType
 		}
 		if value, ok := req.Data["value"].([]interface{}); ok {
 			for _, v := range value {
 				if vStr, ok := v.(string); ok {
-					asset.Value = append(asset.Value, vStr)
+					subdomainAsset.Value = append(subdomainAsset.Value, vStr)
 				}
 			}
 		}
 		if takeOver, ok := req.Data["takeOver"].(bool); ok {
-			asset.TakeOver = takeOver
+			subdomainAsset.TakeOver = takeOver
 		}
-		id, err := h.AssetRepo.CreateAsset(c, req.Type, asset)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		asset.ID = id
-		c.JSON(http.StatusOK, gin.H{"data": asset})
-		return
+		asset = subdomainAsset
 
-	case models.AssetTypeIP:
-		asset := &models.IPAsset{
-			BaseAsset: models.BaseAsset{
-				CreatedAt:    now,
-				UpdatedAt:    now,
-				LastScanTime: now,
-				Type:         req.Type,
-				ProjectID:    projectID,
-				Tags:         req.Tags,
-				TaskName:     req.TaskName,
-				RootDomain:   req.RootDomain,
-			},
-		}
-		if ip, ok := req.Data["ip"].(string); ok {
-			asset.IP = ip
-		}
-		if asn, ok := req.Data["asn"].(string); ok {
-			asset.ASN = asn
-		}
-		if isp, ok := req.Data["isp"].(string); ok {
-			asset.ISP = isp
-		}
-		if location, ok := req.Data["location"].(map[string]interface{}); ok {
-			asset.Location = &models.IPLocation{
-				Country:     utils.GetStringFromMap(location, "country"),
-				CountryCode: utils.GetStringFromMap(location, "countryCode"),
-				Region:      utils.GetStringFromMap(location, "region"),
-				City:        utils.GetStringFromMap(location, "city"),
-			}
-			if lat, ok := location["latitude"].(float64); ok {
-				asset.Location.Latitude = lat
-			}
-			if lng, ok := location["longitude"].(float64); ok {
-				asset.Location.Longitude = lng
-			}
-		}
-		if fingerprint, ok := req.Data["fingerprint"].(map[string]interface{}); ok {
-			asset.Fingerprint = fingerprint
-		}
-		id, err := h.AssetRepo.CreateAsset(c, req.Type, asset)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		asset.ID = id
-		c.JSON(http.StatusOK, gin.H{"data": asset})
-		return
-
-	case models.AssetTypePort:
-		asset := &models.PortAsset{
-			BaseAsset: models.BaseAsset{
-				CreatedAt:    now,
-				UpdatedAt:    now,
-				LastScanTime: now,
-				Type:         req.Type,
-				ProjectID:    projectID,
-				Tags:         req.Tags,
-				TaskName:     req.TaskName,
-				RootDomain:   req.RootDomain,
-			},
-		}
-		if ip, ok := req.Data["ip"].(string); ok {
-			asset.IP = ip
-		}
-		if port, ok := req.Data["port"].(float64); ok {
-			asset.Port = int(port)
-		}
-		if service, ok := req.Data["service"].(string); ok {
-			asset.Service = service
-		}
-		if protocol, ok := req.Data["protocol"].(string); ok {
-			asset.Protocol = protocol
-		}
-		if version, ok := req.Data["version"].(string); ok {
-			asset.Version = version
-		}
-		if banner, ok := req.Data["banner"].(string); ok {
-			asset.Banner = banner
-		}
-		if tls, ok := req.Data["tls"].(bool); ok {
-			asset.TLS = tls
-		}
-		if transport, ok := req.Data["transport"].(string); ok {
-			asset.Transport = transport
-		}
-		if status, ok := req.Data["status"].(string); ok {
-			asset.Status = status
-		}
-		id, err := h.AssetRepo.CreateAsset(c, req.Type, asset)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		asset.ID = id
-		c.JSON(http.StatusOK, gin.H{"data": asset})
-		return
-
-	case models.AssetTypeURL:
-		asset := &models.URLAsset{
-			BaseAsset: models.BaseAsset{
-				CreatedAt:    now,
-				UpdatedAt:    now,
-				LastScanTime: now,
-				Type:         req.Type,
-				ProjectID:    projectID,
-				Tags:         req.Tags,
-				TaskName:     req.TaskName,
-				RootDomain:   req.RootDomain,
-			},
-		}
-		if url, ok := req.Data["url"].(string); ok {
-			asset.URL = url
-		}
-		if host, ok := req.Data["host"].(string); ok {
-			asset.Host = host
-		}
-		if path, ok := req.Data["path"].(string); ok {
-			asset.Path = path
-		}
-		if query, ok := req.Data["query"].(string); ok {
-			asset.Query = query
-		}
-		if fragment, ok := req.Data["fragment"].(string); ok {
-			asset.Fragment = fragment
-		}
-		if statusCode, ok := req.Data["statusCode"].(float64); ok {
-			asset.StatusCode = int(statusCode)
-		}
-		if title, ok := req.Data["title"].(string); ok {
-			asset.Title = title
-		}
-		if contentType, ok := req.Data["contentType"].(string); ok {
-			asset.ContentType = contentType
-		}
-		if contentLength, ok := req.Data["contentLength"].(float64); ok {
-			asset.ContentLength = int(contentLength)
-		}
-		if hash, ok := req.Data["hash"].(string); ok {
-			asset.Hash = hash
-		}
-		if screenshot, ok := req.Data["screenshot"].(string); ok {
-			asset.Screenshot = screenshot
-		}
-		if technologies, ok := req.Data["technologies"].([]interface{}); ok {
-			for _, tech := range technologies {
-				if techStr, ok := tech.(string); ok {
-					asset.Technologies = append(asset.Technologies, techStr)
-				}
-			}
-		}
-		if headers, ok := req.Data["headers"].(map[string]interface{}); ok {
-			asset.Headers = make(map[string]string)
-			for k, v := range headers {
-				if vStr, ok := v.(string); ok {
-					asset.Headers[k] = vStr
-				}
-			}
-		}
-		if favicon, ok := req.Data["favicon"].(map[string]interface{}); ok {
-			asset.Favicon = &models.FaviconInfo{
-				Path:    utils.GetStringFromMap(favicon, "path"),
-				MMH3:    utils.GetStringFromMap(favicon, "mmh3"),
-				Content: utils.GetStringFromMap(favicon, "content"),
-			}
-		}
-		if metadata, ok := req.Data["metadata"].(map[string]interface{}); ok {
-			asset.Metadata = metadata
-		}
-		id, err := h.AssetRepo.CreateAsset(c, req.Type, asset)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		asset.ID = id
-		c.JSON(http.StatusOK, gin.H{"data": asset})
-		return
-
-	case models.AssetTypeHTTP:
-		asset := &models.HTTPAsset{
-			BaseAsset: models.BaseAsset{
-				CreatedAt:    now,
-				UpdatedAt:    now,
-				LastScanTime: now,
-				Type:         req.Type,
-				ProjectID:    projectID,
-				Tags:         req.Tags,
-				TaskName:     req.TaskName,
-				RootDomain:   req.RootDomain,
-			},
-		}
-		if host, ok := req.Data["host"].(string); ok {
-			asset.Host = host
-		}
-		if ip, ok := req.Data["ip"].(string); ok {
-			asset.IP = ip
-		}
-		if port, ok := req.Data["port"].(float64); ok {
-			asset.Port = int(port)
-		}
-		if url, ok := req.Data["url"].(string); ok {
-			asset.URL = url
-		}
-		if title, ok := req.Data["title"].(string); ok {
-			asset.Title = title
-		}
-		if statusCode, ok := req.Data["statusCode"].(float64); ok {
-			asset.StatusCode = int(statusCode)
-		}
-		if contentType, ok := req.Data["contentType"].(string); ok {
-			asset.ContentType = contentType
-		}
-		if contentLength, ok := req.Data["contentLength"].(float64); ok {
-			asset.ContentLength = int(contentLength)
-		}
-		if webServer, ok := req.Data["webServer"].(string); ok {
-			asset.WebServer = webServer
-		}
-		if tls, ok := req.Data["tls"].(bool); ok {
-			asset.TLS = tls
-		}
-		if hash, ok := req.Data["hash"].(string); ok {
-			asset.Hash = hash
-		}
-		if cdnName, ok := req.Data["cdnName"].(string); ok {
-			asset.CDNName = cdnName
-		}
-		if cdn, ok := req.Data["cdn"].(bool); ok {
-			asset.CDN = cdn
-		}
-		if screenshot, ok := req.Data["screenshot"].(string); ok {
-			asset.Screenshot = screenshot
-		}
-		if technologies, ok := req.Data["technologies"].([]interface{}); ok {
-			for _, tech := range technologies {
-				if techStr, ok := tech.(string); ok {
-					asset.Technologies = append(asset.Technologies, techStr)
-				}
-			}
-		}
-		if headers, ok := req.Data["headers"].(map[string]interface{}); ok {
-			asset.Headers = make(map[string]string)
-			for k, v := range headers {
-				if vStr, ok := v.(string); ok {
-					asset.Headers[k] = vStr
-				}
-			}
-		}
-		if favicon, ok := req.Data["favicon"].(map[string]interface{}); ok {
-			asset.Favicon = &models.FaviconInfo{
-				Path:    utils.GetStringFromMap(favicon, "path"),
-				MMH3:    utils.GetStringFromMap(favicon, "mmh3"),
-				Content: utils.GetStringFromMap(favicon, "content"),
-			}
-		}
-		if jarm, ok := req.Data["jarm"].(string); ok {
-			asset.JARM = jarm
-		}
-		if metadata, ok := req.Data["metadata"].(map[string]interface{}); ok {
-			asset.Metadata = metadata
-		}
-		id, err := h.AssetRepo.CreateAsset(c, req.Type, asset)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		asset.ID = id
-		c.JSON(http.StatusOK, gin.H{"data": asset})
-		return
-
-	case models.AssetTypeApp:
-		asset := &models.AppAsset{
-			BaseAsset: models.BaseAsset{
-				CreatedAt:    now,
-				UpdatedAt:    now,
-				LastScanTime: now,
-				Type:         req.Type,
-				ProjectID:    projectID,
-				Tags:         req.Tags,
-				TaskName:     req.TaskName,
-				RootDomain:   req.RootDomain,
-			},
-		}
-		if appName, ok := req.Data["appName"].(string); ok {
-			asset.AppName = appName
-		}
-		if packageName, ok := req.Data["packageName"].(string); ok {
-			asset.PackageName = packageName
-		}
-		if platform, ok := req.Data["platform"].(string); ok {
-			asset.Platform = platform
-		}
-		if version, ok := req.Data["version"].(string); ok {
-			asset.Version = version
-		}
-		if developer, ok := req.Data["developer"].(string); ok {
-			asset.Developer = developer
-		}
-		if downloadURL, ok := req.Data["downloadUrl"].(string); ok {
-			asset.DownloadURL = downloadURL
-		}
-		if description, ok := req.Data["description"].(string); ok {
-			asset.Description = description
-		}
-		if permissions, ok := req.Data["permissions"].([]interface{}); ok {
-			for _, perm := range permissions {
-				if permStr, ok := perm.(string); ok {
-					asset.Permissions = append(asset.Permissions, permStr)
-				}
-			}
-		}
-		if sha256, ok := req.Data["sha256"].(string); ok {
-			asset.SHA256 = sha256
-		}
-		if iconURL, ok := req.Data["iconUrl"].(string); ok {
-			asset.IconURL = iconURL
-		}
-		if metadata, ok := req.Data["metadata"].(map[string]interface{}); ok {
-			asset.Metadata = metadata
-		}
-		id, err := h.AssetRepo.CreateAsset(c, req.Type, asset)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		asset.ID = id
-		c.JSON(http.StatusOK, gin.H{"data": asset})
-		return
-
-	case models.AssetTypeMiniApp:
-		asset := &models.MiniAppAsset{
-			BaseAsset: models.BaseAsset{
-				CreatedAt:    now,
-				UpdatedAt:    now,
-				LastScanTime: now,
-				Type:         req.Type,
-				ProjectID:    projectID,
-				Tags:         req.Tags,
-				TaskName:     req.TaskName,
-				RootDomain:   req.RootDomain,
-			},
-		}
-
-		// 填充特定字段
-		if appName, ok := req.Data["appName"].(string); ok {
-			asset.AppName = appName
-		}
-		if appID, ok := req.Data["appId"].(string); ok {
-			asset.AppID = appID
-		}
-		if platform, ok := req.Data["platform"].(string); ok {
-			asset.Platform = platform
-		}
-		if developer, ok := req.Data["developer"].(string); ok {
-			asset.Developer = developer
-		}
-		if description, ok := req.Data["description"].(string); ok {
-			asset.Description = description
-		}
-		if iconURL, ok := req.Data["iconUrl"].(string); ok {
-			asset.IconURL = iconURL
-		}
-		if qrCodeURL, ok := req.Data["qrCodeUrl"].(string); ok {
-			asset.QRCodeURL = qrCodeURL
-		}
-		if metadata, ok := req.Data["metadata"].(map[string]interface{}); ok {
-			asset.Metadata = metadata
-		}
-
+	// 其他资产类型处理...
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported asset type"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "不支持的资产类型",
+		})
 		return
 	}
+
+	// 创建资产
+	id, err = h.AssetRepo.CreateAsset(c, req.Type, asset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "创建资产失败",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// 设置ID并返回
+	switch a := asset.(type) {
+	case *models.DomainAsset:
+		a.ID = id
+	case *models.SubdomainAsset:
+		a.ID = id
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"code": 201,
+		"message": "资产创建成功",
+		"data": asset,
+	})
 }
 
 // ListAssetsRequest 列出资产的请求
@@ -571,93 +235,121 @@ type ListAssetsRequest struct {
 
 // ListAssets 列出资产
 func (h *AssetHandler) ListAssets(c *gin.Context) {
-	var req ListAssetsRequest
+	var req struct {
+		ProjectID  string           `form:"projectId"`
+		Type       models.AssetType `form:"type"`
+		RootDomain string           `form:"rootDomain"`
+		Tags       []string         `form:"tags"`
+		TaskName   string           `form:"taskName"`
+		Search     string           `form:"search"`
+		Page       int              `form:"page,default=1"`
+		PageSize   int              `form:"pageSize,default=20"`
+		SortBy     string           `form:"sortBy,default=createdAt"`
+		SortDesc   bool             `form:"sortDesc,default=true"`
+		StartTime  string           `form:"startTime"`
+		EndTime    string           `form:"endTime"`
+	}
+
 	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的查询参数",
+			"details": err.Error(),
+		})
 		return
 	}
 
-	// 构建查询条件
-	filter := bson.M{}
+	// 验证资产类型
+	if req.Type == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "资产类型不能为空",
+		})
+		return
+	}
 
-	// 项目ID过滤
+	// 构建筛选条件
+	filter := &models.AssetFilter{}
+
+	// 项目ID筛选
 	if req.ProjectID != "" {
 		projectID, err := primitive.ObjectIDFromHex(req.ProjectID)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+			c.JSON(http.StatusBadRequest, gin.H{
+				"code":    400,
+				"message": "无效的项目ID",
+			})
 			return
 		}
-		filter["projectId"] = projectID
+		filter.ProjectID = &projectID
 	}
 
-	// 资产类型过滤
-	if req.Type != "" {
-		filter["type"] = req.Type
-	}
-
-	// 根域名过滤
+	// 其他筛选条件
 	if req.RootDomain != "" {
-		filter["rootDomain"] = req.RootDomain
+		filter.RootDomain = &req.RootDomain
 	}
-
-	// 标签过滤
+	if req.TaskName != "" {
+		filter.TaskName = &req.TaskName
+	}
 	if len(req.Tags) > 0 {
-		filter["tags"] = bson.M{"$in": req.Tags}
+		filter.Tags = req.Tags
+	}
+	if req.Search != "" {
+		filter.Search = &req.Search
 	}
 
-	// 全文搜索
-	if req.Query != "" {
-		filter["$text"] = bson.M{"$search": req.Query}
+	// 时间范围筛选
+	if req.StartTime != "" || req.EndTime != "" {
+		dateRange := &models.DateRange{}
+		if req.StartTime != "" {
+			startTime, err := time.Parse(time.RFC3339, req.StartTime)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"code":    400,
+					"message": "无效的开始时间格式",
+				})
+				return
+			}
+			dateRange.StartTime = &startTime
+		}
+		if req.EndTime != "" {
+			endTime, err := time.Parse(time.RFC3339, req.EndTime)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"code":    400,
+					"message": "无效的结束时间格式",
+				})
+				return
+			}
+			dateRange.EndTime = &endTime
+		}
+		filter.DateRange = dateRange
 	}
 
-	// 分页
-	skip := (req.Page - 1) * req.PageSize
-	limit := req.PageSize
-
-	// 排序
-	sort := bson.D{{req.SortBy, req.SortOrder}}
-
-	// 查询选项
-	opts := options.Find().
-		SetSkip(int64(skip)).
-		SetLimit(int64(limit)).
-		SetSort(sort)
-
-	// 确定集合名称
-	collectionName := models.AssetCollection(req.Type)
-	if req.Type == "" {
-		// 如果未指定类型，默认查询所有类型的资产
-		// 这里需要实现跨集合查询，或者选择一个默认集合
-		collectionName = "domain_assets" // 默认查询域名资产
+	// 构建查询选项
+	opts := models.AssetListOptions{
+		Filter:   filter,
+		Page:     req.Page,
+		PageSize: req.PageSize,
+		SortBy:   req.SortBy,
+		SortDesc: req.SortDesc,
 	}
 
-	// 执行查询
-	cursor, err := h.DB.Collection(collectionName).Find(c, filter, opts)
+	// 使用Repository查询
+	result, err := h.AssetRepo.ListAssets(c, req.Type, opts)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	defer cursor.Close(c)
-
-	// 获取总数
-	total, err := h.DB.Collection(collectionName).CountDocuments(c, filter)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "查询资产失败",
+			"details": err.Error(),
+		})
 		return
 	}
 
-	// 解析结果
-	var assets []map[string]interface{}
-	if err := cursor.All(c, &assets); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
+	// 返回结果
 	c.JSON(http.StatusOK, gin.H{
-		"total": total,
-		"page":  req.Page,
-		"size":  req.PageSize,
-		"data":  assets,
+		"code": 200,
+		"data": result,
 	})
 }
 
@@ -669,32 +361,46 @@ func (h *AssetHandler) GetAsset(c *gin.Context) {
 	// 验证ID
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid asset ID"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的资产ID",
+			"details": err.Error(),
+		})
 		return
 	}
 
 	// 验证资产类型
 	if assetType == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Asset type is required"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "资产类型不能为空",
+		})
 		return
 	}
 
-	// 确定集合名称
-	collectionName := models.AssetCollection(models.AssetType(assetType))
-
-	// 查询资产
-	var asset map[string]interface{}
-	err = h.DB.Collection(collectionName).FindOne(c, bson.M{"_id": objectID}).Decode(&asset)
+	// 使用Repository查询资产
+	var asset interface{}
+	err = h.AssetRepo.FindAssetByID(c, models.AssetType(assetType), objectID, &asset)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Asset not found"})
-			return
+			c.JSON(http.StatusNotFound, gin.H{
+				"code":    404,
+				"message": "资产不存在",
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    500,
+				"message": "查询资产失败",
+				"details": err.Error(),
+			})
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, asset)
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"data": asset,
+	})
 }
 
 // UpdateAsset 更新资产
@@ -706,29 +412,41 @@ func (h *AssetHandler) UpdateAsset(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的请求参数",
+			"details": err.Error(),
+		})
 		return
 	}
 
 	// 验证ID
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid asset ID"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的资产ID",
+			"details": err.Error(),
+		})
 		return
 	}
 
-	// 确定集合名称
-	collectionName := models.AssetCollection(req.Type)
-
-	// 获取当前资产
-	var currentAsset map[string]interface{}
-	err = h.DB.Collection(collectionName).FindOne(c, bson.M{"_id": objectID}).Decode(&currentAsset)
+	// 验证资产是否存在
+	var existingAsset interface{}
+	err = h.AssetRepo.FindAssetByID(c, req.Type, objectID, &existingAsset)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Asset not found"})
-			return
+			c.JSON(http.StatusNotFound, gin.H{
+				"code":    404,
+				"message": "资产不存在",
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    500,
+				"message": "查询资产失败",
+				"details": err.Error(),
+			})
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -741,24 +459,26 @@ func (h *AssetHandler) UpdateAsset(c *gin.Context) {
 
 	// 添加其他需要更新的字段
 	for k, v := range req.Data {
-		if k != "_id" && k != "createdAt" && k != "type" { // 保护某些字段不被更新
+		if k != "_id" && k != "createdAt" && k != "type" && k != "projectId" { // 保护某些字段不被更新
 			update["$set"].(bson.M)[k] = v
 		}
 	}
 
-	// 执行更新
-	_, err = h.DB.Collection(collectionName).UpdateOne(
-		c,
-		bson.M{"_id": objectID},
-		update,
-	)
-
+	// 使用Repository更新资产
+	err = h.AssetRepo.UpdateAsset(c, req.Type, objectID, update)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "更新资产失败",
+			"details": err.Error(),
+		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Asset updated successfully"})
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "资产更新成功",
+	})
 }
 
 // DeleteAsset 删除资产
@@ -769,28 +489,50 @@ func (h *AssetHandler) DeleteAsset(c *gin.Context) {
 	// 验证ID
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid asset ID"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的资产ID",
+			"details": err.Error(),
+		})
 		return
 	}
 
 	// 验证资产类型
 	if assetType == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Asset type is required"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "资产类型不能为空",
+		})
 		return
 	}
 
-	// 确定集合名称
-	collectionName := models.AssetCollection(models.AssetType(assetType))
-
-	// 删除资产
-	result, err := h.DB.Collection(collectionName).DeleteOne(c, bson.M{"_id": objectID})
+	// 验证资产是否存在
+	var existingAsset interface{}
+	err = h.AssetRepo.FindAssetByID(c, models.AssetType(assetType), objectID, &existingAsset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{
+				"code":    404,
+				"message": "资产不存在",
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    500,
+				"message": "查询资产失败",
+				"details": err.Error(),
+			})
+		}
 		return
 	}
 
-	if result.DeletedCount == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Asset not found"})
+	// 使用Repository删除资产
+	err = h.AssetRepo.DeleteAsset(c, models.AssetType(assetType), objectID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "删除资产失败",
+			"details": err.Error(),
+		})
 		return
 	}
 
@@ -805,9 +547,13 @@ func (h *AssetHandler) DeleteAsset(c *gin.Context) {
 	if err != nil {
 		// 仅记录错误，不影响主要操作的结果
 		// TODO: 记录日志
+		log.Printf("删除资产关系失败: %v", err)
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Asset deleted successfully"})
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "资产删除成功",
+	})
 }
 
 // BatchCreateAssets 批量创建资产
@@ -822,14 +568,22 @@ func (h *AssetHandler) BatchCreateAssets(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的请求参数",
+			"details": err.Error(),
+		})
 		return
 	}
 
 	// 验证项目ID
 	projectID, err := primitive.ObjectIDFromHex(req.ProjectID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的项目ID",
+			"details": err.Error(),
+		})
 		return
 	}
 
@@ -837,20 +591,27 @@ func (h *AssetHandler) BatchCreateAssets(c *gin.Context) {
 	var project models.Project
 	err = h.DB.Collection("projects").FindOne(c, bson.M{"_id": projectID}).Decode(&project)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{
+				"code":    404,
+				"message": "项目不存在",
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    500,
+				"message": "查询项目失败",
+				"details": err.Error(),
+			})
+		}
 		return
 	}
-
-	// 确定集合名称
-	collectionName := models.AssetCollection(req.Type)
 
 	// 准备批量插入的文档
 	now := time.Now()
 	var documents []interface{}
 
 	for _, assetData := range req.Assets {
-		// 根据资产类型创建资产
-		// 这里简化处理，实际应该根据不同类型创建不同的资产对象
+		// 创建基础资产数据
 		asset := bson.M{
 			"createdAt":    now,
 			"updatedAt":    now,
@@ -872,16 +633,24 @@ func (h *AssetHandler) BatchCreateAssets(c *gin.Context) {
 		documents = append(documents, asset)
 	}
 
-	// 执行批量插入
-	result, err := h.DB.Collection(collectionName).InsertMany(c, documents)
+	// 使用Repository执行批量插入
+	insertedIDs, err := h.AssetRepo.BatchCreateAssets(c, req.Type, documents)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "批量创建资产失败",
+			"details": err.Error(),
+		})
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"insertedCount": len(result.InsertedIDs),
-		"insertedIds":   result.InsertedIDs,
+		"code": 201,
+		"message": "批量创建资产成功",
+		"data": gin.H{
+			"insertedCount": len(insertedIDs),
+			"insertedIds":   insertedIDs,
+		},
 	})
 }
 
@@ -893,7 +662,11 @@ func (h *AssetHandler) BatchDeleteAssets(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的请求参数",
+			"details": err.Error(),
+		})
 		return
 	}
 
@@ -902,22 +675,24 @@ func (h *AssetHandler) BatchDeleteAssets(c *gin.Context) {
 	for _, id := range req.IDs {
 		objectID, err := primitive.ObjectIDFromHex(id)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid asset ID: " + id})
+			c.JSON(http.StatusBadRequest, gin.H{
+				"code":    400,
+				"message": "无效的资产ID",
+				"details": fmt.Sprintf("ID %s 格式错误: %v", id, err),
+			})
 			return
 		}
 		objectIDs = append(objectIDs, objectID)
 	}
 
-	// 确定集合名称
-	collectionName := models.AssetCollection(req.Type)
-
-	// 批量删除资产
-	result, err := h.DB.Collection(collectionName).DeleteMany(c, bson.M{
-		"_id": bson.M{"$in": objectIDs},
-	})
-
+	// 使用Repository批量删除资产
+	deletedCount, err := h.AssetRepo.BatchDeleteAssets(c, req.Type, objectIDs)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "批量删除资产失败",
+			"details": err.Error(),
+		})
 		return
 	}
 
@@ -932,10 +707,15 @@ func (h *AssetHandler) BatchDeleteAssets(c *gin.Context) {
 	if err != nil {
 		// 仅记录错误，不影响主要操作的结果
 		// TODO: 记录日志
+		log.Printf("删除资产关系失败: %v", err)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"deletedCount": result.DeletedCount,
+		"code": 200,
+		"message": "批量删除资产成功",
+		"data": gin.H{
+			"deletedCount": deletedCount,
+		},
 	})
 }
 
@@ -1195,14 +975,22 @@ func (h *AssetHandler) CreateAssetRelation(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的请求参数",
+			"details": err.Error(),
+		})
 		return
 	}
 
 	// 验证项目ID
 	objProjectID, err := primitive.ObjectIDFromHex(req.ProjectID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的项目ID",
+			"details": err.Error(),
+		})
 		return
 	}
 
@@ -1210,89 +998,118 @@ func (h *AssetHandler) CreateAssetRelation(c *gin.Context) {
 	var project models.Project
 	err = h.DB.Collection("projects").FindOne(c, bson.M{"_id": objProjectID}).Decode(&project)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{
+				"code":    404,
+				"message": "项目不存在",
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    500,
+				"message": "查询项目失败",
+				"details": err.Error(),
+			})
+		}
 		return
 	}
 
 	// 验证资产ID
 	sourceAssetID, err := primitive.ObjectIDFromHex(req.SourceAssetID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid source asset ID"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的源资产ID",
+			"details": err.Error(),
+		})
 		return
 	}
 
 	targetAssetID, err := primitive.ObjectIDFromHex(req.TargetAssetID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid target asset ID"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的目标资产ID",
+			"details": err.Error(),
+		})
 		return
 	}
 
 	// 创建资产关系
-	relation := bson.M{
-		"sourceAssetId": sourceAssetID,
-		"targetAssetId": targetAssetID,
-		"relationType":  req.RelationType,
-		"projectId":     objProjectID,
+	relation := models.AssetRelation{
+		SourceAssetID: sourceAssetID,
+		TargetAssetID: targetAssetID,
+		RelationType:  req.RelationType,
+		ProjectID:     objProjectID,
 	}
 
-	// 插入关系
-	_, err = h.DB.Collection("asset_relations").InsertOne(c, relation)
+	// 使用Repository插入关系
+	relationID, err := h.AssetRepo.CreateAssetRelation(c, relation)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "创建资产关系失败",
+			"details": err.Error(),
+		})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "Asset relation created successfully"})
+	// 设置ID并返回
+	relation.ID = relationID
+	c.JSON(http.StatusCreated, gin.H{
+		"code": 201,
+		"message": "资产关系创建成功",
+		"data": relation,
+	})
 }
 
 // GetAssetRelations 获取资产关系
 func (h *AssetHandler) GetAssetRelations(c *gin.Context) {
 	// 获取查询参数
 	projectID := c.Query("projectId")
-	assetType := c.Query("type")
+	assetID := c.Query("assetId")
 
 	// 验证项目ID
 	if projectID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Project ID is required"})
-		return
-	}
-
-	// 验证资产类型
-	if assetType == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Asset type is required"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "项目ID不能为空",
+		})
 		return
 	}
 
 	// 验证资产ID
-	objectID, err := primitive.ObjectIDFromHex(assetType)
+	if assetID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "资产ID不能为空",
+		})
+		return
+	}
+
+	// 验证资产ID格式
+	objectID, err := primitive.ObjectIDFromHex(assetID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid asset ID"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的资产ID",
+			"details": err.Error(),
+		})
 		return
 	}
 
-	// 构建查询条件
-	filter := bson.M{
-		"projectId": projectID,
-		"$or": []bson.M{
-			{"sourceAssetId": objectID},
-			{"targetAssetId": objectID},
-		},
-	}
-
-	// 执行查询
-	cursor, err := h.DB.Collection("asset_relations").Find(c, filter)
+	// 使用Repository查询关系
+	relations, err := h.AssetRepo.FindAssetRelations(c, objectID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	defer cursor.Close(c)
-
-	// 解析结果
-	var relations []map[string]interface{}
-	if err := cursor.All(c, &relations); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "查询资产关系失败",
+			"details": err.Error(),
+		})
 		return
 	}
 
-	c.JSON(http.StatusOK, relations)
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"data": relations,
+	})
 }

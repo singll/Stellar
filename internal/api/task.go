@@ -320,9 +320,17 @@ func (api *TaskAPI) UpdateTaskStatus(c *gin.Context) {
 
 	// 如果有结果数据，保存结果
 	if req.ResultData != nil {
+		resultData, ok := req.ResultData.(map[string]interface{})
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"code":    400,
+				"message": "结果数据格式不正确",
+			})
+			return
+		}
 		result := &models.TaskResult{
 			Status:  req.Status,
-			Data:    req.ResultData,
+			Data:    resultData,
 			Summary: "",
 			Error:   req.Error,
 		}
@@ -409,7 +417,8 @@ func (api *TaskAPI) GetTaskResult(c *gin.Context) {
 		"data":        result.Data,
 		"summary":     result.Summary,
 		"createdAt":   result.CreatedAt,
-		"completedAt": result.CompletedAt,
+		"endTime":     result.EndTime,
+		"updatedAt":   result.UpdatedAt,
 		"error":       result.Error,
 	}
 

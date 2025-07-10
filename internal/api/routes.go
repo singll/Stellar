@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/StellarServer/internal/config"
+	"github.com/StellarServer/internal/models"
 	"github.com/StellarServer/internal/plugin"
 	"github.com/StellarServer/internal/services/nodemanager"
 	"github.com/StellarServer/internal/services/pagemonitoring"
@@ -51,7 +52,8 @@ func RegisterAPIRoutes(
 
 	nodesGroup := apiV1.Group("/nodes")
 	nodesGroup.Use(AuthMiddleware())
-	nodeHandler := NewNodeHandler(nodeManager)
+	nodeRepo := models.NewNodeRepository(db)
+	nodeHandler := NewNodeHandler(nodeManager, nodeRepo)
 	nodeHandler.RegisterRoutes(nodesGroup)
 
 	taskAPI := NewTaskAPI(taskManager)

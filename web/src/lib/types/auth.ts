@@ -3,7 +3,11 @@ export interface User {
 	username: string; // 用户名
 	email: string; // 邮箱
 	roles: string[]; // 角色数组
+	role: string; // 主要角色（为了兼容性）
+	permissions?: string[]; // 权限数组
 	created: string; // 创建时间
+	created_at: string; // 创建时间（为了兼容性）
+	updated_at: string; // 更新时间
 	lastLogin: string; // 最后登录时间
 }
 

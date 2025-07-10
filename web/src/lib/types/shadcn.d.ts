@@ -22,22 +22,6 @@ declare module '$lib/components/ui/button' {
 	export class Button extends SvelteComponent<ButtonProps> {}
 }
 
-declare module '$lib/components/ui/card' {
-	interface CardProps extends HTMLAttributes<HTMLDivElement>, CommonProps {}
-	interface CardHeaderProps extends HTMLAttributes<HTMLDivElement>, CommonProps {}
-	interface CardTitleProps extends HTMLAttributes<HTMLHeadingElement>, CommonProps {}
-	interface CardDescriptionProps extends HTMLAttributes<HTMLParagraphElement>, CommonProps {}
-	interface CardContentProps extends HTMLAttributes<HTMLDivElement>, CommonProps {}
-	interface CardFooterProps extends HTMLAttributes<HTMLDivElement>, CommonProps {}
-
-	export class Card extends SvelteComponent<CardProps> {}
-	export class CardHeader extends SvelteComponent<CardHeaderProps> {}
-	export class CardTitle extends SvelteComponent<CardTitleProps> {}
-	export class CardDescription extends SvelteComponent<CardDescriptionProps> {}
-	export class CardContent extends SvelteComponent<CardContentProps> {}
-	export class CardFooter extends SvelteComponent<CardFooterProps> {}
-}
-
 declare module '$lib/components/ui/dialog' {
 	interface DialogProps extends CommonProps {
 		open?: boolean;

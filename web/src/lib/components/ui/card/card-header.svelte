@@ -1,23 +1,18 @@
 <script lang="ts">
-	import { cn, type WithElementRef } from '$lib/utils.js';
+	import { cn } from '$lib/utils';
 	import type { HTMLAttributes } from 'svelte/elements';
 	import type { Snippet } from 'svelte';
 
-	interface Props extends WithElementRef<HTMLAttributes<HTMLDivElement>> {
+	interface Props extends HTMLAttributes<HTMLDivElement> {
 		children?: Snippet;
+		ref?: HTMLDivElement | null;
 	}
 
 	let { ref = $bindable(null), class: className, children, ...restProps }: Props = $props();
 </script>
 
-<div
-	bind:this={ref}
-	data-slot="card-header"
-	class={cn(
-		'@container/card-header has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6',
-		className
-	)}
-	{...restProps}
->
-	{@render children?.()}
+<div bind:this={ref} class={cn('flex flex-col space-y-1.5 p-6', className)} {...restProps}>
+	{#if children}
+		{@render children()}
+	{/if}
 </div>

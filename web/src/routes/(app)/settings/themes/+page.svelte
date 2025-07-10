@@ -21,11 +21,11 @@
 	import type { Theme } from '$lib/types/theme';
 	import { exportTheme, importTheme } from '$lib/utils/theme';
 
-	let createDialogOpen = false;
-	let editDialogOpen = false;
-	let importDialogOpen = false;
-	let selectedTheme: Theme | undefined;
-	let importError: string | undefined;
+	let createDialogOpen = $state(false);
+	let editDialogOpen = $state(false);
+	let importDialogOpen = $state(false);
+	let selectedTheme: Theme | undefined = $state();
+	let importError: string | undefined = $state();
 
 	function handleCreateSubmit(event: CustomEvent<Theme>) {
 		const theme = event.detail;
@@ -66,8 +66,9 @@
 
 		try {
 			const text = await file.text();
-			const theme = importTheme(text);
-			themeActions.addTheme(theme);
+			const themes = importTheme(text);
+			// 添加所有导入的主题
+			themes.forEach((theme) => themeActions.addTheme(theme));
 			importDialogOpen = false;
 			importError = undefined;
 			input.value = '';

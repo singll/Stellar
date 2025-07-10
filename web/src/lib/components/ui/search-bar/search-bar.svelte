@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Input } from '$lib/components/ui/input';
-	import { Search } from 'lucide-svelte';
+	import Icon from '$lib/components/ui/Icon.svelte';
 	import { cn } from '$lib/utils';
 	import { createEventDispatcher } from 'svelte';
 
@@ -28,7 +28,10 @@
 </script>
 
 <div class={cn('relative', className)}>
-	<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+	<Icon
+		name="search"
+		class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+	/>
 	<Input
 		type="search"
 		{placeholder}

@@ -4,12 +4,14 @@
 	import { cn } from '$lib/utils';
 
 	interface Props extends HTMLAttributes<HTMLParagraphElement> {
-		children: Snippet;
+		children?: Snippet;
 	}
 
 	let { class: className, children, ...restProps }: Props = $props();
 </script>
 
-<p class={cn('text-sm text-muted-foreground', className)} {...restProps}>
-	{@render children()}
+<p class={cn('text-sm text-gray-600', className)} {...restProps}>
+	{#if children}
+		{@render children()}
+	{/if}
 </p>

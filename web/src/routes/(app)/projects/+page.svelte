@@ -14,7 +14,7 @@
 		CardTitle
 	} from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
-	import { Search, Plus, MoreHorizontal, Filter, ArrowUpDown } from 'lucide-svelte';
+	import Icon from '$lib/components/ui/Icon.svelte';
 	import { onMount } from 'svelte';
 
 	// 从页面数据获取初始数据
@@ -30,9 +30,14 @@
 
 	// 筛选器状态
 	let filters: ProjectFilters = $state({
-		search: searchQuery,
+		search: '',
 		is_private: undefined,
 		scan_status: undefined
+	});
+
+	// 初始化筛选器
+	$effect(() => {
+		filters.search = searchQuery;
 	});
 
 	// 搜索功能
@@ -155,7 +160,7 @@
 			</div>
 
 			<Button href="/projects/create" class="flex items-center gap-2">
-				<Plus class="h-4 w-4" />
+				<Icon name="plus" class="h-4 w-4" />
 				创建项目
 			</Button>
 		</div>
@@ -202,17 +207,20 @@
 	<!-- 搜索和筛选 -->
 	<div class="flex items-center gap-4 mb-6">
 		<div class="relative flex-1 max-w-md">
-			<Search class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+			<Icon
+				name="search"
+				class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4"
+			/>
 			<Input bind:value={searchQuery} placeholder="搜索项目名称、描述或目标..." class="pl-10" />
 		</div>
 
 		<Button variant="outline" class="flex items-center gap-2">
-			<Filter class="h-4 w-4" />
+			<Icon name="filter" class="h-4 w-4" />
 			筛选
 		</Button>
 
 		<Button variant="outline" class="flex items-center gap-2">
-			<ArrowUpDown class="h-4 w-4" />
+			<Icon name="refresh" class="h-4 w-4" />
 			排序
 		</Button>
 	</div>
@@ -226,7 +234,7 @@
 		<div class="text-center py-12">
 			<div class="text-gray-500 text-lg mb-4">暂无项目</div>
 			<Button href="/projects/create" class="flex items-center gap-2 mx-auto">
-				<Plus class="h-4 w-4" />
+				<Icon name="plus" class="h-4 w-4" />
 				创建第一个项目
 			</Button>
 		</div>
@@ -257,7 +265,7 @@
 								{/if}
 
 								<Button variant="ghost" size="sm" class="h-8 w-8 p-0">
-									<MoreHorizontal class="h-4 w-4" />
+									<Icon name="more-horizontal" class="h-4 w-4" />
 								</Button>
 							</div>
 						</div>

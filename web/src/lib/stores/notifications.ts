@@ -21,7 +21,8 @@ function createNotificationStore(): NotificationStore {
 	return {
 		subscribe,
 		add: (notification) => {
-			const id = crypto.randomUUID();
+			// 使用兼容性更好的 ID 生成方式
+			const id = `notification-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 			update((notifications) => [...notifications, { ...notification, id }]);
 
 			if (notification.duration !== 0) {

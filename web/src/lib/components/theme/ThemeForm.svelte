@@ -11,7 +11,7 @@
 		UpdateThemeRequest,
 		ThemeColors
 	} from '$lib/types/theme';
-	import { createTheme, updateTheme, validateTheme } from '$lib/utils/theme';
+	import { createDefaultTheme, validateTheme } from '$lib/utils/theme';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Button } from '$lib/components/ui/button';
@@ -19,61 +19,69 @@
 	import ColorPicker from './ColorPicker.svelte';
 	import ThemePreview from './ThemePreview.svelte';
 
-	export let theme: Theme | undefined = undefined;
-	export let mode: 'create' | 'edit' = 'create';
+	interface Props {
+		theme?: Theme;
+		mode?: 'create' | 'edit';
+	}
+
+	let { theme, mode = 'create' }: Props = $props();
 
 	const dispatch = createEventDispatcher<{
 		submit: Theme;
 		cancel: void;
 	}>();
 
-	let name = theme?.name ?? '';
-	let description = theme?.description ?? '';
-	let author = theme?.metadata.author ?? '';
+	let name = $state(theme?.name ?? '');
+	let description = $state(theme?.description ?? '');
+	let author = $state(theme?.metadata.author ?? '');
 
-	let lightColors: ThemeColors = theme?.colors.light ?? {
-		primary: '#0284c7',
-		secondary: '#64748b',
-		accent: '#f59e0b',
-		background: '#ffffff',
-		foreground: '#020817',
-		muted: '#f1f5f9',
-		mutedForeground: '#64748b',
-		border: '#e2e8f0',
-		input: '#e2e8f0',
-		ring: '#0284c7',
-		destructive: '#ef4444',
-		destructiveForeground: '#ffffff',
-		success: '#22c55e',
-		successForeground: '#ffffff',
-		warning: '#f59e0b',
-		warningForeground: '#ffffff',
-		info: '#0ea5e9',
-		infoForeground: '#ffffff'
-	};
+	let lightColors = $state<ThemeColors>(
+		theme?.colors.light ?? {
+			primary: '#0284c7',
+			secondary: '#64748b',
+			accent: '#f59e0b',
+			background: '#ffffff',
+			foreground: '#020817',
+			muted: '#f1f5f9',
+			mutedForeground: '#64748b',
+			border: '#e2e8f0',
+			input: '#e2e8f0',
+			ring: '#0284c7',
+			destructive: '#ef4444',
+			destructiveForeground: '#ffffff',
+			success: '#22c55e',
+			successForeground: '#ffffff',
+			warning: '#f59e0b',
+			warningForeground: '#ffffff',
+			info: '#0ea5e9',
+			infoForeground: '#ffffff'
+		}
+	);
 
-	let darkColors: ThemeColors = theme?.colors.dark ?? {
-		primary: '#0ea5e9',
-		secondary: '#94a3b8',
-		accent: '#f59e0b',
-		background: '#020817',
-		foreground: '#ffffff',
-		muted: '#1e293b',
-		mutedForeground: '#94a3b8',
-		border: '#1e293b',
-		input: '#1e293b',
-		ring: '#0ea5e9',
-		destructive: '#ef4444',
-		destructiveForeground: '#ffffff',
-		success: '#22c55e',
-		successForeground: '#ffffff',
-		warning: '#f59e0b',
-		warningForeground: '#ffffff',
-		info: '#0ea5e9',
-		infoForeground: '#ffffff'
-	};
+	let darkColors = $state<ThemeColors>(
+		theme?.colors.dark ?? {
+			primary: '#0ea5e9',
+			secondary: '#94a3b8',
+			accent: '#f59e0b',
+			background: '#020817',
+			foreground: '#ffffff',
+			muted: '#1e293b',
+			mutedForeground: '#94a3b8',
+			border: '#1e293b',
+			input: '#1e293b',
+			ring: '#0ea5e9',
+			destructive: '#ef4444',
+			destructiveForeground: '#ffffff',
+			success: '#22c55e',
+			successForeground: '#ffffff',
+			warning: '#f59e0b',
+			warningForeground: '#ffffff',
+			info: '#0ea5e9',
+			infoForeground: '#ffffff'
+		}
+	);
 
-	let errors: { [key: string]: string } = {};
+	let errors = $state<{ [key: string]: string }>({});
 
 	function validateForm(): boolean {
 		errors = {};
@@ -160,7 +168,13 @@
 	}
 </script>
 
-<form class="grid gap-6" on:submit|preventDefault={handleSubmit}>
+<form
+	class="grid gap-6"
+	onsubmit={(e) => {
+		e.preventDefault();
+		handleSubmit();
+	}}
+>
 	<div class="grid gap-4">
 		<div class="grid gap-2">
 			<Label for="name">Name</Label>
@@ -248,7 +262,7 @@
 		<Button type="submit">
 			{mode === 'create' ? 'Create Theme' : 'Update Theme'}
 		</Button>
-		<Button type="button" variant="outline" on:click={handleCancel}>Cancel</Button>
+		<Button type="button" variant="outline" onclick={handleCancel}>Cancel</Button>
 	</div>
 
 	<div class="grid gap-4">

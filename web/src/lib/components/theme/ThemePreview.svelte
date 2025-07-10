@@ -9,11 +9,15 @@
 	import { Card, CardContent } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 
-	export let theme: Theme;
-	export let mode: ColorMode = 'light';
+	interface Props {
+		theme: Theme;
+		mode?: ColorMode;
+	}
 
-	$: colors = mode === 'light' ? theme.colors.light : theme.colors.dark;
-	$: colorList = [
+	let { theme, mode = 'light' }: Props = $props();
+
+	let colors = $derived(mode === 'light' ? theme.colors.light : theme.colors.dark);
+	let colorList = $derived([
 		{ label: 'Primary', color: colors.primary.value },
 		{ label: 'Secondary', color: colors.secondary.value },
 		{ label: 'Accent', color: colors.accent.value },
@@ -25,7 +29,7 @@
 		{ label: 'Warning', color: colors.warning.value },
 		{ label: 'Error', color: colors.error.value },
 		{ label: 'Info', color: colors.info.value }
-	];
+	]);
 </script>
 
 <Card>
@@ -44,7 +48,7 @@
 			<div class="grid grid-cols-2 gap-2">
 				{#each colorList as { label, color }}
 					<div class="flex items-center gap-2">
-						<div class="h-5 w-5 rounded-full border" style:background-color={color} />
+						<div class="h-5 w-5 rounded-full border" style:background-color={color}></div>
 						<span class="text-sm">{label}</span>
 						<span class="ml-auto text-sm text-muted-foreground">{color}</span>
 					</div>

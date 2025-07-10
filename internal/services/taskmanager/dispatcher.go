@@ -262,7 +262,8 @@ func (td *TaskDispatcher) SaveTaskResult(taskID string, result *models.TaskResul
 	}
 	result.TaskID = objID
 	result.CreatedAt = time.Now()
-	result.CompletedAt = time.Now()
+	result.EndTime = time.Now()
+	result.UpdatedAt = time.Now()
 
 	_, err = td.db.Collection("task_results").InsertOne(td.ctx, result)
 	if err != nil {
@@ -347,7 +348,7 @@ func (td *TaskDispatcher) processSubdomainResult(task *models.Task, result *mode
 	td.logInfo(fmt.Sprintf("处理子域名枚举结果: 任务ID=%s", task.ID.Hex()))
 
 	// 提取子域名结果数据
-	subdomains, ok := result.Data.([]interface{})
+	subdomains, ok := result.Data["subdomains"].([]interface{})
 	if !ok {
 		td.logError("子域名结果数据格式不正确")
 		return
@@ -374,7 +375,7 @@ func (td *TaskDispatcher) processPortScanResult(task *models.Task, result *model
 	td.logInfo(fmt.Sprintf("处理端口扫描结果: 任务ID=%s", task.ID.Hex()))
 
 	// 提取端口扫描结果数据
-	portResults, ok := result.Data.([]interface{})
+	portResults, ok := result.Data["open_ports"].([]interface{})
 	if !ok {
 		td.logError("端口扫描结果数据格式不正确")
 		return
@@ -401,7 +402,7 @@ func (td *TaskDispatcher) processVulnScanResult(task *models.Task, result *model
 	td.logInfo(fmt.Sprintf("处理漏洞扫描结果: 任务ID=%s", task.ID.Hex()))
 
 	// 提取漏洞扫描结果数据
-	vulnResults, ok := result.Data.([]interface{})
+	vulnResults, ok := result.Data["vulnerabilities"].([]interface{})
 	if !ok {
 		td.logError("漏洞扫描结果数据格式不正确")
 		return
@@ -428,9 +429,16 @@ func (td *TaskDispatcher) processAssetDiscoveryResult(task *models.Task, result 
 	td.logInfo(fmt.Sprintf("处理资产发现结果: 任务ID=%s", task.ID.Hex()))
 
 	// 提取资产发现结果数据
-	assets, ok := result.Data.([]interface{})
+	discoveryResult, ok := result.Data["discovery_result"].(map[string]interface{})
 	if !ok {
 		td.logError("资产发现结果数据格式不正确")
+		return
+	}
+
+	// 提取创建的资产
+	assets, ok := discoveryResult["created_assets"].([]interface{})
+	if !ok {
+		td.logError("创建的资产数据格式不正确")
 		return
 	}
 

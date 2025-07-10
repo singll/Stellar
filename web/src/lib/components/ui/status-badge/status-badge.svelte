@@ -1,13 +1,26 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import { cn } from '$lib/utils';
-
-	let className: string | undefined = undefined;
-	export { className as class };
+	import type { HTMLAttributes } from 'svelte/elements';
+	import type { Snippet } from 'svelte';
 
 	type StatusType = 'success' | 'warning' | 'error' | 'info';
-	export let status: StatusType = 'info';
-	export let pulse = false;
+
+	interface Props extends HTMLAttributes<HTMLDivElement> {
+		children: Snippet;
+		status?: StatusType;
+		pulse?: boolean;
+		ref?: HTMLDivElement | null;
+	}
+
+	let {
+		ref = $bindable(null),
+		class: className,
+		children,
+		status = 'info',
+		pulse = false,
+		...restProps
+	}: Props = $props();
 
 	const getStatusColor = (status: StatusType) => {
 		switch (status) {
@@ -25,6 +38,10 @@
 	};
 </script>
 
-<Badge class={cn(getStatusColor(status), pulse && 'animate-pulse', className)} {...$$restProps}>
-	<slot />
+<Badge
+	bind:ref
+	class={cn(getStatusColor(status), pulse && 'animate-pulse', className)}
+	{...restProps}
+>
+	{@render children()}
 </Badge>

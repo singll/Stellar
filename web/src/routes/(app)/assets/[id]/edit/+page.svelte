@@ -12,43 +12,52 @@
 	} from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import {
-		Select,
-		SelectContent,
-		SelectItem,
-		SelectTrigger,
-		SelectValue
-	} from '$lib/components/ui/select';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { assetApi } from '$lib/api/asset';
 	import type { Asset, AssetType } from '$lib/types/asset';
 	import { notifications } from '$lib/stores/notifications';
 	import { goto } from '$app/navigation';
 
-	let asset: Asset | null = null;
-	let loading = true;
-	let saving = false;
+	let asset: Asset | null = $state(null);
+	let loading = $state(true);
+	let saving = $state(false);
 
-	let name = '';
-	let type: AssetType = 'domain';
-	let url = '';
-	let ip = '';
-	let description = '';
-	let tags = '';
+	let name = $state('');
+	let type: AssetType = $state('domain');
+	let url = $state('');
+	let ip = $state('');
+	let description = $state('');
+	let tags = $state('');
 
 	async function loadAsset() {
 		try {
 			loading = true;
-			const response = await assetApi.getAssetById($page.params.id);
+			const response = await assetApi.getAssetById($page.params.id, 'domain');
 			asset = response.data;
 
 			// 填充表单
-			name = asset.name;
 			type = asset.type;
-			url = asset.url || '';
-			ip = asset.ip || '';
-			description = asset.description || '';
 			tags = asset.tags?.join(', ') || '';
+
+			// 根据资产类型填充对应字段
+			switch (asset.type) {
+				case 'domain':
+					name = (asset as any).domain || '';
+					ip = (asset as any).ips?.[0] || '';
+					break;
+				case 'ip':
+					name = (asset as any).ip || '';
+					ip = (asset as any).ip || '';
+					break;
+				case 'url':
+					name = (asset as any).url || '';
+					url = (asset as any).url || '';
+					break;
+				default:
+					name = (asset as any).appName || (asset as any).host || '';
+					url = (asset as any).url || '';
+					ip = (asset as any).ip || '';
+			}
 		} catch (error) {
 			notifications.add({
 				type: 'error',
@@ -65,19 +74,22 @@
 
 		try {
 			saving = true;
-			await assetApi.updateAsset({
-				id: asset.id,
-				name,
+			await assetApi.updateAsset(asset.id, {
 				type,
-				url: url || undefined,
-				ip: ip || undefined,
-				description: description || undefined,
-				tags: tags
-					? tags
+				data: {
+					...(type === 'domain' && { domain: name }),
+					...(type === 'ip' && { ip: name }),
+					...(type === 'url' && { url: name }),
+					...(url && { url }),
+					...(ip && { ip }),
+					...(description && { description }),
+					...(tags && {
+						tags: tags
 							.split(',')
 							.map((t) => t.trim())
 							.filter(Boolean)
-					: undefined
+					})
+				}
 			});
 
 			notifications.add({
@@ -110,7 +122,13 @@
 				<CardDescription>修改资产信息</CardDescription>
 			</CardHeader>
 			<CardContent>
-				<form on:submit|preventDefault={handleSubmit} class="space-y-4">
+				<form
+					onsubmit={(e) => {
+						e.preventDefault();
+						handleSubmit();
+					}}
+					class="space-y-4"
+				>
 					<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 						<!-- 名称 -->
 						<div class="space-y-2">
@@ -121,18 +139,20 @@
 						<!-- 类型 -->
 						<div class="space-y-2">
 							<Label for="type">类型</Label>
-							<Select bind:value={type} required>
-								<SelectTrigger>
-									<SelectValue placeholder="选择资产类型" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="domain">域名</SelectItem>
-									<SelectItem value="ip">IP</SelectItem>
-									<SelectItem value="web">网站</SelectItem>
-									<SelectItem value="app">应用</SelectItem>
-									<SelectItem value="other">其他</SelectItem>
-								</SelectContent>
-							</Select>
+							<select
+								id="type"
+								bind:value={type}
+								class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								<option value="domain">域名</option>
+								<option value="subdomain">子域名</option>
+								<option value="ip">IP</option>
+								<option value="port">端口</option>
+								<option value="url">URL</option>
+								<option value="http">HTTP服务</option>
+								<option value="app">应用</option>
+								<option value="miniapp">小程序</option>
+							</select>
 						</div>
 
 						<!-- URL -->
@@ -167,7 +187,7 @@
 
 					<!-- 按钮 -->
 					<div class="flex justify-end gap-2">
-						<Button type="button" variant="outline" on:click={() => goto(`/assets/${asset.id}`)}>
+						<Button type="button" variant="outline" on:click={() => goto(`/assets/${asset?.id}`)}>
 							取消
 						</Button>
 						<Button type="submit" disabled={saving}>

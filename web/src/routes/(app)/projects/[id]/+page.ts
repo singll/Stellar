@@ -1,5 +1,5 @@
 import { ProjectAPI } from '$lib/api/projects';
-import type { Project } from '$lib/types/project';
+import type { Project, ProjectResponse } from '$lib/types/project';
 import type { LoadEvent } from '@sveltejs/kit';
 import { error } from '@sveltejs/kit';
 
@@ -22,7 +22,8 @@ export const load = async ({ params }: LoadEvent) => {
 			throw error(404, 'Project not found');
 		}
 
-		const projectData: Project = project.value;
+		// ProjectResponse现在直接包含项目字段
+		const projectData: Project = project.value as Project;
 
 		const membersData = members.status === 'fulfilled' ? members.value : [];
 		const activitiesData =

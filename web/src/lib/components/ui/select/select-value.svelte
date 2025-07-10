@@ -1,16 +1,27 @@
 <script lang="ts">
 	import { cn } from '$lib/utils';
+	import type { HTMLAttributes } from 'svelte/elements';
+	import type { Snippet } from 'svelte';
 
-	let className: string | undefined = undefined;
-	export { className as class };
+	interface Props extends HTMLAttributes<HTMLSpanElement> {
+		children?: Snippet;
+		placeholder?: string;
+		ref?: HTMLSpanElement | null;
+	}
 
-	export let placeholder: string | undefined = undefined;
+	let {
+		ref = $bindable(null),
+		class: className,
+		children,
+		placeholder,
+		...restProps
+	}: Props = $props();
 </script>
 
-<span class={cn('block truncate', className)}>
-	<slot>
-		{#if placeholder}
-			<span class="text-muted-foreground">{placeholder}</span>
-		{/if}
-	</slot>
+<span bind:this={ref} class={cn('block truncate', className)} {...restProps}>
+	{#if children}
+		{@render children()}
+	{:else if placeholder}
+		<span class="text-muted-foreground">{placeholder}</span>
+	{/if}
 </span>
