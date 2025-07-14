@@ -43,7 +43,13 @@
 			const matchesSearch =
 				searchQuery === '' || log.message.toLowerCase().includes(searchQuery.toLowerCase());
 			return matchesLevel && matchesSearch;
-		});
+		}) as {
+			id: string;
+			level: string;
+			message: string;
+			timestamp: string;
+			source: string;
+		}[];
 	});
 
 	// 获取日志级别的图标
@@ -94,7 +100,7 @@
 
 	// 导出日志
 	function exportLogs() {
-		const content = filteredLogs
+		const content = filteredLogs()
 			.map(
 				(log) =>
 					`[${formatTimestamp(log.timestamp)}] ${log.level.toUpperCase()} [${log.source}]: ${log.message}`
@@ -113,7 +119,7 @@
 	}
 
 	// 自动滚动到底部
-	let logsContainer: HTMLElement | undefined;
+	let logsContainer = $state<HTMLElement | undefined>();
 	let autoScroll = $state(true);
 
 	function scrollToBottom() {
@@ -124,7 +130,7 @@
 
 	// 监听日志变化，自动滚动
 	$effect(() => {
-		if (filteredLogs.length > 0) {
+		if (filteredLogs().length > 0) {
 			scrollToBottom();
 		}
 	});
@@ -160,7 +166,7 @@
 					variant="outline"
 					size="sm"
 					onclick={exportLogs}
-					disabled={filteredLogs.length === 0}
+					disabled={filteredLogs().length === 0}
 				>
 					<i class="fas fa-download mr-2"></i>
 					导出
@@ -201,11 +207,11 @@
 			</div>
 
 			<div class="text-sm text-gray-600 dark:text-gray-400">
-				显示 {filteredLogs.length} / {logs.length} 条日志
+				显示 {filteredLogs().length} / {logs.length} 条日志
 			</div>
 		</div>
 
-		{#if filteredLogs.length === 0}
+		{#if filteredLogs().length === 0}
 			<div class="text-center py-8 text-gray-500 dark:text-gray-400">
 				<i class="fas fa-file-alt text-2xl mb-2"></i>
 				<p>暂无日志记录</p>
@@ -215,7 +221,7 @@
 				bind:this={logsContainer}
 				class="space-y-1 max-h-96 overflow-y-auto pr-2 font-mono text-sm"
 			>
-				{#each filteredLogs as log}
+				{#each filteredLogs() as log}
 					<div
 						class="flex items-start gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded"
 					>

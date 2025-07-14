@@ -21,37 +21,28 @@ export class SubdomainAPI {
 	 * @param taskData 任务创建请求数据
 	 * @returns 创建的任务信息
 	 */
-	async createTask(taskData: SubdomainTaskCreateRequest): Promise<SubdomainTask> {
-		const response = await api.post<ApiResponse<SubdomainTask>>('/api/v1/tasks', {
-			name: taskData.name,
-			description: taskData.description,
-			type: 'subdomain_enum',
+	async createTask(
+		taskData: SubdomainTaskCreateRequest
+	): Promise<{ taskId: string; message: string }> {
+		const response = await api.post('/api/v1/subdomains/tasks', {
+			projectId: taskData.projectId,
+			rootDomain: taskData.target,
+			taskName: taskData.name,
 			config: {
-				target: taskData.target,
-				max_workers: taskData.maxWorkers || 50,
-				timeout: taskData.timeout || 30,
-				wordlist_path: taskData.wordlistPath || '',
-				dns_servers: taskData.dnsServers || ['8.8.8.8', '1.1.1.1'],
-				enable_wildcard: taskData.enableWildcard !== false,
-				max_retries: taskData.maxRetries || 3,
-				enum_methods: taskData.enumMethods || ['dns_brute'],
-				rate_limit: taskData.rateLimit || 10,
-				enable_doh: taskData.enableDoH || false,
-				enable_recursive: taskData.enableRecursive || false,
-				max_depth: taskData.maxDepth || 2,
-				verify_subdomains: taskData.verifySubdomains !== false,
-				enable_cache: taskData.enableCache !== false,
-				cache_timeout: taskData.cacheTimeout || 300,
-				search_engine_apis: taskData.searchEngineAPIs || {}
-			},
-			projectId: taskData.projectId
+				dictionaryPath: taskData.wordlistPath || 'dicts/subdomain_dict.txt',
+				methods: taskData.enumMethods || ['dns_brute'],
+				concurrency: taskData.maxWorkers || 50,
+				timeout: taskData.timeout || 5,
+				retryCount: taskData.maxRetries || 3,
+				rateLimit: taskData.rateLimit || 100,
+				resolverServers: taskData.dnsServers || ['8.8.8.8', '1.1.1.1'],
+				verifySubdomains: taskData.verifySubdomains !== false,
+				recursiveSearch: taskData.enableRecursive || false,
+				saveToDB: true
+			}
 		});
 
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to create subdomain enumeration task');
-		}
-
-		return response.data.data;
+		return response.data;
 	}
 
 	/**
@@ -66,24 +57,23 @@ export class SubdomainAPI {
 			target?: string;
 		}
 	): Promise<TaskListResponse> {
-		const searchParams = new URLSearchParams();
+		const queryParams: any = {};
 
-		if (params?.page) searchParams.set('page', params.page.toString());
-		if (params?.limit) searchParams.set('limit', params.limit.toString());
-		if (params?.projectId) searchParams.set('project_id', params.projectId);
-		if (params?.status) searchParams.set('status', params.status);
-		if (params?.target) searchParams.set('target', params.target);
+		if (params?.limit) queryParams.limit = params.limit;
+		if (params?.page) queryParams.skip = (params.page - 1) * (params.limit || 10);
+		if (params?.projectId) queryParams.projectId = params.projectId;
+		if (params?.status) queryParams.status = params.status;
+		if (params?.target) queryParams.target = params.target;
 
-		// 只获取子域名枚举任务
-		searchParams.set('type', 'subdomain_enum');
+		const response = await api.get('/api/v1/subdomains/tasks', { params: queryParams });
 
-		const response = await api.get<ApiResponse<TaskListResponse>>(`/api/v1/tasks?${searchParams}`);
-
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to fetch subdomain enumeration tasks');
-		}
-
-		return response.data.data;
+		return {
+			tasks: response.data.tasks,
+			total: response.data.total,
+			page: params?.page || 1,
+			limit: params?.limit || 10,
+			totalPages: Math.ceil(response.data.total / (params?.limit || 10))
+		};
 	}
 
 	/**
@@ -92,13 +82,8 @@ export class SubdomainAPI {
 	 * @returns 任务详情
 	 */
 	async getTask(taskId: string): Promise<SubdomainTask> {
-		const response = await api.get<ApiResponse<SubdomainTask>>(`/api/v1/tasks/${taskId}`);
-
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to fetch subdomain enumeration task');
-		}
-
-		return response.data.data;
+		const response = await api.get(`/api/v1/subdomains/tasks/${taskId}`);
+		return response.data;
 	}
 
 	/**
@@ -115,24 +100,15 @@ export class SubdomainAPI {
 		total: number;
 		summary: any;
 	}> {
-		const searchParams = new URLSearchParams();
+		const queryParams: any = {};
+		if (params?.limit) queryParams.limit = params.limit;
+		if (params?.page) queryParams.skip = (params.page - 1) * (params.limit || 10);
 
-		if (params?.page) searchParams.set('page', params.page.toString());
-		if (params?.limit) searchParams.set('limit', params.limit.toString());
+		const response = await api.get(`/api/v1/subdomains/tasks/${taskId}/results`, {
+			params: queryParams
+		});
 
-		const response = await api.get<
-			ApiResponse<{
-				results: SubdomainResult[];
-				total: number;
-				summary: any;
-			}>
-		>(`/api/v1/tasks/${taskId}/results?${searchParams}`);
-
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to fetch task results');
-		}
-
-		return response.data.data;
+		return response.data;
 	}
 
 	/**
@@ -140,11 +116,7 @@ export class SubdomainAPI {
 	 * @param taskId 任务ID
 	 */
 	async deleteTask(taskId: string): Promise<void> {
-		const response = await api.delete<ApiResponse<void>>(`/api/v1/tasks/${taskId}`);
-
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to delete subdomain enumeration task');
-		}
+		await api.delete(`/api/v1/subdomains/tasks/${taskId}`);
 	}
 
 	/**
@@ -152,11 +124,7 @@ export class SubdomainAPI {
 	 * @param taskId 任务ID
 	 */
 	async cancelTask(taskId: string): Promise<void> {
-		const response = await api.post<ApiResponse<void>>(`/api/v1/tasks/${taskId}/cancel`);
-
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to cancel subdomain enumeration task');
-		}
+		await api.post(`/api/v1/subdomains/tasks/${taskId}/cancel`);
 	}
 
 	/**
@@ -164,13 +132,24 @@ export class SubdomainAPI {
 	 * @param taskId 任务ID
 	 */
 	async retryTask(taskId: string): Promise<SubdomainTask> {
-		const response = await api.post<ApiResponse<SubdomainTask>>(`/api/v1/tasks/${taskId}/retry`);
+		// 获取原任务信息，重新创建
+		const originalTask = await this.getTask(taskId);
+		const newTaskResponse = await this.createTask({
+			name: originalTask.name + ' (重试)',
+			target: originalTask.rootDomain,
+			projectId: originalTask.projectId,
+			wordlistPath: originalTask.config?.dictionaryPath,
+			enumMethods: originalTask.config?.methods,
+			maxWorkers: originalTask.config?.concurrency,
+			timeout: originalTask.config?.timeout,
+			maxRetries: originalTask.config?.retryCount,
+			rateLimit: originalTask.config?.rateLimit,
+			dnsServers: originalTask.config?.resolverServers,
+			verifySubdomains: originalTask.config?.verifySubdomains,
+			enableRecursive: originalTask.config?.recursiveSearch
+		});
 
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to retry subdomain enumeration task');
-		}
-
-		return response.data.data;
+		return this.getTask(newTaskResponse.taskId);
 	}
 
 	/**
@@ -187,19 +166,8 @@ export class SubdomainAPI {
 		data?: any;
 		filename: string;
 	}> {
-		const response = await api.get<
-			ApiResponse<{
-				downloadUrl?: string;
-				data?: any;
-				filename: string;
-			}>
-		>(`/api/v1/tasks/${taskId}/export?format=${format}`);
-
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to export results');
-		}
-
-		return response.data.data;
+		const response = await api.get(`/api/v1/subdomains/tasks/${taskId}/export?format=${format}`);
+		return response.data;
 	}
 
 	/**
@@ -222,33 +190,22 @@ export class SubdomainAPI {
 		sourceStats: Record<string, number>;
 		recentTasks: SubdomainTask[];
 	}> {
-		const searchParams = new URLSearchParams();
+		// 获取任务列表并统计
+		const tasks = await this.getTasks({ projectId: params?.projectId, limit: 1000 });
+		const totalTasks = tasks.total;
+		const completedTasks = tasks.tasks.filter((t) => t.status === 'completed').length;
+		const failedTasks = tasks.tasks.filter((t) => t.status === 'failed').length;
 
-		if (params?.projectId) searchParams.set('project_id', params.projectId);
-		if (params?.dateRange) {
-			searchParams.set('start_date', params.dateRange.startDate);
-			searchParams.set('end_date', params.dateRange.endDate);
-		}
-
-		searchParams.set('type', 'subdomain_enum');
-
-		const response = await api.get<
-			ApiResponse<{
-				totalTasks: number;
-				completedTasks: number;
-				failedTasks: number;
-				totalSubdomains: number;
-				uniqueSubdomains: number;
-				sourceStats: Record<string, number>;
-				recentTasks: SubdomainTask[];
-			}>
-		>(`/api/v1/tasks/statistics?${searchParams}`);
-
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to fetch statistics');
-		}
-
-		return response.data.data;
+		// 简化的统计信息
+		return {
+			totalTasks,
+			completedTasks,
+			failedTasks,
+			totalSubdomains: 0, // 需要从结果中统计
+			uniqueSubdomains: 0, // 需要从结果中统计
+			sourceStats: {},
+			recentTasks: tasks.tasks.slice(0, 5)
+		};
 	}
 
 	/**

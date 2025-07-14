@@ -144,6 +144,14 @@ export const taskApi = {
 	},
 
 	/**
+	 * 停止任务 (别名为cancelTask)
+	 */
+	stopTask: async (taskId: string): Promise<APIResponse<void>> => {
+		const response = await api.post<APIResponse<void>>(`/tasks/${taskId}/cancel`);
+		return response.data;
+	},
+
+	/**
 	 * 重启任务
 	 */
 	restartTask: async (taskId: string): Promise<APIResponse<void>> => {

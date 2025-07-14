@@ -14,17 +14,6 @@ type ExecutorInfo struct {
 	Author      string `json:"author"`
 }
 
-// TaskStatus 任务状态
-const (
-	TaskStatusPending   = "pending"   // 等待中
-	TaskStatusQueued    = "queued"    // 已入队
-	TaskStatusRunning   = "running"   // 运行中
-	TaskStatusCompleted = "completed" // 已完成
-	TaskStatusFailed    = "failed"    // 失败
-	TaskStatusCanceled  = "canceled"  // 已取消
-	TaskStatusTimeout   = "timeout"   // 超时
-)
-
 // TaskPriority 任务优先级
 const (
 	TaskPriorityLow    = 1 // 低优先级
@@ -141,4 +130,43 @@ type TaskUpdateRequest struct {
 	Progress   float64     `json:"progress"`   // 进度
 	Error      string      `json:"error"`      // 错误信息
 	ResultData interface{} `json:"resultData"` // 结果数据
+}
+
+// TaskTemplate 任务模板
+type TaskTemplate struct {
+	ID          primitive.ObjectID     `bson:"_id,omitempty" json:"id"`
+	Name        string                 `bson:"name" json:"name"`               // 模板名称
+	Description string                 `bson:"description" json:"description"` // 模板描述
+	Type        string                 `bson:"type" json:"type"`               // 任务类型
+	Priority    int                    `bson:"priority" json:"priority"`       // 优先级
+	Config      map[string]interface{} `bson:"config" json:"config"`           // 模板配置
+	Timeout     int                    `bson:"timeout" json:"timeout"`         // 超时时间(秒)
+	MaxRetries  int                    `bson:"maxRetries" json:"maxRetries"`   // 最大重试次数
+	Tags        []string               `bson:"tags" json:"tags"`               // 标签
+	IsPublic    bool                   `bson:"isPublic" json:"isPublic"`       // 是否公开
+	CreatedBy   primitive.ObjectID     `bson:"createdBy" json:"createdBy"`     // 创建者
+	CreatedAt   time.Time              `bson:"createdAt" json:"createdAt"`     // 创建时间
+	UpdatedAt   time.Time              `bson:"updatedAt" json:"updatedAt"`     // 更新时间
+	UsageCount  int                    `bson:"usageCount" json:"usageCount"`   // 使用次数
+	Metadata    map[string]interface{} `bson:"metadata" json:"metadata"`       // 元数据
+}
+
+// TaskScheduleRule 任务调度规则
+type TaskScheduleRule struct {
+	ID             primitive.ObjectID     `bson:"_id,omitempty" json:"id"`
+	Name           string                 `bson:"name" json:"name"`                     // 规则名称
+	Description    string                 `bson:"description" json:"description"`       // 规则描述
+	TemplateID     string                 `bson:"templateId" json:"templateId"`         // 任务模板ID
+	CronExpression string                 `bson:"cronExpression" json:"cronExpression"` // Cron表达式
+	Timezone       string                 `bson:"timezone" json:"timezone"`             // 时区
+	Enabled        bool                   `bson:"enabled" json:"enabled"`               // 是否启用
+	ProjectID      string                 `bson:"projectId" json:"projectId"`           // 所属项目
+	NextRunTime    time.Time              `bson:"nextRunTime" json:"nextRunTime"`       // 下次运行时间
+	LastRunTime    time.Time              `bson:"lastRunTime" json:"lastRunTime"`       // 上次运行时间
+	RunCount       int                    `bson:"runCount" json:"runCount"`             // 运行次数
+	MaxRuns        *int                   `bson:"maxRuns" json:"maxRuns"`               // 最大运行次数
+	CreatedBy      string                 `bson:"createdBy" json:"createdBy"`           // 创建者
+	CreatedAt      time.Time              `bson:"createdAt" json:"createdAt"`           // 创建时间
+	UpdatedAt      time.Time              `bson:"updatedAt" json:"updatedAt"`           // 更新时间
+	Metadata       map[string]interface{} `bson:"metadata" json:"metadata"`             // 元数据
 }

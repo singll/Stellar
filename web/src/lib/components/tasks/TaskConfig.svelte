@@ -11,6 +11,14 @@
 		task: Task;
 	}
 
+	interface ConfigItem {
+		key: string;
+		label: string;
+		value: string;
+		isSensitive: boolean;
+		isObject: boolean;
+	}
+
 	let { task }: Props = $props();
 
 	// 格式化配置值
@@ -36,7 +44,7 @@
 
 	// 获取配置字段的中文名称
 	function getConfigFieldName(key: string): string {
-		const fieldNames = {
+		const fieldNames: Record<string, string> = {
 			// 通用字段
 			target: '目标',
 			targets: '目标列表',
@@ -106,7 +114,7 @@
 			min_rate: '最小速率'
 		};
 
-		return fieldNames[key] || key;
+		return fieldNames[key as keyof typeof fieldNames] || key;
 	}
 
 	// 判断是否为敏感信息
@@ -118,19 +126,25 @@
 	// 获取配置项列表
 	let configItems = $derived(() => {
 		if (!task.config || typeof task.config !== 'object') {
-			return [];
+			return [] as ConfigItem[];
 		}
 
 		return Object.entries(task.config)
 			.filter(([_, value]) => value !== null && value !== undefined)
-			.map(([key, value]) => ({
-				key,
-				label: getConfigFieldName(key),
-				value: formatConfigValue(value),
-				isSensitive: isSensitiveField(key),
-				isObject: typeof value === 'object' && !Array.isArray(value)
-			}));
+			.map(
+				([key, value]) =>
+					({
+						key,
+						label: getConfigFieldName(key),
+						value: formatConfigValue(value),
+						isSensitive: isSensitiveField(key),
+						isObject: typeof value === 'object' && !Array.isArray(value)
+					}) as ConfigItem
+			);
 	});
+
+	// 获取配置项数组，用于模板中的 each 循环
+	let configItemsArray = $derived(configItems());
 </script>
 
 <Card>
@@ -138,14 +152,14 @@
 		<CardTitle>任务配置</CardTitle>
 	</CardHeader>
 	<CardContent>
-		{#if configItems.length === 0}
+		{#if configItemsArray.length === 0}
 			<div class="text-center py-8 text-gray-500 dark:text-gray-400">
 				<i class="fas fa-cog text-2xl mb-2"></i>
 				<p>暂无配置信息</p>
 			</div>
 		{:else}
 			<div class="space-y-4">
-				{#each configItems as item}
+				{#each configItemsArray as item}
 					<div class="border-b border-gray-200 dark:border-gray-700 pb-3 last:border-b-0 last:pb-0">
 						<div class="flex items-start justify-between">
 							<div class="flex-1">

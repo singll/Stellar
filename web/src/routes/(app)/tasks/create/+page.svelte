@@ -7,6 +7,7 @@
 	import { goto } from '$app/navigation';
 	import { taskActions } from '$lib/stores/tasks';
 	import { projectStore, projectActions } from '$lib/stores/projects';
+	import { get } from 'svelte/store';
 	import type { TaskType, TaskPriority, CreateTaskRequest } from '$lib/types/task';
 
 	import TaskTypeSelector from '$lib/components/tasks/TaskTypeSelector.svelte';
@@ -20,6 +21,13 @@
 	import TagInput from '$lib/components/ui/TagInput.svelte';
 	import FormField from '$lib/components/ui/FormField.svelte';
 
+	// 类型定义
+	interface TaskTypeOption {
+		value: TaskType;
+		label: string;
+		icon: string;
+	}
+
 	// 表单状态
 	let name = $state('');
 	let description = $state('');
@@ -27,8 +35,8 @@
 	let priority = $state<TaskPriority>('normal');
 	let projectId = $state('');
 	let config = $state<Record<string, any>>({});
-	let timeout = $state(3600);
-	let maxRetries = $state(3);
+	let timeout = $state<number>(3600);
+	let maxRetries = $state<number>(3);
 	let tags = $state<string[]>([]);
 	let scheduledAt = $state('');
 
@@ -37,14 +45,14 @@
 	let isSubmitting = $state(false);
 	let isValidating = $state(false);
 
-	// Store 订阅
-	let projects = $state();
-	projectStore.subscribe((value) => {
-		projects = value;
-	});
+	// Store 订阅 - Svelte 5 方式
+	let projects = $derived(get(projectStore));
+
+	// 获取项目列表
+	let projectList = $derived(projects?.projects || []);
 
 	// 任务类型选项
-	const taskTypes = [
+	const taskTypes: TaskTypeOption[] = [
 		{ value: 'subdomain_enum', label: '子域名枚举', icon: 'fas fa-globe' },
 		{ value: 'port_scan', label: '端口扫描', icon: 'fas fa-network-wired' },
 		{ value: 'vuln_scan', label: '漏洞扫描', icon: 'fas fa-bug' },
@@ -66,8 +74,8 @@
 		await projectActions.loadProjects();
 
 		// 如果只有一个项目，自动选择
-		if (projects?.projects?.length === 1) {
-			projectId = projects.projects[0].id;
+		if (projectList.length === 1) {
+			projectId = projectList[0].id;
 		}
 
 		// 初始化默认配置
@@ -113,9 +121,9 @@
 			isValidating = true;
 			try {
 				const validation = await taskActions.validateTaskConfig(type, config);
-				if (!validation.valid) {
-					validation.errors.forEach((error) => {
-						errors[`config.${error.field}`] = error.message;
+				if (!validation.valid && validation.errors) {
+					validation.errors.forEach((error: string) => {
+						errors[`config.${error}`] = error;
 					});
 				}
 			} catch (error) {
@@ -245,11 +253,7 @@
 				</FormField>
 
 				<FormField label="项目" required error={errors.projectId}>
-					<ProjectSelector
-						bind:value={projectId}
-						projects={projects?.projects || []}
-						disabled={isSubmitting}
-					/>
+					<ProjectSelector bind:value={projectId} projects={projectList} disabled={isSubmitting} />
 				</FormField>
 			</div>
 
@@ -297,11 +301,11 @@
 				</FormField>
 
 				<FormField label="超时时间（秒）" error={errors.timeout}>
-					<Input type="number" bind:value={timeout} min="1" step="1" disabled={isSubmitting} />
+					<Input type="number" bind:value={timeout} min={1} step={1} disabled={isSubmitting} />
 				</FormField>
 
 				<FormField label="最大重试次数" error={errors.maxRetries}>
-					<Input type="number" bind:value={maxRetries} min="0" step="1" disabled={isSubmitting} />
+					<Input type="number" bind:value={maxRetries} min={0} step={1} disabled={isSubmitting} />
 				</FormField>
 			</div>
 

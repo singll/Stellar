@@ -127,7 +127,7 @@ func (qm *QueueManager) EnqueueTask(queueName string, task *models.Task) error {
 	}
 
 	// 更新任务状态
-	task.Status = models.TaskStatusQueued
+	task.Status = string(models.TaskStatusQueued)
 
 	// 添加到队列
 	queue.Tasks = append(queue.Tasks, task)
@@ -152,7 +152,7 @@ func (qm *QueueManager) EnqueueTask(queueName string, task *models.Task) error {
 		bson.M{"_id": task.ID},
 		bson.M{
 			"$set": bson.M{
-				"status": models.TaskStatusQueued,
+				"status": string(models.TaskStatusQueued),
 			},
 		},
 	)

@@ -21,8 +21,8 @@ export const assetApi = {
 			page: params?.page || 1,
 			pageSize: params?.pageSize || 20
 		};
-		const response = await api.get<APIResponse<AssetListResult>>('/assets/assets', { 
-			params: queryParams 
+		const response = await api.get<APIResponse<AssetListResult>>('/assets/assets', {
+			params: queryParams
 		});
 		return response.data;
 	},
@@ -158,7 +158,10 @@ export const assetApi = {
 			requestData.projectId = projectId;
 		}
 
-		const response = await api.post<APIResponse<Record<string, number>>>('/statistics/asset/relationship', requestData);
+		const response = await api.post<APIResponse<Record<string, number>>>(
+			'/statistics/asset/relationship',
+			requestData
+		);
 		return response.data;
 	}
 };

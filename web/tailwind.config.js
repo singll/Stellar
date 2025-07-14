@@ -145,10 +145,10 @@ export default {
 				xs: '2px'
 			},
 			boxShadow: {
-				'soft': '0 2px 8px 0 rgba(0, 0, 0, 0.06)',
-				'medium': '0 4px 16px 0 rgba(0, 0, 0, 0.08)',
-				'hard': '0 8px 32px 0 rgba(0, 0, 0, 0.12)',
-				'glow': '0 0 24px 0 rgba(59, 130, 246, 0.15)'
+				soft: '0 2px 8px 0 rgba(0, 0, 0, 0.06)',
+				medium: '0 4px 16px 0 rgba(0, 0, 0, 0.08)',
+				hard: '0 8px 32px 0 rgba(0, 0, 0, 0.12)',
+				glow: '0 0 24px 0 rgba(59, 130, 246, 0.15)'
 			}
 		}
 	},

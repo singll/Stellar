@@ -21,30 +21,33 @@ export class PortScanAPI {
 	 * @param taskData 任务创建请求数据
 	 * @returns 创建的任务信息
 	 */
-	async createTask(taskData: TaskCreateRequest): Promise<PortScanTask> {
-		const response = await api.post<ApiResponse<PortScanTask>>('/api/v1/tasks', {
-			name: taskData.name,
-			description: taskData.description,
-			type: 'port_scan',
-			config: {
-				target: taskData.target,
-				ports: taskData.ports,
-				scan_method: taskData.scanMethod || 'tcp',
-				max_workers: taskData.maxWorkers || 100,
-				timeout: taskData.timeout || 30,
-				enable_banner: taskData.enableBanner || false,
-				enable_ssl: taskData.enableSSL || false,
-				enable_service: taskData.enableService || true,
-				rate_limit: taskData.rateLimit || 100
+	async createTask(taskData: TaskCreateRequest): Promise<{ taskId: string; message: string }> {
+		const response = await api.post(
+			'/api/v1/portscan/tasks',
+			{
+				name: taskData.name,
+				description: taskData.description,
+				targets: Array.isArray(taskData.target) ? taskData.target : [taskData.target],
+				config: {
+					ports: taskData.ports,
+					scan_type: taskData.scanMethod || 'tcp',
+					scan_method: 'connect',
+					concurrency: taskData.maxWorkers || 100,
+					timeout: taskData.timeout || 3,
+					retry_count: 2,
+					rate_limit: taskData.rateLimit || 100,
+					service_detection: taskData.enableService || true,
+					save_to_db: true
+				}
 			},
-			projectId: taskData.projectId
-		});
+			{
+				params: {
+					projectId: taskData.projectId
+				}
+			}
+		);
 
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to create port scan task');
-		}
-
-		return response.data.data;
+		return response.data;
 	}
 
 	/**
@@ -59,24 +62,22 @@ export class PortScanAPI {
 			target?: string;
 		}
 	): Promise<TaskListResponse> {
-		const searchParams = new URLSearchParams();
+		const queryParams: any = {};
 
-		if (params?.page) searchParams.set('page', params.page.toString());
-		if (params?.limit) searchParams.set('limit', params.limit.toString());
-		if (params?.projectId) searchParams.set('project_id', params.projectId);
-		if (params?.status) searchParams.set('status', params.status);
-		if (params?.target) searchParams.set('target', params.target);
+		if (params?.limit) queryParams.limit = params.limit;
+		if (params?.page) queryParams.skip = (params.page - 1) * (params.limit || 10);
+		if (params?.projectId) queryParams.projectId = params.projectId;
+		if (params?.status) queryParams.status = params.status;
 
-		// 只获取端口扫描任务
-		searchParams.set('type', 'port_scan');
+		const response = await api.get('/api/v1/portscan/tasks', { params: queryParams });
 
-		const response = await api.get<ApiResponse<TaskListResponse>>(`/api/v1/tasks?${searchParams}`);
-
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to fetch port scan tasks');
-		}
-
-		return response.data.data;
+		return {
+			tasks: response.data.tasks,
+			total: response.data.total,
+			page: params?.page || 1,
+			limit: params?.limit || 10,
+			totalPages: Math.ceil(response.data.total / (params?.limit || 10))
+		};
 	}
 
 	/**
@@ -85,13 +86,44 @@ export class PortScanAPI {
 	 * @returns 任务详情
 	 */
 	async getTask(taskId: string): Promise<PortScanTask> {
-		const response = await api.get<ApiResponse<PortScanTask>>(`/api/v1/tasks/${taskId}`);
+		const response = await api.get(`/api/v1/portscan/tasks/${taskId}`);
+		return response.data;
+	}
 
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to fetch port scan task');
-		}
+	/**
+	 * 启动端口扫描任务
+	 * @param taskId 任务ID
+	 */
+	async startTask(taskId: string): Promise<{ message: string; taskId: string }> {
+		const response = await api.post(`/api/v1/portscan/tasks/${taskId}/start`);
+		return response.data;
+	}
 
-		return response.data.data;
+	/**
+	 * 停止端口扫描任务
+	 * @param taskId 任务ID
+	 */
+	async stopTask(taskId: string): Promise<{ message: string; taskId: string }> {
+		const response = await api.post(`/api/v1/portscan/tasks/${taskId}/stop`);
+		return response.data;
+	}
+
+	/**
+	 * 获取任务状态
+	 * @param taskId 任务ID
+	 */
+	async getTaskStatus(taskId: string): Promise<{ status: string; taskId: string }> {
+		const response = await api.get(`/api/v1/portscan/tasks/${taskId}/status`);
+		return response.data;
+	}
+
+	/**
+	 * 获取任务进度
+	 * @param taskId 任务ID
+	 */
+	async getTaskProgress(taskId: string): Promise<{ progress: number; taskId: string }> {
+		const response = await api.get(`/api/v1/portscan/tasks/${taskId}/progress`);
+		return response.data;
 	}
 
 	/**
@@ -106,26 +138,16 @@ export class PortScanAPI {
 	): Promise<{
 		results: PortScanResult[];
 		total: number;
-		summary: any;
+		taskId: string;
 	}> {
-		const searchParams = new URLSearchParams();
+		const queryParams: any = {};
+		if (params?.limit) queryParams.limit = params.limit;
+		if (params?.page) queryParams.skip = (params.page - 1) * (params.limit || 10);
 
-		if (params?.page) searchParams.set('page', params.page.toString());
-		if (params?.limit) searchParams.set('limit', params.limit.toString());
-
-		const response = await api.get<
-			ApiResponse<{
-				results: PortScanResult[];
-				total: number;
-				summary: any;
-			}>
-		>(`/api/v1/tasks/${taskId}/results?${searchParams}`);
-
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to fetch task results');
-		}
-
-		return response.data.data;
+		const response = await api.get(`/api/v1/portscan/tasks/${taskId}/results`, {
+			params: queryParams
+		});
+		return response.data;
 	}
 
 	/**
@@ -133,11 +155,7 @@ export class PortScanAPI {
 	 * @param taskId 任务ID
 	 */
 	async deleteTask(taskId: string): Promise<void> {
-		const response = await api.delete<ApiResponse<void>>(`/api/v1/tasks/${taskId}`);
-
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to delete port scan task');
-		}
+		await api.delete(`/api/v1/portscan/tasks/${taskId}`);
 	}
 
 	/**
@@ -145,11 +163,7 @@ export class PortScanAPI {
 	 * @param taskId 任务ID
 	 */
 	async cancelTask(taskId: string): Promise<void> {
-		const response = await api.post<ApiResponse<void>>(`/api/v1/tasks/${taskId}/cancel`);
-
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to cancel port scan task');
-		}
+		await this.stopTask(taskId);
 	}
 
 	/**
@@ -157,13 +171,19 @@ export class PortScanAPI {
 	 * @param taskId 任务ID
 	 */
 	async retryTask(taskId: string): Promise<PortScanTask> {
-		const response = await api.post<ApiResponse<PortScanTask>>(`/api/v1/tasks/${taskId}/retry`);
+		// 获取原任务信息，重新创建
+		const originalTask = await this.getTask(taskId);
+		const newTaskResponse = await this.createTask({
+			name: originalTask.name + ' (重试)',
+			description: originalTask.description,
+			target: originalTask.config?.target || 'unknown',
+			ports: originalTask.config?.ports || '1-1000',
+			projectId: originalTask.projectId
+		});
 
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to retry port scan task');
-		}
-
-		return response.data.data;
+		// 启动新任务
+		await this.startTask(newTaskResponse.taskId);
+		return this.getTask(newTaskResponse.taskId);
 	}
 
 	/**
@@ -180,19 +200,68 @@ export class PortScanAPI {
 		data?: any;
 		filename: string;
 	}> {
-		const response = await api.get<
-			ApiResponse<{
-				downloadUrl?: string;
-				data?: any;
-				filename: string;
-			}>
-		>(`/api/v1/tasks/${taskId}/export?format=${format}`);
+		const response = await api.get(`/api/v1/portscan/tasks/${taskId}/export?format=${format}`);
+		return response.data;
+	}
 
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to export results');
+	/**
+	 * 轮询任务状态直到完成
+	 */
+	async pollTaskStatus(
+		taskId: string,
+		options?: {
+			interval?: number;
+			timeout?: number;
+			onProgress?: (progress: number) => void;
+			onStatusChange?: (status: string) => void;
 		}
+	): Promise<PortScanTask> {
+		const { interval = 2000, timeout = 300000 } = options || {};
+		const startTime = Date.now();
 
-		return response.data.data;
+		return new Promise((resolve, reject) => {
+			const poll = async () => {
+				try {
+					if (Date.now() - startTime > timeout) {
+						reject(new Error('任务轮询超时'));
+						return;
+					}
+
+					const [statusResp, progressResp] = await Promise.all([
+						this.getTaskStatus(taskId),
+						this.getTaskProgress(taskId)
+					]);
+
+					// 调用进度回调
+					if (options?.onProgress) {
+						options.onProgress(progressResp.progress);
+					}
+
+					// 调用状态变化回调
+					if (options?.onStatusChange) {
+						options.onStatusChange(statusResp.status);
+					}
+
+					// 检查任务是否完成
+					if (
+						statusResp.status === 'completed' ||
+						statusResp.status === 'failed' ||
+						statusResp.status === 'stopped'
+					) {
+						const task = await this.getTask(taskId);
+						resolve(task);
+						return;
+					}
+
+					// 继续轮询
+					setTimeout(poll, interval);
+				} catch (error) {
+					reject(error);
+				}
+			};
+
+			poll();
+		});
 	}
 
 	/**
@@ -215,33 +284,22 @@ export class PortScanAPI {
 		serviceStats: Record<string, number>;
 		recentTasks: PortScanTask[];
 	}> {
-		const searchParams = new URLSearchParams();
+		// 获取任务列表并统计
+		const tasks = await this.getTasks({ projectId: params?.projectId, limit: 1000 });
+		const totalTasks = tasks.total;
+		const completedTasks = tasks.tasks.filter((t) => t.status === 'completed').length;
+		const failedTasks = tasks.tasks.filter((t) => t.status === 'failed').length;
 
-		if (params?.projectId) searchParams.set('project_id', params.projectId);
-		if (params?.dateRange) {
-			searchParams.set('start_date', params.dateRange.startDate);
-			searchParams.set('end_date', params.dateRange.endDate);
-		}
-
-		searchParams.set('type', 'port_scan');
-
-		const response = await api.get<
-			ApiResponse<{
-				totalTasks: number;
-				completedTasks: number;
-				failedTasks: number;
-				totalPorts: number;
-				openPorts: number;
-				serviceStats: Record<string, number>;
-				recentTasks: PortScanTask[];
-			}>
-		>(`/api/v1/tasks/statistics?${searchParams}`);
-
-		if (!response.data.success) {
-			throw new Error(response.data.message || 'Failed to fetch statistics');
-		}
-
-		return response.data.data;
+		// 简化的统计信息
+		return {
+			totalTasks,
+			completedTasks,
+			failedTasks,
+			totalPorts: 0, // 需要从结果中统计
+			openPorts: 0, // 需要从结果中统计
+			serviceStats: {},
+			recentTasks: tasks.tasks.slice(0, 5)
+		};
 	}
 
 	/**

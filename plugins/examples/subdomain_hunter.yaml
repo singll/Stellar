@@ -1,0 +1,163 @@
+# YAML插件示例 - 子域名发现增强插件
+id: subdomain_hunter
+name: 子域名猎手
+version: "1.0.0"
+author: Stellar Team
+description: 增强的子域名发现插件，支持多种数据源和高级过滤
+type: scanner
+category: subdomain
+tags:
+  - subdomain
+  - discovery
+  - enumeration
+  - dns
+
+# 插件依赖
+dependencies: []
+
+# 插件配置
+config:
+  timeout: 30
+  max_threads: 10
+  enable_bruteforce: true
+  enable_certificate_transparency: true
+  enable_search_engines: true
+  wordlist_path: "/opt/wordlists/subdomains.txt"
+  max_depth: 3
+
+# 脚本配置
+script:
+  language: python
+  entry: main
+  args: []
+  content: |
+    import json
+    import sys
+    import asyncio
+    import aiohttp
+    import dns.resolver
+    from urllib.parse import urlparse
+    
+    class SubdomainHunter:
+        def __init__(self, config):
+            self.config = config
+            self.found_subdomains = set()
+            
+        async def discover_subdomains(self, domain):
+            """主要的子域名发现函数"""
+            tasks = []
+            
+            # DNS暴力破解
+            if self.config.get('enable_bruteforce', True):
+                tasks.append(self.dns_bruteforce(domain))
+            
+            # 证书透明度查询
+            if self.config.get('enable_certificate_transparency', True):
+                tasks.append(self.certificate_transparency(domain))
+            
+            # 搜索引擎查询
+            if self.config.get('enable_search_engines', True):
+                tasks.append(self.search_engines(domain))
+            
+            # 并发执行所有任务
+            await asyncio.gather(*tasks, return_exceptions=True)
+            
+            return list(self.found_subdomains)
+        
+        async def dns_bruteforce(self, domain):
+            """DNS暴力破解"""
+            wordlist = self.load_wordlist()
+            resolver = dns.resolver.Resolver()
+            resolver.timeout = self.config.get('timeout', 5)
+            
+            for word in wordlist[:1000]:  # 限制数量避免过长
+                subdomain = f"{word}.{domain}"
+                try:
+                    answers = resolver.resolve(subdomain, 'A')
+                    if answers:
+                        self.found_subdomains.add(subdomain)
+                except:
+                    pass
+        
+        async def certificate_transparency(self, domain):
+            """证书透明度查询"""
+            url = f"https://crt.sh/?q=%.{domain}&output=json"
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            for cert in data:
+                                name = cert.get('name_value', '')
+                                if name and '.' in name:
+                                    self.found_subdomains.add(name.strip())
+            except:
+                pass
+        
+        async def search_engines(self, domain):
+            """搜索引擎查询"""
+            queries = [
+                f"site:*.{domain}",
+                f"site:{domain}"
+            ]
+            
+            # 这里可以集成各种搜索引擎API
+            # 简化实现，只是示例
+            pass
+        
+        def load_wordlist(self):
+            """加载字典文件"""
+            wordlist_path = self.config.get('wordlist_path', '')
+            if wordlist_path:
+                try:
+                    with open(wordlist_path, 'r') as f:
+                        return [line.strip() for line in f if line.strip()]
+                except:
+                    pass
+            
+            # 默认字典
+            return ['www', 'mail', 'ftp', 'admin', 'test', 'dev', 'staging', 'api']
+    
+    def main(params):
+        """插件入口函数"""
+        try:
+            # 获取参数
+            domain = params.get('domain', '')
+            if not domain:
+                return {'error': '缺少domain参数'}
+            
+            # 获取配置
+            config = params.get('config', {})
+            
+            # 创建插件实例
+            hunter = SubdomainHunter(config)
+            
+            # 运行发现任务
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            subdomains = loop.run_until_complete(hunter.discover_subdomains(domain))
+            loop.close()
+            
+            # 返回结果
+            return {
+                'success': True,
+                'subdomains': subdomains,
+                'count': len(subdomains)
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    if __name__ == '__main__':
+        # 从标准输入读取参数
+        input_data = sys.stdin.read()
+        params = json.loads(input_data) if input_data else {}
+        
+        # 执行主函数
+        result = main(params)
+        
+        # 输出结果
+        print(json.dumps(result, ensure_ascii=False))

@@ -10,9 +10,10 @@
 
 	interface Props {
 		task: Task;
+		result?: any; // 添加 result 属性
 	}
 
-	let { task }: Props = $props();
+	let { task, result }: Props = $props();
 
 	// 格式化结果数据
 	function formatResult(result: any): string {
@@ -77,35 +78,40 @@
 	let resultStats = $derived(() => {
 		if (!task.result) return null;
 
-		if (typeof task.result === 'string') {
+		const result = task.result as any;
+
+		if (typeof result === 'string') {
 			return {
 				type: 'text',
-				lines: task.result.split('\n').length,
-				size: new Blob([task.result]).size
+				lines: result.split('\n').length,
+				size: new Blob([result]).size
 			};
 		}
 
-		if (Array.isArray(task.result)) {
+		if (Array.isArray(result)) {
 			return {
 				type: 'array',
-				items: task.result.length,
-				size: new Blob([JSON.stringify(task.result)]).size
+				items: result.length,
+				size: new Blob([JSON.stringify(result)]).size
 			};
 		}
 
-		if (typeof task.result === 'object') {
+		if (typeof result === 'object') {
 			return {
 				type: 'object',
-				keys: Object.keys(task.result).length,
-				size: new Blob([JSON.stringify(task.result)]).size
+				keys: Object.keys(result).length,
+				size: new Blob([JSON.stringify(result)]).size
 			};
 		}
 
 		return {
 			type: 'unknown',
-			size: new Blob([String(task.result)]).size
+			size: new Blob([String(result)]).size
 		};
 	});
+
+	// 获取统计信息值，用于模板访问
+	let stats = $derived(resultStats());
 
 	// 格式化文件大小
 	function formatFileSize(bytes: number): string {
@@ -126,16 +132,16 @@
 
 			{#if task.result}
 				<div class="flex items-center gap-2">
-					{#if resultStats}
+					{#if stats}
 						<div class="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-							{#if resultStats.type === 'text'}
-								<span>{resultStats.lines} 行</span>
-							{:else if resultStats.type === 'array'}
-								<span>{resultStats.items} 项</span>
-							{:else if resultStats.type === 'object'}
-								<span>{resultStats.keys} 键</span>
+							{#if stats.type === 'text' && stats.lines !== undefined}
+								<span>{stats.lines} 行</span>
+							{:else if stats.type === 'array' && stats.items !== undefined}
+								<span>{stats.items} 项</span>
+							{:else if stats.type === 'object' && stats.keys !== undefined}
+								<span>{stats.keys} 键</span>
 							{/if}
-							<span>{formatFileSize(resultStats.size)}</span>
+							<span>{formatFileSize(stats.size)}</span>
 						</div>
 					{/if}
 
@@ -210,24 +216,24 @@
 		{:else}
 			<div class="space-y-4">
 				<!-- 结果统计 -->
-				{#if resultStats}
+				{#if stats}
 					<div
 						class="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400 pb-4 border-b border-gray-200 dark:border-gray-700"
 					>
 						<div class="flex items-center gap-2">
 							<i class="fas fa-info-circle"></i>
-							<span>类型: {resultStats.type}</span>
+							<span>类型: {stats.type}</span>
 						</div>
 
-						{#if resultStats.type === 'text'}
-							<span>行数: {resultStats.lines}</span>
-						{:else if resultStats.type === 'array'}
-							<span>数量: {resultStats.items}</span>
-						{:else if resultStats.type === 'object'}
-							<span>属性: {resultStats.keys}</span>
+						{#if stats.type === 'text' && stats.lines !== undefined}
+							<span>行数: {stats.lines}</span>
+						{:else if stats.type === 'array' && stats.items !== undefined}
+							<span>数量: {stats.items}</span>
+						{:else if stats.type === 'object' && stats.keys !== undefined}
+							<span>属性: {stats.keys}</span>
 						{/if}
 
-						<span>大小: {formatFileSize(resultStats.size)}</span>
+						<span>大小: {formatFileSize(stats.size)}</span>
 					</div>
 				{/if}
 

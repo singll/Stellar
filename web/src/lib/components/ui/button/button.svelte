@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import type { HTMLButtonAttributes } from 'svelte/elements';
+	import type { HTMLButtonAttributes, HTMLAnchorAttributes } from 'svelte/elements';
 	import type { Snippet } from 'svelte';
 
 	export type ButtonVariant =
@@ -11,10 +11,13 @@
 		| 'link';
 	export type ButtonSize = 'default' | 'sm' | 'lg' | 'icon';
 
-	export type ButtonProps = HTMLButtonAttributes & {
+	export type ButtonProps = {
 		variant?: ButtonVariant;
 		size?: ButtonSize;
 		children?: Snippet;
+		href?: string;
+		class?: string;
+		[key: string]: any;
 	};
 
 	// 简化的按钮样式变体
@@ -53,12 +56,26 @@
 		size = 'default',
 		class: className,
 		children,
+		href,
 		...restProps
 	}: ButtonProps = $props();
+
+	const baseProps = {
+		class: cn(getButtonClasses(variant, size), className),
+		...restProps
+	};
 </script>
 
-<button class={cn(getButtonClasses(variant, size), className)} {...restProps}>
-	{#if children}
-		{@render children()}
-	{/if}
-</button>
+{#if href}
+	<a {href} {...baseProps}>
+		{#if children}
+			{@render children()}
+		{/if}
+	</a>
+{:else}
+	<button {...baseProps}>
+		{#if children}
+			{@render children()}
+		{/if}
+	</button>
+{/if}

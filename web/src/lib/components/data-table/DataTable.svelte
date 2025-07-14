@@ -1,16 +1,32 @@
 <!-- DataTable.svelte -->
 <script lang="ts">
-	import { Table } from '$lib/components/ui/table';
+	import {
+		Root as TableRoot,
+		Header as TableHeaderRow,
+		Row as TableRow,
+		Head as TableHead,
+		Body as TableBody,
+		Cell as TableCell
+	} from '$lib/components/ui/table';
 	import type { TableHeader } from './types';
 	import { createEventDispatcher } from 'svelte';
 	import { fade } from 'svelte/transition';
 
-	export let data: any[] = [];
-	export let headers: TableHeader[] = [];
-	export let pageSize: number = 10;
-	export let currentPage: number = 1;
-	export let totalItems: number = 0;
-	export let loading: boolean = false;
+	let {
+		data = [],
+		headers = [],
+		pageSize = 10,
+		currentPage = 1,
+		totalItems = 0,
+		loading = false
+	}: {
+		data?: any[];
+		headers?: TableHeader[];
+		pageSize?: number;
+		currentPage?: number;
+		totalItems?: number;
+		loading?: boolean;
+	} = $props();
 
 	const dispatch = createEventDispatcher<{
 		sort: { column: string; direction: 'asc' | 'desc' };
@@ -18,8 +34,8 @@
 		filter: { column: string; value: string };
 	}>();
 
-	let sortColumn: string | null = null;
-	let sortDirection: 'asc' | 'desc' = 'asc';
+	let sortColumn = $state<string | null>(null);
+	let sortDirection = $state<'asc' | 'desc'>('asc');
 
 	function handleSort(column: string) {
 		if (sortColumn === column) {
@@ -37,8 +53,8 @@
 		}
 	}
 
-	$: totalPages = Math.ceil(totalItems / pageSize);
-	$: pages = Array.from({ length: totalPages }, (_, i) => i + 1);
+	let totalPages = $derived(Math.ceil(totalItems / pageSize));
+	let pages = $derived(Array.from({ length: totalPages }, (_, i) => i + 1));
 </script>
 
 <div class="w-full">
@@ -48,13 +64,13 @@
 		</div>
 	{:else}
 		<div class="rounded-md border">
-			<Table.Root>
-				<Table.Header>
-					<Table.Row>
+			<TableRoot>
+				<TableHeaderRow>
+					<TableRow>
 						{#each headers as header}
-							<Table.Head
+							<TableHead
 								class="cursor-pointer"
-								on:click={() => header.sortable && handleSort(header.key)}
+								onclick={() => header.sortable && handleSort(header.key)}
 							>
 								<div class="flex items-center gap-2">
 									{header.label}
@@ -64,26 +80,26 @@
 										</span>
 									{/if}
 								</div>
-							</Table.Head>
+							</TableHead>
 						{/each}
-					</Table.Row>
-				</Table.Header>
-				<Table.Body>
+					</TableRow>
+				</TableHeaderRow>
+				<TableBody>
 					{#each data as row}
-						<Table.Row>
+						<TableRow>
 							{#each headers as header}
-								<Table.Cell>
+								<TableCell>
 									{#if header.format}
 										{@html header.format(row[header.key])}
 									{:else}
 										{row[header.key]}
 									{/if}
-								</Table.Cell>
+								</TableCell>
 							{/each}
-						</Table.Row>
+						</TableRow>
 					{/each}
-				</Table.Body>
-			</Table.Root>
+				</TableBody>
+			</TableRoot>
 		</div>
 
 		<!-- Pagination -->
@@ -92,7 +108,7 @@
 				<button
 					class="btn btn-sm"
 					disabled={currentPage === 1}
-					on:click={() => handlePageChange(currentPage - 1)}
+					onclick={() => handlePageChange(currentPage - 1)}
 				>
 					Previous
 				</button>
@@ -100,7 +116,7 @@
 					{#each pages as page}
 						<button
 							class="btn btn-sm {currentPage === page ? 'btn-primary' : ''}"
-							on:click={() => handlePageChange(page)}
+							onclick={() => handlePageChange(page)}
 						>
 							{page}
 						</button>
@@ -109,7 +125,7 @@
 				<button
 					class="btn btn-sm"
 					disabled={currentPage === totalPages}
-					on:click={() => handlePageChange(currentPage + 1)}
+					onclick={() => handlePageChange(currentPage + 1)}
 				>
 					Next
 				</button>

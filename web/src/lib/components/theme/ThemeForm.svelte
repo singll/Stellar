@@ -11,11 +11,11 @@
 		UpdateThemeRequest,
 		ThemeColors
 	} from '$lib/types/theme';
-	import { createDefaultTheme, validateTheme } from '$lib/utils/theme';
+	import { createDefaultTheme, validateTheme, createTheme, updateTheme } from '$lib/utils/theme';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Button } from '$lib/components/ui/button';
-	import { Textarea } from '$lib/components/ui/textarea';
+	import Textarea from '$lib/components/ui/Textarea.svelte';
 	import ColorPicker from './ColorPicker.svelte';
 	import ThemePreview from './ThemePreview.svelte';
 
@@ -54,7 +54,11 @@
 			warning: '#f59e0b',
 			warningForeground: '#ffffff',
 			info: '#0ea5e9',
-			infoForeground: '#ffffff'
+			infoForeground: '#ffffff',
+			error: '#ef4444',
+			header: '#ffffff',
+			card: '#ffffff',
+			sidebar: '#f1f5f9'
 		}
 	);
 
@@ -77,7 +81,11 @@
 			warning: '#f59e0b',
 			warningForeground: '#ffffff',
 			info: '#0ea5e9',
-			infoForeground: '#ffffff'
+			infoForeground: '#ffffff',
+			error: '#ef4444',
+			header: '#020817',
+			card: '#020817',
+			sidebar: '#1e293b'
 		}
 	);
 
@@ -94,10 +102,12 @@
 			const request: CreateThemeRequest = {
 				name,
 				description,
-				author,
 				colors: {
 					light: lightColors,
 					dark: darkColors
+				},
+				metadata: {
+					author
 				}
 			};
 
@@ -109,7 +119,6 @@
 			}
 		} else if (theme) {
 			const request: UpdateThemeRequest = {
-				id: theme.id,
 				name,
 				description,
 				colors: {
@@ -138,10 +147,12 @@
 			const request: CreateThemeRequest = {
 				name,
 				description,
-				author,
 				colors: {
 					light: lightColors,
 					dark: darkColors
+				},
+				metadata: {
+					author
 				}
 			};
 
@@ -149,7 +160,6 @@
 			dispatch('submit', newTheme);
 		} else if (theme) {
 			const request: UpdateThemeRequest = {
-				id: theme.id,
 				name,
 				description,
 				colors: {

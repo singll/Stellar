@@ -226,5 +226,12 @@
 
 <!-- 点击外部关闭菜单 -->
 {#if showMenu}
-	<div class="fixed inset-0 z-0" onclick={() => (showMenu = false)}></div>
+	<div
+		role="button"
+		tabindex="0"
+		class="fixed inset-0 z-0"
+		onclick={() => (showMenu = false)}
+		onkeydown={(e) => e.key === 'Escape' && (showMenu = false)}
+		aria-label="关闭菜单"
+	></div>
 {/if}

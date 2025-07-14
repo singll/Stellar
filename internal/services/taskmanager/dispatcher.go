@@ -87,7 +87,7 @@ func (td *TaskDispatcher) SubmitTask(task *models.Task) error {
 		task.ID = primitive.NewObjectID()
 	}
 	if task.Status == "" {
-		task.Status = models.TaskStatusPending
+		task.Status = string(models.TaskStatusPending)
 	}
 	if task.CreatedAt.IsZero() {
 		task.CreatedAt = time.Now()
@@ -141,7 +141,7 @@ func (td *TaskDispatcher) CancelTask(taskID string) error {
 		bson.M{"_id": objID},
 		bson.M{
 			"$set": bson.M{
-				"status": models.TaskStatusCanceled,
+				"status": models.TaskStatusCancelled,
 			},
 		},
 	)
@@ -239,9 +239,9 @@ func (td *TaskDispatcher) UpdateTaskStatus(taskID string, status string, progres
 		},
 	}
 
-	if status == models.TaskStatusRunning && progress == 0 {
+	if status == string(models.TaskStatusRunning) && progress == 0 {
 		update["$set"].(bson.M)["startedAt"] = time.Now()
-	} else if status == models.TaskStatusCompleted || status == models.TaskStatusFailed {
+	} else if status == string(models.TaskStatusCompleted) || status == string(models.TaskStatusFailed) {
 		update["$set"].(bson.M)["completedAt"] = time.Now()
 	}
 
@@ -517,7 +517,7 @@ func (td *TaskDispatcher) checkDependentTasks(taskID string) {
 		td.ctx,
 		bson.M{
 			"dependsOn": taskID,
-			"status":    models.TaskStatusPending,
+			"status":    string(models.TaskStatusPending),
 		},
 	)
 	if err != nil {
@@ -537,7 +537,7 @@ func (td *TaskDispatcher) checkDependentTasks(taskID string) {
 		// 检查所有依赖是否满足
 		if td.checkTaskDependencies(&depTask) {
 			// 将任务状态更新为已入队
-			_ = td.UpdateTaskStatus(depTask.ID.Hex(), models.TaskStatusQueued, 0)
+			_ = td.UpdateTaskStatus(depTask.ID.Hex(), string(models.TaskStatusPending), 0)
 
 			// 将任务加入队列
 			queueName := "default"
@@ -607,13 +607,13 @@ func (td *TaskDispatcher) scheduler() {
 // processTask 处理任务
 func (td *TaskDispatcher) processTask(task *models.Task) {
 	// 更新任务状态为运行中
-	_ = td.UpdateTaskStatus(task.ID.Hex(), models.TaskStatusRunning, 0)
+	_ = td.UpdateTaskStatus(task.ID.Hex(), string(models.TaskStatusRunning), 0)
 
 	// 选择合适的节点执行任务
 	node, err := td.selectNode(task)
 	if err != nil {
 		// 如果没有合适的节点，更新任务状态为失败
-		_ = td.UpdateTaskStatus(task.ID.Hex(), models.TaskStatusFailed, 0)
+		_ = td.UpdateTaskStatus(task.ID.Hex(), string(models.TaskStatusFailed), 0)
 		_ = td.SaveTaskResult(task.ID.Hex(), &models.TaskResult{
 			Status: "failed",
 			Error:  "无法找到合适的节点执行任务: " + err.Error(),
@@ -623,14 +623,14 @@ func (td *TaskDispatcher) processTask(task *models.Task) {
 
 	// 将任务分配给节点
 	task.NodeID = node.ID.Hex()
-	_ = td.UpdateTaskStatus(task.ID.Hex(), models.TaskStatusRunning, 0)
+	_ = td.UpdateTaskStatus(task.ID.Hex(), string(models.TaskStatusRunning), 0)
 
 	// 通过Redis发送任务到节点
 	taskData, _ := bson.Marshal(task)
 	err = td.redisClient.Publish(td.ctx, "task_assign:"+node.ID.Hex(), string(taskData)).Err()
 	if err != nil {
 		// 如果发送失败，更新任务状态为失败
-		_ = td.UpdateTaskStatus(task.ID.Hex(), models.TaskStatusFailed, 0)
+		_ = td.UpdateTaskStatus(task.ID.Hex(), string(models.TaskStatusFailed), 0)
 		_ = td.SaveTaskResult(task.ID.Hex(), &models.TaskResult{
 			Status: "failed",
 			Error:  "无法将任务发送到节点: " + err.Error(),
@@ -655,8 +655,8 @@ func (td *TaskDispatcher) processTask(task *models.Task) {
 				}
 
 				// 如果任务仍在运行，则标记为超时
-				if status == models.TaskStatusRunning {
-					_ = td.UpdateTaskStatus(task.ID.Hex(), models.TaskStatusTimeout, task.Progress)
+				if status == string(models.TaskStatusRunning) {
+					_ = td.UpdateTaskStatus(task.ID.Hex(), string(models.TaskStatusTimeout), task.Progress)
 					_ = td.SaveTaskResult(task.ID.Hex(), &models.TaskResult{
 						Status: "timeout",
 						Error:  "任务执行超时",
@@ -701,7 +701,7 @@ func (td *TaskDispatcher) checkTaskDependencies(task *models.Task) bool {
 		dependencyStatuses[depID] = depTask.Status
 
 		// 检查依赖任务是否已完成
-		if depTask.Status != models.TaskStatusCompleted {
+		if depTask.Status != string(models.TaskStatusCompleted) {
 			dependencyMet = false
 			continue
 		}
@@ -803,7 +803,7 @@ func (td *TaskDispatcher) logError(message string) {
 // selectNode 选择合适的节点执行任务
 func (td *TaskDispatcher) selectNode(task *models.Task) (*models.Node, error) {
 	// 获取所有在线节点
-	nodes := td.nodeManager.GetNodesByStatus(models.NodeStatusOnline)
+	nodes := td.nodeManager.GetNodesByStatus(string(models.NodeStatusOnline))
 	if len(nodes) == 0 {
 		return nil, errors.New("没有在线节点可用")
 	}

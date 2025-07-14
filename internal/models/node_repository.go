@@ -111,11 +111,11 @@ func (r *nodeRepository) Create(ctx context.Context, node *Node) error {
 	}
 	
 	now := time.Now()
-	if node.RegisterTime.IsZero() {
-		node.RegisterTime = now
+	if node.RegisteredAt.IsZero() {
+		node.RegisteredAt = now
 	}
-	if node.LastHeartbeatTime.IsZero() {
-		node.LastHeartbeatTime = now
+	if node.LastHeartbeat.IsZero() {
+		node.LastHeartbeat = now
 	}
 
 	_, err := r.collection.InsertOne(ctx, node)
@@ -584,7 +584,17 @@ func (r *nodeRepository) GetNodeTaskStats(ctx context.Context, nodeId string) (*
 		return nil, err
 	}
 
-	return &node.TaskStats, nil
+	// 构建TaskStats
+	taskStats := NodeTaskStats{
+		TotalTasks:     int(node.ActiveTasks + node.CompletedTasks + node.FailedTasks),
+		SuccessTasks:   int(node.CompletedTasks),
+		FailedTasks:    int(node.FailedTasks),
+		TaskTypeStats:  map[string]int{}, // 简化实现
+		AvgExecuteTime: 0,                // 需要计算
+		LastTaskTime:   node.LastUpdate,
+	}
+
+	return &taskStats, nil
 }
 
 // UpdateTaskStats 更新节点任务统计

@@ -228,7 +228,7 @@
 				</FormField>
 
 				<FormField label="节点角色" required>
-					<Select bind:value={formData.role} options={roleOptions} required />
+					<Select bind:value={formData.role} options={roleOptions} />
 				</FormField>
 
 				<FormField label="IP地址" required>
@@ -236,7 +236,7 @@
 				</FormField>
 
 				<FormField label="端口号" required>
-					<Input type="number" bind:value={formData.port} min="1" max="65535" required />
+					<Input type="number" bind:value={formData.port} min={1} max={65535} required />
 				</FormField>
 			</div>
 
@@ -256,8 +256,8 @@
 					<Input
 						type="number"
 						bind:value={formData.config.maxConcurrentTasks}
-						min="1"
-						max="100"
+						min={1}
+						max={100}
 						required
 					/>
 				</FormField>
@@ -266,9 +266,9 @@
 					<Input
 						type="number"
 						bind:value={formData.config.maxMemoryUsage}
-						min="512"
-						max="32768"
-						step="256"
+						min={512}
+						max={32768}
+						step={256}
 						required
 					/>
 				</FormField>
@@ -277,8 +277,8 @@
 					<Input
 						type="number"
 						bind:value={formData.config.maxCpuUsage}
-						min="10"
-						max="100"
+						min={10}
+						max={100}
 						required
 					/>
 				</FormField>
@@ -287,8 +287,8 @@
 					<Input
 						type="number"
 						bind:value={formData.config.heartbeatInterval}
-						min="5"
-						max="300"
+						min={5}
+						max={300}
 						required
 					/>
 				</FormField>
@@ -297,14 +297,14 @@
 					<Input
 						type="number"
 						bind:value={formData.config.taskTimeout}
-						min="60"
-						max="3600"
+						min={60}
+						max={3600}
 						required
 					/>
 				</FormField>
 
 				<FormField label="日志级别" required>
-					<Select bind:value={formData.config.logLevel} options={logLevelOptions} required />
+					<Select bind:value={formData.config.logLevel} options={logLevelOptions} />
 				</FormField>
 			</div>
 		</div>
@@ -319,7 +319,8 @@
 						<input
 							type="checkbox"
 							checked={formData.config.enabledTaskTypes.includes(taskType.value)}
-							onchange={(e) => handleTaskTypeChange(taskType.value, e.target.checked)}
+							onchange={(e) =>
+								handleTaskTypeChange(taskType.value, (e.target as HTMLInputElement).checked)}
 							class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 						/>
 						<span class="text-sm font-medium text-gray-900">{taskType.label}</span>
@@ -351,7 +352,7 @@
 			<Button type="button" variant="outline" onclick={() => goto('/nodes')} disabled={loading}>
 				取消
 			</Button>
-			<Button type="submit" variant="primary" disabled={loading}>
+			<Button type="submit" variant="default" disabled={loading}>
 				{loading ? '创建中...' : '创建节点'}
 			</Button>
 		</div>

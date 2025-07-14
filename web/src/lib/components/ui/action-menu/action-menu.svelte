@@ -9,11 +9,15 @@
 	import Icon from '$lib/components/ui/Icon.svelte';
 	import { createEventDispatcher } from 'svelte';
 
-	export let actions: Array<{
-		label: string;
-		value: string;
-		disabled?: boolean;
-	}> = [];
+	let {
+		actions = []
+	}: {
+		actions?: Array<{
+			label: string;
+			value: string;
+			disabled?: boolean;
+		}>;
+	} = $props();
 
 	const dispatch = createEventDispatcher<{
 		select: { value: string };
@@ -33,7 +37,7 @@
 	</DropdownMenuTrigger>
 	<DropdownMenuContent align="end">
 		{#each actions as action}
-			<DropdownMenuItem disabled={action.disabled} on:click={() => handleSelect(action.value)}>
+			<DropdownMenuItem disabled={action.disabled} onclick={() => handleSelect(action.value)}>
 				{action.label}
 			</DropdownMenuItem>
 		{/each}

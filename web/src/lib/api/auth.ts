@@ -205,5 +205,22 @@ export const authApi = {
 			}
 			throw error;
 		}
+	},
+
+	/**
+	 * 更新密码
+	 * @param data { oldPassword: string, newPassword: string }
+	 * @returns void
+	 */
+	async updatePassword(data: { oldPassword: string; newPassword: string }): Promise<void> {
+		try {
+			await api.post('/auth/update-password', data);
+		} catch (error: any) {
+			if (error.response?.data) {
+				const { code, message, details } = error.response.data;
+				throw new APIError(code, message, details);
+			}
+			throw error;
+		}
 	}
 };

@@ -20,10 +20,11 @@
 		CardHeader,
 		CardTitle
 	} from '$lib/components/ui/card';
-	import Button from '$lib/components/ui/Button.svelte';
-	import LoadingSpinner from '$lib/components/ui/LoadingSpinner.svelte';
-	import Badge from '$lib/components/ui/Badge.svelte';
+	import { Button } from '$lib/components/ui/button';
 	import ProgressBar from '$lib/components/ui/ProgressBar.svelte';
+
+	// 现代化图标
+	import Icon from '@iconify/svelte';
 
 	// 类型导入
 	import type { Asset } from '$lib/types/asset';
@@ -88,9 +89,11 @@
 				// 获取详细的资产统计
 				try {
 					const assetStats = await assetApi.getAssetStats();
-					stats.assets.active = assetStats.data.total;
-					stats.assets.domains = assetStats.data.byType?.domain || 0;
-					stats.assets.ips = assetStats.data.byType?.ip || 0;
+					// assetStats.data 是 Record<string, number>，需要解析结构
+					const assetData = assetStats.data as Record<string, number>;
+					stats.assets.active = assetData.total || 0;
+					stats.assets.domains = assetData.domain || 0;
+					stats.assets.ips = assetData.ip || 0;
 
 					// 获取最近资产
 					const recentAssetsData = await assetApi.getAssets({
@@ -113,9 +116,10 @@
 
 				try {
 					const taskStats = await taskApi.getTaskStats();
-					stats.tasks.running = taskStats.data.byStatus?.running || 0;
-					stats.tasks.completed = taskStats.data.byStatus?.completed || 0;
-					stats.tasks.failed = taskStats.data.byStatus?.failed || 0;
+					// TaskStats 直接包含状态计数，不需要 byStatus
+					stats.tasks.running = taskStats.data.running || 0;
+					stats.tasks.completed = taskStats.data.completed || 0;
+					stats.tasks.failed = taskStats.data.failed || 0;
 				} catch (err) {
 					console.warn('加载任务详细统计失败:', err);
 				}
@@ -127,15 +131,17 @@
 			}
 
 			// 处理节点统计
-			if (nodesStatsResponse.status === 'fulfilled') {
-				nodeStats = nodesStatsResponse.value.data;
-				stats.nodes.total = nodeStats.total;
-				stats.nodes.online = nodeStats.online;
-				stats.nodes.offline = nodeStats.offline;
+			if (nodesStatsResponse.status === 'fulfilled' && nodesStatsResponse.value) {
+				nodeStats = nodesStatsResponse.value;
+				if (nodeStats) {
+					stats.nodes.total = nodeStats.total;
+					stats.nodes.online = nodeStats.online;
+					stats.nodes.offline = nodeStats.offline;
 
-				// 计算节点健康度
-				if (nodeStats.total > 0) {
-					systemHealth.nodes = Math.round((nodeStats.online / nodeStats.total) * 100);
+					// 计算节点健康度
+					if (nodeStats.total > 0) {
+						systemHealth.nodes = Math.round((nodeStats.online / nodeStats.total) * 100);
+					}
 				}
 			}
 
@@ -162,11 +168,11 @@
 	function getTaskStatusVariant(status: string) {
 		switch (status) {
 			case 'running':
-				return 'warning';
+				return 'secondary';
 			case 'completed':
-				return 'success';
+				return 'default';
 			case 'failed':
-				return 'danger';
+				return 'destructive';
 			case 'pending':
 				return 'secondary';
 			default:
@@ -219,9 +225,9 @@
 
 	// 获取健康度进度条样式
 	function getHealthVariant(score: number) {
-		if (score >= 90) return 'success';
-		if (score >= 70) return 'warning';
-		return 'danger';
+		if (score >= 90) return 'green';
+		if (score >= 70) return 'yellow';
+		return 'red';
 	}
 
 	// 页面加载
@@ -245,111 +251,158 @@
 	<!-- 页面标题 -->
 	<div class="flex items-center justify-between">
 		<div>
-			<h1 class="text-4xl font-bold bg-gradient-to-r from-slate-800 to-blue-600 bg-clip-text text-transparent">仪表盘</h1>
-			<p class="text-slate-600 mt-2">系统概览和快速操作</p>
+			<h1 class="text-4xl font-bold bg-gradient-to-r from-slate-800 to-blue-600 bg-clip-text text-transparent">
+				仪表盘
+			</h1>
+			<p class="text-slate-600 dark:text-slate-400 mt-2">系统概览和快速操作</p>
 		</div>
 		<div class="flex items-center space-x-3">
-			<button 
-				onclick={loadDashboardData} 
+			<Button
+				variant="outline"
+				onclick={loadDashboardData}
 				disabled={loading}
-				class="modern-btn-secondary"
+				class="h-10"
 			>
-				{loading ? '刷新中...' : '🔄 刷新'}
-			</button>
-			<button onclick={() => goto('/tasks/create')} class="modern-btn-primary">
-				⚡ 创建任务
-			</button>
+				<Icon icon="tabler:refresh" width={16} class="mr-2 {loading ? 'animate-spin' : ''}" />
+				{loading ? '刷新中...' : '刷新'}
+			</Button>
+			<Button
+				onclick={() => goto('/tasks/create')}
+				class="h-10 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+			>
+				<Icon icon="tabler:plus" width={16} class="mr-2" />
+				创建任务
+			</Button>
 		</div>
 	</div>
 
 	<!-- 错误提示 -->
 	{#if error}
-		<div class="notification-error">
+		<div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
 			<div class="flex items-center justify-between">
 				<div class="flex items-center space-x-2">
-					<span>❌</span>
-					<span>{error}</span>
+					<Icon icon="tabler:circle-x" width={20} class="text-red-600 dark:text-red-400" />
+					<span class="text-red-800 dark:text-red-200">{error}</span>
 				</div>
-				<button onclick={() => (error = null)} class="modern-btn-ghost text-red-600 hover:text-red-800">
+				<Button
+					variant="ghost"
+					size="sm"
+					onclick={() => (error = null)}
+					class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200"
+				>
 					关闭
-				</button>
+				</Button>
 			</div>
 		</div>
 	{/if}
 
 	<!-- 核心统计卡片 -->
 	<div class="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-		<div class="modern-card hover:scale-105 transition-all duration-300">
-			<div class="flex items-center justify-between mb-4">
-				<h3 class="text-sm font-medium text-slate-600">资产总数</h3>
-				<div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center text-white shadow-soft">
-					🎯
+		<Card class="hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+			<CardContent class="p-6">
+				<div class="flex items-center justify-between mb-4">
+					<h3 class="text-sm font-medium text-slate-600 dark:text-slate-400">资产总数</h3>
+					<div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+						<Icon icon="tabler:target" width={20} class="text-white" />
+					</div>
 				</div>
-			</div>
-			<div class="space-y-2">
-				<div class="text-3xl font-bold text-slate-800">{stats.assets.total.toLocaleString()}</div>
-				<p class="text-xs text-slate-500">
-					域名 {stats.assets.domains} · IP {stats.assets.ips}
-				</p>
-				<button onclick={() => goto('/assets')} class="modern-btn-ghost text-blue-600 hover:text-blue-700 text-sm">
-					查看资产
-				</button>
-			</div>
-		</div>
+				<div class="space-y-2">
+					<div class="text-3xl font-bold text-slate-900 dark:text-slate-100">{stats.assets.total.toLocaleString()}</div>
+					<p class="text-xs text-slate-500 dark:text-slate-400">
+						域名 {stats.assets.domains} · IP {stats.assets.ips}
+					</p>
+					<Button
+						variant="ghost"
+						size="sm"
+						onclick={() => goto('/assets')}
+						class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 p-0 h-auto"
+					>
+						查看资产
+						<Icon icon="tabler:arrow-right" width={14} class="ml-1" />
+					</Button>
+				</div>
+			</CardContent>
+		</Card>
 
-		<div class="modern-card hover:scale-105 transition-all duration-300">
-			<div class="flex items-center justify-between mb-4">
-				<h3 class="text-sm font-medium text-slate-600">活跃任务</h3>
-				<div class="w-10 h-10 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center text-white shadow-soft">
-					⚡
+		<Card class="hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+			<CardContent class="p-6">
+				<div class="flex items-center justify-between mb-4">
+					<h3 class="text-sm font-medium text-slate-600 dark:text-slate-400">活跃任务</h3>
+					<div class="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
+						<Icon icon="tabler:bolt" width={20} class="text-white" />
+					</div>
 				</div>
-			</div>
-			<div class="space-y-2">
-				<div class="text-3xl font-bold text-slate-800">{stats.tasks.running}</div>
-				<p class="text-xs text-slate-500">
-					总计 {stats.tasks.total} · 已完成 {stats.tasks.completed}
-				</p>
-				<button onclick={() => goto('/tasks')} class="modern-btn-ghost text-orange-600 hover:text-orange-700 text-sm">
-					管理任务
-				</button>
-			</div>
-		</div>
+				<div class="space-y-2">
+					<div class="text-3xl font-bold text-slate-900 dark:text-slate-100">{stats.tasks.running}</div>
+					<p class="text-xs text-slate-500 dark:text-slate-400">
+						总计 {stats.tasks.total} · 已完成 {stats.tasks.completed}
+					</p>
+					<Button
+						variant="ghost"
+						size="sm"
+						onclick={() => goto('/tasks')}
+						class="text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 p-0 h-auto"
+					>
+						管理任务
+						<Icon icon="tabler:arrow-right" width={14} class="ml-1" />
+					</Button>
+				</div>
+			</CardContent>
+		</Card>
 
-		<div class="modern-card hover:scale-105 transition-all duration-300">
-			<div class="flex items-center justify-between mb-4">
-				<h3 class="text-sm font-medium text-slate-600">在线节点</h3>
-				<div class="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center text-white shadow-soft">
-					🖥️
+		<Card class="hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+			<CardContent class="p-6">
+				<div class="flex items-center justify-between mb-4">
+					<h3 class="text-sm font-medium text-slate-600 dark:text-slate-400">在线节点</h3>
+					<div class="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+						<Icon icon="tabler:device-desktop" width={20} class="text-white" />
+					</div>
 				</div>
-			</div>
-			<div class="space-y-2">
-				<div class="text-3xl font-bold text-slate-800">{stats.nodes.online}/{stats.nodes.total}</div>
-				<p class="text-xs text-slate-500">
-					离线 {stats.nodes.offline} 个节点
-				</p>
-				<button onclick={() => goto('/nodes')} class="modern-btn-ghost text-green-600 hover:text-green-700 text-sm">
-					节点管理
-				</button>
-			</div>
-		</div>
+				<div class="space-y-2">
+					<div class="text-3xl font-bold text-slate-900 dark:text-slate-100">
+						{stats.nodes.online}/{stats.nodes.total}
+					</div>
+					<p class="text-xs text-slate-500 dark:text-slate-400">
+						离线 {stats.nodes.offline} 个节点
+					</p>
+					<Button
+						variant="ghost"
+						size="sm"
+						onclick={() => goto('/nodes')}
+						class="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 p-0 h-auto"
+					>
+						节点管理
+						<Icon icon="tabler:arrow-right" width={14} class="ml-1" />
+					</Button>
+				</div>
+			</CardContent>
+		</Card>
 
-		<div class="modern-card hover:scale-105 transition-all duration-300">
-			<div class="flex items-center justify-between mb-4">
-				<h3 class="text-sm font-medium text-slate-600">活跃项目</h3>
-				<div class="w-10 h-10 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center text-white shadow-soft">
-					📁
+		<Card class="hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+			<CardContent class="p-6">
+				<div class="flex items-center justify-between mb-4">
+					<h3 class="text-sm font-medium text-slate-600 dark:text-slate-400">活跃项目</h3>
+					<div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+						<Icon icon="tabler:folder" width={20} class="text-white" />
+					</div>
 				</div>
-			</div>
-			<div class="space-y-2">
-				<div class="text-3xl font-bold text-slate-800">{stats.projects.active}</div>
-				<p class="text-xs text-slate-500">
-					总计 {stats.projects.total} 个项目
-				</p>
-				<button onclick={() => goto('/projects')} class="modern-btn-ghost text-purple-600 hover:text-purple-700 text-sm">
-					项目管理
-				</button>
-			</div>
-		</div>
+				<div class="space-y-2">
+					<div class="text-3xl font-bold text-slate-900 dark:text-slate-100">{stats.projects.active}</div>
+					<p class="text-xs text-slate-500 dark:text-slate-400">
+						总计 {stats.projects.total} 个项目
+					</p>
+					<Button
+						variant="ghost"
+						size="sm"
+						onclick={() => goto('/projects')}
+						class="text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 p-0 h-auto"
+					>
+						项目管理
+						<Icon icon="tabler:arrow-right" width={14} class="ml-1" />
+					</Button>
+				</div>
+			</CardContent>
+		</Card>
 	</div>
 
 	<!-- 主要内容区域 -->
@@ -357,278 +410,366 @@
 		<!-- 左栏：系统健康状态 + 快速操作 -->
 		<div class="space-y-6">
 			<!-- 系统健康状态 -->
-			<div class="modern-card">
-				<div class="flex items-center space-x-2 mb-6">
-					<div class="w-8 h-8 bg-gradient-to-br from-green-400 to-emerald-500 rounded-lg flex items-center justify-center">
-						🩺
+			<Card class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+				<CardHeader class="pb-4">
+					<div class="flex items-center space-x-2">
+						<div class="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+							<Icon icon="tabler:activity" width={18} class="text-white" />
+						</div>
+						<CardTitle class="text-lg text-slate-900 dark:text-slate-100">系统健康状态</CardTitle>
 					</div>
-					<h3 class="text-lg font-semibold text-slate-800">系统健康状态</h3>
-				</div>
-				
-				<div class="space-y-4">
+				</CardHeader>
+				<CardContent class="space-y-4">
 					<div class="flex items-center justify-between">
-						<span class="text-sm font-medium text-slate-700">整体状态</span>
+						<span class="text-sm font-medium text-slate-700 dark:text-slate-300">整体状态</span>
 						<span class="text-sm font-bold {getHealthColor(systemHealth.overall)}">
 							{systemHealth.overall}%
 						</span>
 					</div>
-					<div class="w-full bg-slate-200 rounded-full h-2">
-						<div 
-							class="h-2 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-300"
+					<div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+						<div
+							class="h-2 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 transition-all duration-300"
 							style="width: {systemHealth.overall}%"
 						></div>
 					</div>
 
 					<div class="space-y-3 text-sm">
 						<div class="flex justify-between items-center">
-							<span class="text-slate-600">数据库</span>
 							<div class="flex items-center space-x-2">
-								<div class="w-12 bg-slate-200 rounded-full h-1">
-									<div 
-										class="h-1 rounded-full bg-green-400 transition-all"
+								<Icon icon="tabler:database" width={14} class="text-slate-500" />
+								<span class="text-slate-600 dark:text-slate-400">数据库</span>
+							</div>
+							<div class="flex items-center space-x-2">
+								<div class="w-12 bg-slate-200 dark:bg-slate-700 rounded-full h-1">
+									<div
+										class="h-1 rounded-full bg-green-500 transition-all"
 										style="width: {systemHealth.database}%"
 									></div>
 								</div>
-								<span class={getHealthColor(systemHealth.database)}>{systemHealth.database}%</span>
+								<span class="{getHealthColor(systemHealth.database)} font-medium">{systemHealth.database}%</span>
 							</div>
 						</div>
 						<div class="flex justify-between items-center">
-							<span class="text-slate-600">缓存服务</span>
 							<div class="flex items-center space-x-2">
-								<div class="w-12 bg-slate-200 rounded-full h-1">
-									<div 
-										class="h-1 rounded-full bg-blue-400 transition-all"
+								<Icon icon="tabler:wifi" width={14} class="text-slate-500" />
+								<span class="text-slate-600 dark:text-slate-400">缓存服务</span>
+							</div>
+							<div class="flex items-center space-x-2">
+								<div class="w-12 bg-slate-200 dark:bg-slate-700 rounded-full h-1">
+									<div
+										class="h-1 rounded-full bg-blue-500 transition-all"
 										style="width: {systemHealth.cache}%"
 									></div>
 								</div>
-								<span class={getHealthColor(systemHealth.cache)}>{systemHealth.cache}%</span>
+								<span class="{getHealthColor(systemHealth.cache)} font-medium">{systemHealth.cache}%</span>
 							</div>
 						</div>
 						<div class="flex justify-between items-center">
-							<span class="text-slate-600">计算节点</span>
 							<div class="flex items-center space-x-2">
-								<div class="w-12 bg-slate-200 rounded-full h-1">
-									<div 
-										class="h-1 rounded-full bg-purple-400 transition-all"
+								<Icon icon="tabler:device-desktop" width={14} class="text-slate-500" />
+								<span class="text-slate-600 dark:text-slate-400">计算节点</span>
+							</div>
+							<div class="flex items-center space-x-2">
+								<div class="w-12 bg-slate-200 dark:bg-slate-700 rounded-full h-1">
+									<div
+										class="h-1 rounded-full bg-purple-500 transition-all"
 										style="width: {systemHealth.nodes}%"
 									></div>
 								</div>
-								<span class={getHealthColor(systemHealth.nodes)}>{systemHealth.nodes}%</span>
+								<span class="{getHealthColor(systemHealth.nodes)} font-medium">{systemHealth.nodes}%</span>
 							</div>
 						</div>
 						<div class="flex justify-between items-center">
-							<span class="text-slate-600">存储空间</span>
 							<div class="flex items-center space-x-2">
-								<div class="w-12 bg-slate-200 rounded-full h-1">
-									<div 
-										class="h-1 rounded-full bg-orange-400 transition-all"
+								<Icon icon="tabler:device-floppy" width={14} class="text-slate-500" />
+								<span class="text-slate-600 dark:text-slate-400">存储空间</span>
+							</div>
+							<div class="flex items-center space-x-2">
+								<div class="w-12 bg-slate-200 dark:bg-slate-700 rounded-full h-1">
+									<div
+										class="h-1 rounded-full bg-orange-500 transition-all"
 										style="width: {systemHealth.storage}%"
 									></div>
 								</div>
-								<span class={getHealthColor(systemHealth.storage)}>{systemHealth.storage}%</span>
+								<span class="{getHealthColor(systemHealth.storage)} font-medium">{systemHealth.storage}%</span>
 							</div>
 						</div>
 					</div>
-				</div>
-			</div>
+				</CardContent>
+			</Card>
 
 			<!-- 快速操作 -->
-			<div class="modern-card">
-				<div class="flex items-center space-x-2 mb-6">
-					<div class="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-500 rounded-lg flex items-center justify-center">
-						⚡
+			<Card class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+				<CardHeader class="pb-4">
+					<div class="flex items-center space-x-2">
+						<div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+							<Icon icon="tabler:bolt" width={18} class="text-white" />
+						</div>
+						<CardTitle class="text-lg text-slate-900 dark:text-slate-100">快速操作</CardTitle>
 					</div>
-					<h3 class="text-lg font-semibold text-slate-800">快速操作</h3>
-				</div>
-				
-				<div class="space-y-3">
-					<button
+				</CardHeader>
+				<CardContent class="space-y-3">
+					<Button
+						variant="ghost"
 						onclick={() => goto('/tasks/create')}
-						class="modern-btn-ghost w-full justify-start text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+						class="w-full justify-start text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20"
 					>
-						<span class="mr-3">🎯</span>
+						<Icon icon="tabler:target" width={16} class="mr-3" />
 						创建扫描任务
-					</button>
-					<button
+					</Button>
+					<Button
+						variant="ghost"
 						onclick={() => goto('/projects/create')}
-						class="modern-btn-ghost w-full justify-start text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+						class="w-full justify-start text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20"
 					>
-						<span class="mr-3">📁</span>
+						<Icon icon="tabler:folder" width={16} class="mr-3" />
 						新建项目
-					</button>
-					<button 
-						onclick={() => goto('/assets')} 
-						class="modern-btn-ghost w-full justify-start text-green-600 hover:text-green-700 hover:bg-green-50"
+					</Button>
+					<Button
+						variant="ghost"
+						onclick={() => goto('/assets')}
+						class="w-full justify-start text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20"
 					>
-						<span class="mr-3">🔍</span>
+						<Icon icon="tabler:trending-up" width={16} class="mr-3" />
 						导入资产
-					</button>
-					<button
+					</Button>
+					<Button
+						variant="ghost"
 						onclick={() => goto('/nodes/create')}
-						class="modern-btn-ghost w-full justify-start text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+						class="w-full justify-start text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/20"
 					>
-						<span class="mr-3">🖥️</span>
+						<Icon icon="tabler:device-desktop" width={16} class="mr-3" />
 						添加节点
-					</button>
-					<button 
-						onclick={() => goto('/settings')} 
-						class="modern-btn-ghost w-full justify-start text-slate-600 hover:text-slate-700 hover:bg-slate-50"
+					</Button>
+					<Button
+						variant="ghost"
+						onclick={() => goto('/settings')}
+						class="w-full justify-start text-slate-600 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
 					>
-						<span class="mr-3">⚙️</span>
+						<Icon icon="tabler:settings" width={16} class="mr-3" />
 						系统设置
-					</button>
-				</div>
-			</div>
+					</Button>
+				</CardContent>
+			</Card>
 		</div>
 
 		<!-- 中栏：最近任务 -->
-		<div class="modern-card">
-			<div class="flex items-center justify-between mb-6">
-				<div class="flex items-center space-x-2">
-					<div class="w-8 h-8 bg-gradient-to-br from-orange-400 to-orange-500 rounded-lg flex items-center justify-center">
-						📋
+		<Card class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+			<CardHeader class="pb-4">
+				<div class="flex items-center justify-between">
+					<div class="flex items-center space-x-2">
+						<div class="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
+							<Icon icon="tabler:file-text" width={18} class="text-white" />
+						</div>
+						<CardTitle class="text-lg text-slate-900 dark:text-slate-100">最近任务</CardTitle>
 					</div>
-					<h3 class="text-lg font-semibold text-slate-800">最近任务</h3>
+					<Button
+						variant="ghost"
+						size="sm"
+						onclick={() => goto('/tasks')}
+						class="text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300"
+					>
+						查看全部
+						<Icon icon="tabler:arrow-right" width={14} class="ml-1" />
+					</Button>
 				</div>
-				<button onclick={() => goto('/tasks')} class="modern-btn-ghost text-orange-600 hover:text-orange-700 text-sm">
-					查看全部
-				</button>
-			</div>
-			
-			{#if loading}
-				<div class="flex items-center justify-center py-12">
-					<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
-				</div>
-			{:else if recentTasks.length === 0}
-				<div class="text-center py-12 text-slate-500">
-					<div class="text-6xl mb-4">📝</div>
-					<p class="text-lg font-medium mb-2">暂无任务</p>
-					<p class="text-sm mb-4">创建您的第一个扫描任务</p>
-					<button onclick={() => goto('/tasks/create')} class="modern-btn-primary">
-						创建任务
-					</button>
-				</div>
-			{:else}
-				<div class="space-y-3">
-					{#each recentTasks as task}
-						<div class="flex items-center justify-between p-4 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all duration-200">
-							<div class="flex-1">
-								<div class="flex items-center space-x-2 mb-2">
-									<span class="font-medium text-slate-800">{task.name}</span>
-									<div class="status-badge status-{getTaskStatusVariant(task.status)}">
-										{getTaskStatusText(task.status)}
-									</div>
-								</div>
-								<div class="text-xs text-slate-500">
-									{getTaskTypeText(task.type)} · {formatDateTime(task.createdAt)}
-								</div>
-								{#if task.status === 'running' && task.progress}
-									<div class="mt-2">
-										<div class="w-full bg-slate-200 rounded-full h-1">
-											<div 
-												class="h-1 rounded-full bg-gradient-to-r from-orange-400 to-orange-500 transition-all duration-300"
-												style="width: {task.progress}%"
-											></div>
+			</CardHeader>
+			<CardContent>
+				{#if loading}
+					<div class="flex items-center justify-center py-12">
+						<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+					</div>
+				{:else if recentTasks.length === 0}
+					<div class="text-center py-12 text-slate-500 dark:text-slate-400">
+						<Icon icon="tabler:file-text" width={48} class="mx-auto mb-4 text-slate-300 dark:text-slate-600" />
+						<p class="text-lg font-medium mb-2">暂无任务</p>
+						<p class="text-sm mb-4">创建您的第一个扫描任务</p>
+						<Button onclick={() => goto('/tasks/create')} class="bg-gradient-to-r from-orange-500 to-orange-600">
+							<Icon icon="tabler:plus" width={16} class="mr-2" />
+							创建任务
+						</Button>
+					</div>
+				{:else}
+					<div class="space-y-3">
+						{#each recentTasks as task}
+							<div class="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-200">
+								<div class="flex-1">
+									<div class="flex items-center space-x-2 mb-2">
+										<span class="font-medium text-slate-800 dark:text-slate-200">{task.name}</span>
+										<div class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium 
+											{task.status === 'running' ? 'bg-green-100 text-green-700 ring-1 ring-green-600/20 dark:bg-green-900/20 dark:text-green-300' : 
+											 task.status === 'completed' ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-600/20 dark:bg-blue-900/20 dark:text-blue-300' : 
+											 task.status === 'failed' ? 'bg-red-100 text-red-700 ring-1 ring-red-600/20 dark:bg-red-900/20 dark:text-red-300' : 
+											 'bg-gray-100 text-gray-700 ring-1 ring-gray-600/20 dark:bg-gray-900/20 dark:text-gray-300'}">
+											{#if task.status === 'running'}
+												<Icon icon="tabler:player-play" width={10} />
+											{:else if task.status === 'completed'}
+												<Icon icon="tabler:circle-check" width={10} />
+											{:else if task.status === 'failed'}
+												<Icon icon="tabler:circle-x" width={10} />
+											{:else}
+												<Icon icon="tabler:player-pause" width={10} />
+											{/if}
+											{getTaskStatusText(task.status)}
 										</div>
 									</div>
-								{/if}
+									<div class="flex items-center space-x-2 text-xs text-slate-500 dark:text-slate-400">
+										<span>{getTaskTypeText(task.type)}</span>
+										<span>•</span>
+										<div class="flex items-center space-x-1">
+											<Icon icon="tabler:clock" width={12} />
+											<span>{formatDateTime(task.createdAt)}</span>
+										</div>
+									</div>
+									{#if task.status === 'running' && task.progress}
+										<div class="mt-2">
+											<div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1">
+												<div
+													class="h-1 rounded-full bg-gradient-to-r from-orange-500 to-orange-600 transition-all duration-300"
+													style="width: {task.progress}%"
+												></div>
+											</div>
+										</div>
+									{/if}
+								</div>
+								<Button
+									variant="ghost"
+									size="sm"
+									onclick={() => goto(`/tasks/${task.id}`)}
+									class="text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 ml-4"
+								>
+									查看
+									<Icon icon="tabler:arrow-right" width={14} class="ml-1" />
+								</Button>
 							</div>
-							<button onclick={() => goto(`/tasks/${task.id}`)} class="modern-btn-ghost text-orange-600 hover:text-orange-700 ml-4">
-								查看
-							</button>
-						</div>
-					{/each}
-				</div>
-			{/if}
-		</div>
+						{/each}
+					</div>
+				{/if}
+			</CardContent>
+		</Card>
 
 		<!-- 右栏：活跃项目 + 最近资产 -->
 		<div class="space-y-6">
 			<!-- 活跃项目 -->
-			<div class="modern-card">
-				<div class="flex items-center justify-between mb-6">
-					<div class="flex items-center space-x-2">
-						<div class="w-8 h-8 bg-gradient-to-br from-purple-400 to-purple-500 rounded-lg flex items-center justify-center">
-							📁
-						</div>
-						<h3 class="text-lg font-semibold text-slate-800">活跃项目</h3>
-					</div>
-					<button onclick={() => goto('/projects')} class="modern-btn-ghost text-purple-600 hover:text-purple-700 text-sm">
-						查看全部
-					</button>
-				</div>
-				
-				{#if activeProjects.length === 0}
-					<div class="text-center py-8 text-slate-500">
-						<div class="text-4xl mb-3">📂</div>
-						<p class="text-sm font-medium mb-2">暂无项目</p>
-						<button
-							onclick={() => goto('/projects/create')}
-							class="modern-btn-ghost text-purple-600 hover:text-purple-700"
-						>
-							创建项目
-						</button>
-					</div>
-				{:else}
-					<div class="space-y-3">
-						{#each activeProjects as project}
-							<div class="flex items-center justify-between p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all duration-200">
-								<div class="flex-1">
-									<div class="font-medium text-slate-800 mb-1">{project.name}</div>
-									<div class="text-xs text-slate-500">
-										{formatDateTime(project.createdAt)}
-									</div>
-								</div>
-								<button
-									onclick={() => goto(`/projects/${project.id}`)}
-									class="modern-btn-ghost text-purple-600 hover:text-purple-700"
-								>
-									进入
-								</button>
+			<Card class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+				<CardHeader class="pb-4">
+					<div class="flex items-center justify-between">
+						<div class="flex items-center space-x-2">
+							<div class="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center">
+								<Icon icon="tabler:folder" width={18} class="text-white" />
 							</div>
-						{/each}
+							<CardTitle class="text-lg text-slate-900 dark:text-slate-100">活跃项目</CardTitle>
+						</div>
+						<Button
+							variant="ghost"
+							size="sm"
+							onclick={() => goto('/projects')}
+							class="text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
+						>
+							查看全部
+							<Icon icon="tabler:arrow-right" width={14} class="ml-1" />
+						</Button>
 					</div>
-				{/if}
-			</div>
+				</CardHeader>
+				<CardContent>
+					{#if activeProjects.length === 0}
+						<div class="text-center py-8 text-slate-500 dark:text-slate-400">
+							<Icon icon="tabler:folder" width={48} class="mx-auto mb-4 text-slate-300 dark:text-slate-600" />
+							<p class="text-sm font-medium mb-2">暂无项目</p>
+							<Button
+								variant="ghost"
+								onclick={() => goto('/projects/create')}
+								class="text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
+							>
+								<Icon icon="tabler:plus" width={14} class="mr-1" />
+								创建项目
+							</Button>
+						</div>
+					{:else}
+						<div class="space-y-3">
+							{#each activeProjects as project}
+								<div class="flex items-center justify-between p-3 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-200">
+									<div class="flex-1">
+										<div class="font-medium text-slate-800 dark:text-slate-200 mb-1">{project.name}</div>
+										<div class="flex items-center space-x-1 text-xs text-slate-500 dark:text-slate-400">
+											<Icon icon="tabler:clock" width={12} />
+											<span>{formatDateTime(project.created_at)}</span>
+										</div>
+									</div>
+									<Button
+										variant="ghost"
+										size="sm"
+										onclick={() => goto(`/projects/${project.id}`)}
+										class="text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
+									>
+										进入
+										<Icon icon="tabler:arrow-right" width={14} class="ml-1" />
+									</Button>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</CardContent>
+			</Card>
 
 			<!-- 最近资产 -->
-			<div class="modern-card">
-				<div class="flex items-center justify-between mb-6">
-					<div class="flex items-center space-x-2">
-						<div class="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-500 rounded-lg flex items-center justify-center">
-							🎯
-						</div>
-						<h3 class="text-lg font-semibold text-slate-800">最近资产</h3>
-					</div>
-					<button onclick={() => goto('/assets')} class="modern-btn-ghost text-blue-600 hover:text-blue-700 text-sm">
-						查看全部
-					</button>
-				</div>
-				
-				{#if recentAssets.length === 0}
-					<div class="text-center py-8 text-slate-500">
-						<div class="text-4xl mb-3">🎯</div>
-						<p class="text-sm font-medium mb-2">暂无资产</p>
-						<button onclick={() => goto('/assets')} class="modern-btn-ghost text-blue-600 hover:text-blue-700">
-							添加资产
-						</button>
-					</div>
-				{:else}
-					<div class="space-y-2">
-						{#each recentAssets as asset}
-							<div class="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-all duration-200">
-								<div class="flex-1">
-									<div class="font-medium text-slate-800 text-sm mb-1">{asset.value}</div>
-									<div class="text-xs text-slate-500 uppercase tracking-wide">{asset.type}</div>
-								</div>
-								<button onclick={() => goto(`/assets/${asset.id}`)} class="modern-btn-ghost text-blue-600 hover:text-blue-700">
-									查看
-								</button>
+			<Card class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+				<CardHeader class="pb-4">
+					<div class="flex items-center justify-between">
+						<div class="flex items-center space-x-2">
+							<div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+								<Icon icon="tabler:target" width={18} class="text-white" />
 							</div>
-						{/each}
+							<CardTitle class="text-lg text-slate-900 dark:text-slate-100">最近资产</CardTitle>
+						</div>
+						<Button
+							variant="ghost"
+							size="sm"
+							onclick={() => goto('/assets')}
+							class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+						>
+							查看全部
+							<Icon icon="tabler:arrow-right" width={14} class="ml-1" />
+						</Button>
 					</div>
-				{/if}
-			</div>
+				</CardHeader>
+				<CardContent>
+					{#if recentAssets.length === 0}
+						<div class="text-center py-8 text-slate-500 dark:text-slate-400">
+							<Icon icon="tabler:target" width={48} class="mx-auto mb-4 text-slate-300 dark:text-slate-600" />
+							<p class="text-sm font-medium mb-2">暂无资产</p>
+							<Button
+								variant="ghost"
+								onclick={() => goto('/assets')}
+								class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+							>
+								<Icon icon="tabler:plus" width={14} class="mr-1" />
+								添加资产
+							</Button>
+						</div>
+					{:else}
+						<div class="space-y-2">
+							{#each recentAssets as asset}
+								<div class="flex items-center justify-between p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-200">
+									<div class="flex-1">
+										<div class="font-medium text-slate-800 dark:text-slate-200 text-sm mb-1">{asset.value}</div>
+										<div class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">{asset.type}</div>
+									</div>
+									<Button
+										variant="ghost"
+										size="sm"
+										onclick={() => goto(`/assets/${asset.id}`)}
+										class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+									>
+										查看
+										<Icon icon="tabler:arrow-right" width={14} class="ml-1" />
+									</Button>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</CardContent>
+			</Card>
 		</div>
 	</div>
 </div>

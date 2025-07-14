@@ -18,17 +18,17 @@
 
 	let colors = $derived(mode === 'light' ? theme.colors.light : theme.colors.dark);
 	let colorList = $derived([
-		{ label: 'Primary', color: colors.primary.value },
-		{ label: 'Secondary', color: colors.secondary.value },
-		{ label: 'Accent', color: colors.accent.value },
-		{ label: 'Background', color: colors.background.value },
-		{ label: 'Foreground', color: colors.foreground.value },
-		{ label: 'Border', color: colors.border.value },
-		{ label: 'Card', color: colors.card.value },
-		{ label: 'Success', color: colors.success.value },
-		{ label: 'Warning', color: colors.warning.value },
-		{ label: 'Error', color: colors.error.value },
-		{ label: 'Info', color: colors.info.value }
+		{ label: 'Primary', color: colors.primary },
+		{ label: 'Secondary', color: colors.secondary },
+		{ label: 'Accent', color: colors.accent },
+		{ label: 'Background', color: colors.background },
+		{ label: 'Foreground', color: colors.foreground },
+		{ label: 'Border', color: colors.border },
+		{ label: 'Card', color: colors.card },
+		{ label: 'Success', color: colors.success },
+		{ label: 'Warning', color: colors.warning },
+		{ label: 'Error', color: colors.error },
+		{ label: 'Info', color: colors.info }
 	]);
 </script>
 

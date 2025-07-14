@@ -143,10 +143,10 @@
 			};
 
 			// 创建任务
-			const task = await portScanStore.actions.createTask(taskData);
+			const response = await portScanStore.actions.createTask(taskData);
 
 			toastStore.success('任务创建成功');
-			await goto(`/portscan/${task.id}`);
+			await goto(`/portscan/${response.taskId}`);
 		} catch (error) {
 			console.error('创建任务失败:', error);
 			toastStore.error('创建任务失败: ' + (error as Error).message);
@@ -178,26 +178,30 @@
 	}
 
 	// 获取端口数量估计
-	$: portCount = (() => {
-		if (!formData.ports.trim()) return 0;
-		const validation = portScanApi.validatePorts(formData.ports);
-		return validation.valid ? validation.count || 0 : 0;
-	})();
+	let portCount = $derived(
+		(() => {
+			if (!formData.ports.trim()) return 0;
+			const validation = portScanApi.validatePorts(formData.ports);
+			return validation.valid ? validation.count || 0 : 0;
+		})()
+	);
 
 	// 获取预估扫描时间
-	$: estimatedTime = (() => {
-		if (portCount === 0) return '0分钟';
-		const timePerPort = formData.scanMethod === 'both' ? 2 : 1; // 双协议扫描时间翻倍
-		const totalTime = (portCount * timePerPort) / formData.advanced.maxWorkers;
+	let estimatedTime = $derived(
+		(() => {
+			if (portCount === 0) return '0分钟';
+			const timePerPort = formData.scanMethod === 'both' ? 2 : 1; // 双协议扫描时间翻倍
+			const totalTime = (portCount * timePerPort) / formData.advanced.maxWorkers;
 
-		if (totalTime < 60) {
-			return `${Math.ceil(totalTime)}秒`;
-		} else if (totalTime < 3600) {
-			return `${Math.ceil(totalTime / 60)}分钟`;
-		} else {
-			return `${Math.ceil(totalTime / 3600)}小时`;
-		}
-	})();
+			if (totalTime < 60) {
+				return `${Math.ceil(totalTime)}秒`;
+			} else if (totalTime < 3600) {
+				return `${Math.ceil(totalTime / 60)}分钟`;
+			} else {
+				return `${Math.ceil(totalTime / 3600)}小时`;
+			}
+		})()
+	);
 </script>
 
 <svelte:head>
@@ -216,7 +220,13 @@
 
 	<!-- 表单 -->
 	<div class="max-w-4xl mx-auto">
-		<form onsubmit|preventDefault={handleSubmit} class="space-y-6">
+		<form
+			onsubmit={(e) => {
+				e.preventDefault();
+				handleSubmit();
+			}}
+			class="space-y-6"
+		>
 			<!-- 基本信息 -->
 			<div class="bg-white rounded-lg shadow-sm border p-6">
 				<h2 class="text-lg font-semibold text-gray-900 mb-4">基本信息</h2>
@@ -272,7 +282,7 @@
 					<Select
 						bind:value={formData.preset}
 						options={presetOptions}
-						onchange={handlePresetChange}
+						onselect={handlePresetChange}
 						disabled={isSubmitting}
 					/>
 					{#if formData.preset !== 'custom' && portPresets[formData.preset]}
@@ -314,8 +324,8 @@
 							<Input
 								type="number"
 								bind:value={formData.advanced.maxWorkers}
-								min="1"
-								max="1000"
+								min={1}
+								max={1000}
 								disabled={isSubmitting}
 							/>
 							<div class="text-sm text-gray-500 mt-1">同时扫描的端口数量（1-1000）</div>
@@ -325,8 +335,8 @@
 							<Input
 								type="number"
 								bind:value={formData.advanced.timeout}
-								min="1"
-								max="300"
+								min={1}
+								max={300}
 								disabled={isSubmitting}
 							/>
 							<div class="text-sm text-gray-500 mt-1">单个端口连接超时时间（1-300秒）</div>
@@ -336,8 +346,8 @@
 							<Input
 								type="number"
 								bind:value={formData.advanced.rateLimit}
-								min="1"
-								max="1000"
+								min={1}
+								max={1000}
 								disabled={isSubmitting}
 							/>
 							<div class="text-sm text-gray-500 mt-1">每秒最大请求数（1-1000）</div>
@@ -346,32 +356,35 @@
 						<div class="space-y-3">
 							<div class="flex items-center gap-2">
 								<input
+									id="enable-service"
 									type="checkbox"
 									bind:checked={formData.advanced.enableService}
 									disabled={isSubmitting}
 									class="rounded border-gray-300"
 								/>
-								<label class="text-sm text-gray-700">启用服务识别</label>
+								<label for="enable-service" class="text-sm text-gray-700">启用服务识别</label>
 							</div>
 
 							<div class="flex items-center gap-2">
 								<input
+									id="enable-banner"
 									type="checkbox"
 									bind:checked={formData.advanced.enableBanner}
 									disabled={isSubmitting}
 									class="rounded border-gray-300"
 								/>
-								<label class="text-sm text-gray-700">启用Banner抓取</label>
+								<label for="enable-banner" class="text-sm text-gray-700">启用Banner抓取</label>
 							</div>
 
 							<div class="flex items-center gap-2">
 								<input
+									id="enable-ssl"
 									type="checkbox"
 									bind:checked={formData.advanced.enableSSL}
 									disabled={isSubmitting}
 									class="rounded border-gray-300"
 								/>
-								<label class="text-sm text-gray-700">启用SSL检测</label>
+								<label for="enable-ssl" class="text-sm text-gray-700">启用SSL检测</label>
 							</div>
 						</div>
 					</div>

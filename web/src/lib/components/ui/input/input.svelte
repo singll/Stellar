@@ -6,7 +6,7 @@
 
 	type Props = HTMLInputAttributes & {
 		type?: InputType;
-		value?: string;
+		value?: string | number;
 		placeholder?: string;
 		disabled?: boolean;
 		readonly?: boolean;

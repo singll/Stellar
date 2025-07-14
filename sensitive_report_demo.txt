@@ -1,0 +1,68 @@
+================================================================
+                   敏感信息检测报告
+================================================================
+
+检测信息:
+  检测名称: 敏感信息检测测试任务
+  项目ID: 65a9876543210fedcba09876
+  开始时间: 2025-07-11T21:39:37.627225
+  结束时间: 2025-07-11T21:39:37.627239
+  检测状态: completed
+  生成时间: 2025-07-11 21:39:37
+
+统计摘要:
+  总发现数: 3
+  风险等级分布:
+    high: 2
+    medium: 1
+    low: 0
+  分类分布:
+    api_key: 1
+    password: 1
+    jwt_secret: 1
+
+详细发现:
+-----------------------------------------------------------------
+发现 #1:
+  目标: file:///tmp/test_config.conf
+  类型: file
+  规则: API密钥检测
+  风险等级: high
+  分类: api_key
+  匹配文本: api_key = 'sk-1234567890abcdef1234567890abcdef'
+  行号: 3
+  上下文: # 配置文件
+database_url = 'mongodb://localhost:27017/testdb'
+api_key = 'sk-1234567890abcdef1234567890abcdef'
+secret_token = 'abc123def456ghi789jkl012mno345pqr'
+  发现时间: 2025-07-11T21:39:37.627241
+-----------------------------------------------------------------
+发现 #2:
+  目标: file:///tmp/test_config.conf
+  类型: file
+  规则: 密码检测
+  风险等级: medium
+  分类: password
+  匹配文本: user_password = 'mypassword123'
+  行号: 7
+  上下文: # 用户配置
+user_name = 'admin'
+user_password = 'mypassword123'
+user_email = 'admin@example.com'
+  发现时间: 2025-07-11T21:39:37.627244
+-----------------------------------------------------------------
+发现 #3:
+  目标: https://example.com/api/config
+  类型: url
+  规则: JWT密钥检测
+  风险等级: high
+  分类: jwt_secret
+  匹配文本: jwt_secret: 'my-super-secret-jwt-key-2023'
+  行号: 3
+  上下文: {
+  "database": "mongodb://localhost:27017",
+  "jwt_secret": "my-super-secret-jwt-key-2023",
+  "debug": true
+}
+  发现时间: 2025-07-11T21:39:37.627246
+-----------------------------------------------------------------

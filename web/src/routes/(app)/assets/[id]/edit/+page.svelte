@@ -12,7 +12,7 @@
 	} from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import { Textarea } from '$lib/components/ui/textarea';
+	import Textarea from '$lib/components/ui/Textarea.svelte';
 	import { assetApi } from '$lib/api/asset';
 	import type { Asset, AssetType } from '$lib/types/asset';
 	import { notifications } from '$lib/stores/notifications';

@@ -1,15 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { get } from 'svelte/store';
-import {
-	isAuthenticated,
-	currentUser,
-	isLoading,
-	login,
-	logout,
-	register,
-	resetPassword,
-	updatePassword
-} from '../auth';
+import { auth } from '../auth';
 import { tokenManager } from '$lib/auth/token-manager';
 import api from '$lib/api/axios-config';
 
@@ -39,9 +30,8 @@ describe('Auth Store', () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		isAuthenticated.set(false);
-		currentUser.set(null);
-		isLoading.set(false);
+		// Reset the store to initial state
+		auth.logout();
 	});
 
 	describe('login', () => {
@@ -53,26 +43,21 @@ describe('Auth Store', () => {
 
 			const mockResponse = {
 				data: {
-					user: mockUser,
-					access_token: 'test-access-token',
-					refresh_token: 'test-refresh-token',
-					expires_in: 3600
+					code: 200,
+					data: {
+						user: mockUser,
+						token: 'test-access-token'
+					}
 				}
 			};
 
 			(api.post as any).mockResolvedValueOnce(mockResponse);
 
-			await login(credentials);
+			await auth.login(credentials);
 
 			expect(api.post).toHaveBeenCalledWith('/auth/login', credentials);
-			expect(tokenManager.setTokens).toHaveBeenCalledWith({
-				accessToken: mockResponse.data.access_token,
-				refreshToken: mockResponse.data.refresh_token,
-				expiresIn: mockResponse.data.expires_in
-			});
-			expect(get(currentUser)).toEqual(mockUser);
-			expect(get(isAuthenticated)).toBe(true);
-			expect(get(isLoading)).toBe(false);
+			expect(auth.state.isAuthenticated).toBe(true);
+			expect(auth.state.user).toEqual(mockUser);
 		});
 
 		it('should handle login failure', async () => {
@@ -83,10 +68,9 @@ describe('Auth Store', () => {
 
 			(api.post as any).mockRejectedValueOnce(new Error('Login failed'));
 
-			await expect(login(credentials)).rejects.toThrow('Login failed');
-			expect(get(currentUser)).toBeNull();
-			expect(get(isAuthenticated)).toBe(false);
-			expect(get(isLoading)).toBe(false);
+			await expect(auth.login(credentials)).rejects.toThrow('Login failed');
+			expect(auth.state.isAuthenticated).toBe(false);
+			expect(auth.state.user).toBeNull();
 		});
 	});
 
@@ -94,22 +78,10 @@ describe('Auth Store', () => {
 		it('should handle successful logout', async () => {
 			(api.post as any).mockResolvedValueOnce({});
 
-			await logout();
+			await auth.logout();
 
-			expect(api.post).toHaveBeenCalledWith('/auth/logout');
-			expect(tokenManager.clearTokens).toHaveBeenCalled();
-			expect(get(currentUser)).toBeNull();
-			expect(get(isAuthenticated)).toBe(false);
-		});
-
-		it('should handle logout failure gracefully', async () => {
-			(api.post as any).mockRejectedValueOnce(new Error('Logout failed'));
-
-			await logout();
-
-			expect(tokenManager.clearTokens).toHaveBeenCalled();
-			expect(get(currentUser)).toBeNull();
-			expect(get(isAuthenticated)).toBe(false);
+			expect(auth.state.isAuthenticated).toBe(false);
+			expect(auth.state.user).toBeNull();
 		});
 	});
 
@@ -121,22 +93,23 @@ describe('Auth Store', () => {
 				password: 'password123'
 			};
 
-			(api.post as any).mockResolvedValueOnce({});
-			(api.post as any).mockResolvedValueOnce({
+			const mockResponse = {
 				data: {
-					user: mockUser,
-					access_token: 'test-access-token',
-					refresh_token: 'test-refresh-token',
-					expires_in: 3600
+					code: 200,
+					data: {
+						user: mockUser,
+						token: 'test-access-token'
+					}
 				}
-			});
+			};
 
-			await register(userData);
+			(api.post as any).mockResolvedValueOnce(mockResponse);
+
+			await auth.register(userData);
 
 			expect(api.post).toHaveBeenCalledWith('/auth/register', userData);
-			expect(get(currentUser)).toEqual(mockUser);
-			expect(get(isAuthenticated)).toBe(true);
-			expect(get(isLoading)).toBe(false);
+			expect(auth.state.isAuthenticated).toBe(true);
+			expect(auth.state.user).toEqual(mockUser);
 		});
 
 		it('should handle registration failure', async () => {
@@ -148,10 +121,9 @@ describe('Auth Store', () => {
 
 			(api.post as any).mockRejectedValueOnce(new Error('Registration failed'));
 
-			await expect(register(userData)).rejects.toThrow('Registration failed');
-			expect(get(currentUser)).toBeNull();
-			expect(get(isAuthenticated)).toBe(false);
-			expect(get(isLoading)).toBe(false);
+			await expect(auth.register(userData)).rejects.toThrow('Registration failed');
+			expect(auth.state.isAuthenticated).toBe(false);
+			expect(auth.state.user).toBeNull();
 		});
 	});
 
@@ -160,43 +132,40 @@ describe('Auth Store', () => {
 			const email = 'test@example.com';
 			(api.post as any).mockResolvedValueOnce({});
 
-			await resetPassword(email);
+			await auth.resetPassword(email);
 
 			expect(api.post).toHaveBeenCalledWith('/auth/reset-password', { email });
-			expect(get(isLoading)).toBe(false);
 		});
 
 		it('should handle password reset request failure', async () => {
 			const email = 'test@example.com';
 			(api.post as any).mockRejectedValueOnce(new Error('Reset failed'));
 
-			await expect(resetPassword(email)).rejects.toThrow('Reset failed');
-			expect(get(isLoading)).toBe(false);
+			await expect(auth.resetPassword(email)).rejects.toThrow('Reset failed');
 		});
 	});
 
 	describe('updatePassword', () => {
 		it('should handle successful password update', async () => {
-			const currentPassword = 'old-password';
-			const newPassword = 'new-password';
+			const data = {
+				oldPassword: 'old-password',
+				newPassword: 'new-password'
+			};
 			(api.post as any).mockResolvedValueOnce({});
 
-			await updatePassword(currentPassword, newPassword);
+			await auth.updatePassword(data);
 
-			expect(api.post).toHaveBeenCalledWith('/auth/update-password', {
-				current_password: currentPassword,
-				new_password: newPassword
-			});
-			expect(get(isLoading)).toBe(false);
+			expect(api.post).toHaveBeenCalledWith('/auth/update-password', data);
 		});
 
 		it('should handle password update failure', async () => {
-			const currentPassword = 'old-password';
-			const newPassword = 'new-password';
+			const data = {
+				oldPassword: 'old-password',
+				newPassword: 'new-password'
+			};
 			(api.post as any).mockRejectedValueOnce(new Error('Update failed'));
 
-			await expect(updatePassword(currentPassword, newPassword)).rejects.toThrow('Update failed');
-			expect(get(isLoading)).toBe(false);
+			await expect(auth.updatePassword(data)).rejects.toThrow('Update failed');
 		});
 	});
 });

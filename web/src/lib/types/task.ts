@@ -7,7 +7,7 @@ export type TaskStatus =
 	| 'running'
 	| 'completed'
 	| 'failed'
-	| 'canceled'
+	| 'cancelled'
 	| 'timeout';
 
 // 任务优先级枚举
@@ -20,7 +20,9 @@ export type TaskType =
 	| 'vuln_scan'
 	| 'asset_discovery'
 	| 'dir_scan'
-	| 'web_crawl';
+	| 'web_crawl'
+	| 'sensitive_scan'
+	| 'page_monitor';
 
 // 基础任务接口
 export interface Task {
@@ -48,6 +50,21 @@ export interface Task {
 	assignedAt?: string;
 	createdBy?: string;
 	metadata?: Record<string, any>;
+	result?: Record<string, any>; // 任务结果数据
+	error?: string; // 任务错误信息
+}
+
+// 任务进度接口
+export interface TaskProgress {
+	taskId: string;
+	progress: number;
+	message?: string;
+	details?: Record<string, any>;
+	completed: number;
+	total: number;
+	startTime: string;
+	estimatedEndTime?: string;
+	lastUpdate: string;
 }
 
 // 任务结果接口
@@ -182,7 +199,7 @@ export interface TaskStats {
 	running: number;
 	completed: number;
 	failed: number;
-	canceled: number;
+	cancelled: number;
 	timeout: number;
 	byType: Record<TaskType, number>;
 	byPriority: Record<TaskPriority, number>;
@@ -387,7 +404,7 @@ export interface TaskNotificationConfig {
 	id: string;
 	taskId?: string;
 	projectId?: string;
-	events: Array<'created' | 'started' | 'completed' | 'failed' | 'canceled'>;
+	events: Array<'created' | 'started' | 'completed' | 'failed' | 'cancelled'>;
 	channels: Array<'email' | 'webhook' | 'slack' | 'dingtalk'>;
 	recipients: string[];
 	webhookUrl?: string;

@@ -9,6 +9,7 @@
 	import { taskStore, taskActions } from '$lib/stores/tasks';
 	import { projectStore, projectActions } from '$lib/stores/projects';
 	import type { TaskStatus, TaskType, TaskPriority } from '$lib/types/task';
+	import type { Project } from '$lib/types/project';
 
 	import TaskCard from '$lib/components/tasks/TaskCard.svelte';
 	import TaskFilters from '$lib/components/tasks/TaskFilters.svelte';
@@ -23,15 +24,18 @@
 	let showFilters = $state(false);
 	let searchQuery = $state('');
 
-	// Store 订阅
-	let store = $state();
-	taskStore.subscribe((value) => {
-		store = value;
+	// Store 状态使用 runes
+	let store = $state({
+		tasks: taskActions.tasks,
+		loading: taskActions.loading,
+		error: taskActions.error,
+		pagination: taskActions.pagination,
+		taskStats: null as any
 	});
 
-	let projects = $state();
-	projectStore.subscribe((value) => {
-		projects = value;
+	let projects = $state<{ projects: Project[]; loading: boolean }>({
+		projects: [],
+		loading: false
 	});
 
 	// 分页和过滤参数
@@ -41,6 +45,26 @@
 	let typeFilter = $state<TaskType | ''>('');
 	let priorityFilter = $state<TaskPriority | ''>('');
 	let projectFilter = $state('');
+
+	// 更新 store 状态的副作用
+	$effect(() => {
+		store = {
+			tasks: taskActions.tasks,
+			loading: taskActions.loading,
+			error: taskActions.error,
+			pagination: taskActions.pagination,
+			taskStats: null
+		};
+	});
+
+	// 更新项目状态的副作用
+	$effect(() => {
+		// 从 projectStore 获取数据
+		const unsubscribe = projectStore.subscribe((value) => {
+			projects = value;
+		});
+		return unsubscribe;
+	});
 
 	// 组件挂载时初始化
 	onMount(async () => {
@@ -108,8 +132,8 @@
 	}
 
 	// 处理分页变化
-	function handlePageChange(event) {
-		currentPage = event.detail.page;
+	function handlePageChange(event: CustomEvent<number>) {
+		currentPage = event.detail;
 		loadTasks();
 	}
 
@@ -137,7 +161,10 @@
 
 		switch (action) {
 			case 'start':
-				await taskActions.batchStart(selectedTasks);
+				// 逐个启动任务
+				for (const taskId of selectedTasks) {
+					await taskActions.restartTask(taskId);
+				}
 				break;
 			case 'cancel':
 				await taskActions.batchCancel(selectedTasks);
@@ -297,7 +324,7 @@
 							type="checkbox"
 							checked={isAllSelected}
 							indeterminate={isPartialSelected}
-							onchange={(e) => handleSelectAll(e.target.checked)}
+							onchange={(e) => handleSelectAll((e.target as HTMLInputElement).checked)}
 							class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 						/>
 						<span class="ml-2 text-sm text-gray-600 dark:text-gray-400"> 全选 </span>
@@ -326,7 +353,9 @@
 					<Pagination
 						currentPage={store.pagination.page}
 						totalPages={store.pagination.totalPages}
-						onpagechange={handlePageChange}
+						total={store.pagination.total}
+						pageSize={store.pagination.pageSize}
+						on:pageChange={handlePageChange}
 					/>
 				</div>
 			{/if}

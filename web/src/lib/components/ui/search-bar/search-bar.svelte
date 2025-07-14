@@ -4,12 +4,21 @@
 	import { cn } from '$lib/utils';
 	import { createEventDispatcher } from 'svelte';
 
-	let className: string | undefined = undefined;
-	export { className as class };
+	interface Props {
+		class?: string;
+		value?: string;
+		placeholder?: string;
+		debounce?: number;
+		[key: string]: any;
+	}
 
-	export let value = '';
-	export let placeholder = '搜索...';
-	export let debounce = 300;
+	let {
+		class: className,
+		value = $bindable(''),
+		placeholder = '搜索...',
+		debounce = 300,
+		...restProps
+	}: Props = $props();
 
 	let timeoutId: ReturnType<typeof setTimeout>;
 	const dispatch = createEventDispatcher<{
@@ -32,12 +41,5 @@
 		name="search"
 		class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
 	/>
-	<Input
-		type="search"
-		{placeholder}
-		class="pl-10"
-		{value}
-		on:input={handleInput}
-		{...$$restProps}
-	/>
+	<Input type="search" {placeholder} class="pl-10" {value} oninput={handleInput} {...restProps} />
 </div>

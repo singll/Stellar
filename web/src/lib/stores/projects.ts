@@ -31,6 +31,9 @@ const initialState: ProjectState = {
 
 export const projectStore = writable<ProjectState>(initialState);
 
+// 导出单独的stores
+export const projects = projectStore;
+
 // 项目操作
 export const projectActions = {
 	// 加载项目列表

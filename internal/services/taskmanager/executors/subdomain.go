@@ -333,18 +333,91 @@ func (e *SubdomainExecutor) getWordlist(task *models.Task) ([]string, error) {
 
 // getDefaultWordlist 获取默认字典
 func (e *SubdomainExecutor) getDefaultWordlist() []string {
-	// 返回一个基础的子域名字典
+	// 返回一个更完整的子域名字典
 	return []string{
-		"www", "mail", "ftp", "admin", "api", "app", "blog", "cdn", "dev", "forum",
-		"help", "m", "mobile", "news", "shop", "store", "test", "web", "webmail",
-		"secure", "login", "portal", "support", "service", "staging", "beta",
-		"demo", "docs", "downloads", "files", "images", "media", "static",
-		"assets", "resources", "search", "status", "monitor", "health",
-		"mysql", "database", "db", "redis", "cache", "backup", "old", "new",
-		"v1", "v2", "api-v1", "api-v2", "rest", "graphql", "webhook",
-		"cpanel", "phpmyadmin", "wp-admin", "wordpress", "drupal", "joomla",
-		"jenkins", "gitlab", "github", "svn", "git", "ci", "build",
-		"analytics", "tracking", "metrics", "logs", "monitoring",
+		// 常见服务
+		"www", "mail", "email", "ftp", "sftp", "ssh", "vpn", "proxy", "gateway",
+		"admin", "administrator", "root", "api", "app", "application",
+		
+		// 开发和测试
+		"dev", "devel", "development", "test", "testing", "staging", "stage",
+		"beta", "alpha", "demo", "sandbox", "temp", "temporary", "lab",
+		"experimental", "preview", "pre", "preprod", "production", "prod",
+		
+		// 内容管理
+		"blog", "news", "forum", "wiki", "docs", "documentation", "help",
+		"support", "faq", "kb", "knowledgebase", "tutorial", "guide",
+		
+		// 商务
+		"shop", "store", "ecommerce", "cart", "checkout", "payment", "billing",
+		"invoice", "order", "sales", "crm", "erp", "hr", "finance",
+		
+		// 技术基础设施
+		"cdn", "cache", "redis", "memcache", "database", "db", "mysql", "postgres",
+		"mongodb", "elasticsearch", "search", "solr", "ldap", "nfs", "smb",
+		
+		// 监控和管理
+		"monitor", "monitoring", "metrics", "analytics", "stats", "statistics",
+		"logs", "logging", "syslog", "kibana", "grafana", "prometheus",
+		"nagios", "zabbix", "icinga", "status", "health", "ping",
+		
+		// 网络和安全
+		"firewall", "ids", "ips", "proxy", "lb", "loadbalancer", "nginx",
+		"apache", "iis", "tomcat", "jetty", "secure", "ssl", "tls",
+		
+		// 移动和媒体
+		"m", "mobile", "wap", "mobi", "touch", "media", "images", "img",
+		"static", "assets", "resources", "files", "download", "downloads",
+		"upload", "uploads", "content", "video", "audio", "stream",
+		
+		// 版本控制和CI/CD
+		"git", "svn", "cvs", "mercurial", "gitlab", "github", "bitbucket",
+		"jenkins", "travis", "circleci", "bamboo", "ci", "cd", "build",
+		"deploy", "deployment", "release", "artifact", "nexus", "artifactory",
+		
+		// CMS和框架
+		"wp", "wordpress", "drupal", "joomla", "magento", "shopify", "prestashop",
+		"opencart", "oscommerce", "zen", "cpanel", "plesk", "directadmin",
+		"phpmyadmin", "adminer", "phpinfo", "info",
+		
+		// API版本
+		"api-v1", "api-v2", "api-v3", "v1", "v2", "v3", "rest", "soap",
+		"graphql", "webhook", "callbacks", "notifications",
+		
+		// 地理和语言
+		"us", "eu", "asia", "china", "japan", "uk", "de", "fr", "es", "it",
+		"en", "zh", "ja", "ko", "ru", "pt", "ar",
+		
+		// 环境和配置
+		"local", "localhost", "internal", "private", "public", "external",
+		"old", "new", "legacy", "archive", "backup", "bak", "mirror",
+		"replica", "slave", "master", "primary", "secondary",
+		
+		// 特殊服务
+		"webmail", "mail2", "smtp", "pop", "pop3", "imap", "exchange",
+		"calendar", "contacts", "directory", "employees", "staff",
+		"portal", "dashboard", "console", "panel", "control", "manage",
+		
+		// 开发工具
+		"phpmyadmin", "mysql", "postgres", "oracle", "mssql", "redis",
+		"rabbitmq", "kafka", "zookeeper", "consul", "vault", "nomad",
+		
+		// 通用前缀
+		"sub", "subdomain", "host", "node", "server", "service", "app",
+		"web", "site", "page", "home", "main", "index", "default",
+		
+		// 数字组合
+		"1", "2", "3", "01", "02", "03", "001", "002", "003",
+		"web1", "web2", "web3", "app1", "app2", "app3",
+		"db1", "db2", "cache1", "cache2", "lb1", "lb2",
+		
+		// 云服务
+		"aws", "azure", "gcp", "cloud", "k8s", "kubernetes", "docker",
+		"swarm", "rancher", "openshift", "heroku", "digitalocean",
+		
+		// 其他常见
+		"autoconfig", "autodiscover", "wpad", "broadcasthost", "isatap",
+		"keyserver", "ocsp", "crl", "ca", "certificate", "cert",
 	}
 }
 
@@ -571,9 +644,8 @@ func (e *SubdomainExecutor) resolveWithDNS(ctx context.Context, subdomain string
 
 // resolveWithDoH 使用DNS over HTTPS解析
 func (e *SubdomainExecutor) resolveWithDoH(ctx context.Context, subdomain string, resolver *DNSResolver) ([]string, string) {
-	// DoH查询实现（简化版）
-	// 实际项目中需要完整实现DoH协议
-	dohURL := fmt.Sprintf("https://%s/dns-query?name=%s&type=A", resolver.server, subdomain)
+	// DoH查询实现（Google DNS API格式）
+	dohURL := fmt.Sprintf("https://%s/resolve?name=%s&type=A", resolver.server, subdomain)
 	
 	req, err := http.NewRequestWithContext(ctx, "GET", dohURL, nil)
 	if err != nil {
@@ -581,6 +653,7 @@ func (e *SubdomainExecutor) resolveWithDoH(ctx context.Context, subdomain string
 	}
 	
 	req.Header.Set("Accept", "application/dns-json")
+	req.Header.Set("User-Agent", "StellarServer/1.0")
 	
 	resp, err := resolver.httpClient.Do(req)
 	if err != nil {
@@ -592,9 +665,42 @@ func (e *SubdomainExecutor) resolveWithDoH(ctx context.Context, subdomain string
 		return nil, ""
 	}
 	
-	// 解析DoH响应（需要实现完整的DNS JSON格式解析）
-	// 这里是简化版实现
-	return nil, ""
+	// 解析DoH响应
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, ""
+	}
+	
+	var dnsResp struct {
+		Status int `json:"Status"`
+		Answer []struct {
+			Name string `json:"name"`
+			Type int    `json:"type"`
+			Data string `json:"data"`
+		} `json:"Answer"`
+	}
+	
+	if err := json.Unmarshal(body, &dnsResp); err != nil {
+		return nil, ""
+	}
+	
+	if dnsResp.Status != 0 { // NOERROR
+		return nil, ""
+	}
+	
+	var ips []string
+	var cname string
+	
+	for _, answer := range dnsResp.Answer {
+		switch answer.Type {
+		case 1: // A记录
+			ips = append(ips, answer.Data)
+		case 5: // CNAME记录
+			cname = strings.TrimSuffix(answer.Data, ".")
+		}
+	}
+	
+	return ips, cname
 }
 
 // certTransparency 证书透明度日志查询

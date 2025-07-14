@@ -5,7 +5,7 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
 	import type { Task } from '$lib/types/task';
-	import Badge from '$lib/components/ui/Badge.svelte';
+	import { Badge } from '$lib/components/ui/badge';
 	import ProgressBar from '$lib/components/ui/ProgressBar.svelte';
 	import { formatRelativeTime, formatDateTime } from '$lib/utils/date';
 
@@ -24,12 +24,20 @@
 	function handleClick(event: MouseEvent) {
 		// 如果点击的是复选框或按钮，不触发卡片点击
 		const target = event.target as HTMLElement;
-		if (target.type === 'checkbox' || target.closest('button')) {
+		if ((target as HTMLInputElement).type === 'checkbox' || target.closest('button')) {
 			return;
 		}
 
 		onclick?.();
 		dispatch('click');
+	}
+
+	// 处理键盘事件
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			onclick?.();
+			dispatch('click');
+		}
 	}
 
 	// 处理选择状态变化
@@ -46,20 +54,25 @@
 
 	// 获取任务类型信息
 	function getTaskTypeInfo(type: string) {
-		const typeMap = {
+		const typeMap: Record<string, { label: string; icon: string; color: string }> = {
 			subdomain_enum: { label: '子域名枚举', icon: 'fas fa-globe', color: 'blue' },
 			port_scan: { label: '端口扫描', icon: 'fas fa-network-wired', color: 'green' },
 			vuln_scan: { label: '漏洞扫描', icon: 'fas fa-bug', color: 'red' },
 			asset_discovery: { label: '资产发现', icon: 'fas fa-search', color: 'purple' },
 			dir_scan: { label: '目录扫描', icon: 'fas fa-folder', color: 'yellow' },
-			web_crawl: { label: 'Web爬虫', icon: 'fas fa-spider', color: 'indigo' }
+			web_crawl: { label: 'Web爬虫', icon: 'fas fa-spider', color: 'indigo' },
+			sensitive_scan: { label: '敏感信息扫描', icon: 'fas fa-eye', color: 'orange' },
+			page_monitor: { label: '页面监控', icon: 'fas fa-monitor', color: 'teal' }
 		};
 		return typeMap[type] || { label: type, icon: 'fas fa-cog', color: 'gray' };
 	}
 
 	// 获取状态信息
 	function getStatusInfo(status: string) {
-		const statusMap = {
+		const statusMap: Record<
+			string,
+			{ label: string; color: string; icon: string; pulse?: boolean }
+		> = {
 			pending: { label: '等待中', color: 'gray', icon: 'fas fa-clock' },
 			queued: { label: '队列中', color: 'blue', icon: 'fas fa-hourglass-half' },
 			running: { label: '运行中', color: 'yellow', icon: 'fas fa-play', pulse: true },
@@ -73,7 +86,7 @@
 
 	// 获取优先级信息
 	function getPriorityInfo(priority: string) {
-		const priorityMap = {
+		const priorityMap: Record<string, { label: string; color: string }> = {
 			low: { label: '低', color: 'gray' },
 			normal: { label: '正常', color: 'blue' },
 			high: { label: '高', color: 'yellow' },
@@ -85,6 +98,26 @@
 	let typeInfo = $derived(getTaskTypeInfo(task.type));
 	let statusInfo = $derived(getStatusInfo(task.status));
 	let priorityInfo = $derived(getPriorityInfo(task.priority));
+
+	// 将color映射到Badge variant
+	function colorToVariant(color: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+		switch (color) {
+			case 'red':
+				return 'destructive';
+			case 'gray':
+			case 'grey':
+				return 'secondary';
+			case 'green':
+			case 'blue':
+			case 'yellow':
+			case 'purple':
+			case 'indigo':
+			case 'orange':
+			case 'teal':
+			default:
+				return 'default';
+		}
+	}
 </script>
 
 <div
@@ -94,7 +127,7 @@
 	onclick={handleClick}
 	role="button"
 	tabindex="0"
-	onkeydown={(e) => e.key === 'Enter' && handleClick(e)}
+	onkeydown={handleKeydown}
 >
 	<div class="flex items-start gap-4">
 		<!-- 选择框 -->
@@ -131,7 +164,7 @@
 						<h3 class="font-medium text-gray-900 dark:text-white truncate">
 							{task.name}
 						</h3>
-						<Badge color={statusInfo.color} pulse={statusInfo.pulse}>
+						<Badge variant={colorToVariant(statusInfo.color)}>
 							<i class="{statusInfo.icon} mr-1"></i>
 							{statusInfo.label}
 						</Badge>
@@ -153,7 +186,7 @@
 
 						<div class="flex items-center gap-1">
 							<i class="fas fa-flag"></i>
-							<Badge color={priorityInfo.color} size="sm">
+							<Badge variant={colorToVariant(priorityInfo.color)}>
 								{priorityInfo.label}
 							</Badge>
 						</div>
@@ -163,10 +196,10 @@
 								<i class="fas fa-tags"></i>
 								<div class="flex gap-1">
 									{#each task.tags.slice(0, 2) as tag}
-										<Badge color="gray" size="sm">{tag}</Badge>
+										<Badge variant="secondary">{tag}</Badge>
 									{/each}
 									{#if task.tags.length > 2}
-										<Badge color="gray" size="sm">+{task.tags.length - 2}</Badge>
+										<Badge variant="secondary">+{task.tags.length - 2}</Badge>
 									{/if}
 								</div>
 							</div>

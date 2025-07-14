@@ -48,7 +48,10 @@
 					fields.push({ label: 'IP地址', value: asset.ips?.join(', ') || '-' });
 					fields.push({ label: 'CNAME', value: asset.cname || '-' });
 					fields.push({ label: 'DNS类型', value: asset.dnsType || '-' });
-					fields.push({ label: 'DNS值', value: asset.value?.join(', ') || '-' });
+					fields.push({
+						label: 'DNS值',
+						value: Array.isArray(asset.value) ? asset.value.join(', ') : asset.value || '-'
+					});
 					fields.push({ label: '可接管', value: asset.takeOver ? '是' : '否', type: 'boolean' });
 				}
 				break;

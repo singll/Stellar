@@ -15,6 +15,7 @@
 	interface Props {
 		tabs: Tab[];
 		activeTab?: string;
+		active?: string; // 添加 active 属性作为 activeTab 的别名
 		class?: string;
 		children?: any;
 	}
@@ -22,9 +23,23 @@
 	let {
 		tabs,
 		activeTab = $bindable(tabs[0]?.id || ''),
+		active = $bindable(), // 使 active 也是 bindable
 		class: className = '',
 		children
 	}: Props = $props();
+
+	// 同步 active 和 activeTab
+	$effect(() => {
+		if (active !== undefined) {
+			activeTab = active;
+		}
+	});
+
+	$effect(() => {
+		if (active !== undefined) {
+			active = activeTab;
+		}
+	});
 
 	const dispatch = createEventDispatcher<{
 		change: string;

@@ -26,6 +26,7 @@ import (
 	"github.com/StellarServer/internal/services/subdomain"
 	"github.com/StellarServer/internal/services/taskmanager"
 	"github.com/StellarServer/internal/services/vulnscan"
+	"github.com/StellarServer/internal/services/vulndb"
 	"github.com/StellarServer/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -216,6 +217,28 @@ func main() {
 	// 漏洞扫描引擎和注册表
 	vulnEngine := vulnscan.NewEngine(vulnRegistry, db, vulnHandler)
 
+	// 漏洞数据库服务
+	vulndbConfig := vulndb.Config{
+		UpdateInterval: 24 * time.Hour,
+		CVEConfig: vulndb.CVEConfig{
+			APIURL:    "https://services.nvd.nist.gov/rest/json",
+			Timeout:   30 * time.Second,
+			BatchSize: 100,
+		},
+		CWEConfig: vulndb.CWEConfig{
+			XMLURL:  "https://cwe.mitre.org/data/xml/cwec_latest.xml.zip",
+			Timeout: 60 * time.Second,
+		},
+		CNVDConfig: vulndb.CNVDConfig{
+			APIURL:    "https://www.cnvd.org.cn/flaw/list",
+			Timeout:   30 * time.Second,
+			BatchSize: 50,
+		},
+	}
+	vulndbService := vulndb.NewService(db, vulndbConfig) // 暂时保留，可能被其他地方引用
+	_ = vulndb.NewScheduler(vulndbService, vulndbConfig) // vulndbScheduler暂时未使用
+	_ = vulndbService                                     // 暂时标记为未使用
+
 	// 资产发现服务
 	redisResultHandler := assetdiscovery.NewRedisResultHandler(redisClient)
 	discoveryService := assetdiscovery.NewDiscoveryService(db, redisResultHandler)
@@ -288,9 +311,16 @@ func main() {
 	fmt.Println("Gin引擎初始化成功")
 
 	// 注册API路由
-	// Note: We are not passing all handlers here, this might need adjustment
 	sensitiveHandler := api.NewSensitiveHandler(sensitiveService)
+	// vulndbHandler := api.NewVulnDatabaseHandler(vulndbService, vulndbScheduler) // 暂时注释，未在routes中使用
 	discoveryHandlerForAPI := api.NewDiscoveryHandler(db, discoveryHandler)
+	
+	// 创建插件市场实例 (临时占位符)
+	marketplaceConfig := plugin.MarketplaceConfig{
+		// TODO: 配置市场参数
+	}
+	pluginMarketplace := plugin.NewMarketplace(marketplaceConfig)
+	
 	api.RegisterAPIRoutes(
 		router,
 		db,
@@ -304,6 +334,7 @@ func main() {
 		portScanTaskManager,
 		pluginManager,
 		pluginStore,
+		pluginMarketplace,
 		monitoringService,
 		discoveryHandlerForAPI,
 		sensitiveHandler,

@@ -8,7 +8,6 @@ import (
 	"github.com/StellarServer/internal/services/portscan"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // PortScanAPI 端口扫描API
@@ -118,6 +117,7 @@ func (api *PortScanAPI) CreateTask(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"taskId": taskID,
+		"message": "任务创建成功",
 	})
 }
 
@@ -170,7 +170,10 @@ func (api *PortScanAPI) ListTasks(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, tasks)
+	c.JSON(http.StatusOK, gin.H{
+		"tasks": tasks,
+		"total": len(tasks),
+	})
 }
 
 // GetTask 获取端口扫描任务详情
@@ -240,6 +243,7 @@ func (api *PortScanAPI) StartTask(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "任务已启动",
+		"taskId": taskID,
 	})
 }
 
@@ -272,6 +276,7 @@ func (api *PortScanAPI) StopTask(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "任务已停止",
+		"taskId": taskID,
 	})
 }
 
@@ -304,6 +309,7 @@ func (api *PortScanAPI) GetTaskStatus(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"status": status,
+		"taskId": taskID,
 	})
 }
 
@@ -336,6 +342,7 @@ func (api *PortScanAPI) GetTaskProgress(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"progress": progress,
+		"taskId": taskID,
 	})
 }
 
@@ -380,68 +387,9 @@ func (api *PortScanAPI) GetTaskResults(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, results)
-}
-
-// PortScanHandler 端口扫描处理器
-type PortScanHandler struct {
-	DB      *mongo.Database
-	Handler *portscan.Handler
-}
-
-// NewPortScanHandler 创建端口扫描处理器
-func NewPortScanHandler(db *mongo.Database, handler *portscan.Handler) *PortScanHandler {
-	return &PortScanHandler{
-		DB:      db,
-		Handler: handler,
-	}
-}
-
-// RegisterRoutes 注册路由
-func (h *PortScanHandler) RegisterRoutes(router *gin.RouterGroup) {
-	scanGroup := router.Group("/portscan")
-	{
-		scanGroup.POST("/tasks", h.CreateScanTask)
-		scanGroup.GET("/tasks", h.ListScanTasks)
-		scanGroup.GET("/tasks/:id", h.GetScanTask)
-		scanGroup.DELETE("/tasks/:id", h.DeleteScanTask)
-		scanGroup.GET("/results", h.ListScanResults)
-		scanGroup.GET("/results/:id", h.GetScanResult)
-	}
-}
-
-// CreateScanTask 创建扫描任务
-func (h *PortScanHandler) CreateScanTask(c *gin.Context) {
-	// TODO: 实现创建扫描任务
-	c.JSON(200, gin.H{"message": "功能待实现"})
-}
-
-// ListScanTasks 列出扫描任务
-func (h *PortScanHandler) ListScanTasks(c *gin.Context) {
-	// TODO: 实现列出扫描任务
-	c.JSON(200, gin.H{"message": "功能待实现"})
-}
-
-// GetScanTask 获取扫描任务
-func (h *PortScanHandler) GetScanTask(c *gin.Context) {
-	// TODO: 实现获取扫描任务
-	c.JSON(200, gin.H{"message": "功能待实现"})
-}
-
-// DeleteScanTask 删除扫描任务
-func (h *PortScanHandler) DeleteScanTask(c *gin.Context) {
-	// TODO: 实现删除扫描任务
-	c.JSON(200, gin.H{"message": "功能待实现"})
-}
-
-// ListScanResults 列出扫描结果
-func (h *PortScanHandler) ListScanResults(c *gin.Context) {
-	// TODO: 实现列出扫描结果
-	c.JSON(200, gin.H{"message": "功能待实现"})
-}
-
-// GetScanResult 获取扫描结果
-func (h *PortScanHandler) GetScanResult(c *gin.Context) {
-	// TODO: 实现获取扫描结果
-	c.JSON(200, gin.H{"message": "功能待实现"})
+	c.JSON(http.StatusOK, gin.H{
+		"results": results,
+		"total": len(results),
+		"taskId": taskID,
+	})
 }

@@ -97,8 +97,9 @@
 			};
 
 			const response = await nodeAPI.getNodes(params);
-			nodes = response.data.items;
-			total = response.data.total;
+			// 根据实际API响应结构调整
+			nodes = response.items || [];
+			total = response.total || 0;
 		} catch (err) {
 			error = err instanceof Error ? err.message : '加载节点列表失败';
 		} finally {
@@ -128,8 +129,8 @@
 	}
 
 	// 分页处理
-	function handlePageChange(event: CustomEvent<{ page: number }>) {
-		queryParams.page = event.detail.page;
+	function handlePageChange(event: CustomEvent<number>) {
+		queryParams.page = event.detail;
 		loadNodes();
 	}
 
@@ -230,13 +231,13 @@
 	function getStatusBadgeVariant(status: NodeStatusType) {
 		switch (status) {
 			case NodeStatus.ONLINE:
-				return 'success';
+				return 'default';
 			case NodeStatus.OFFLINE:
-				return 'danger';
+				return 'destructive';
 			case NodeStatus.DISABLED:
-				return 'warning';
+				return 'secondary';
 			case NodeStatus.MAINTAIN:
-				return 'info';
+				return 'outline';
 			case NodeStatus.REGISTING:
 				return 'secondary';
 			default:
@@ -321,22 +322,17 @@
 		</div>
 		<div class="flex items-center space-x-4">
 			<Button variant="outline" onclick={() => goto('/nodes/register')}>注册节点</Button>
-			<Button variant="primary" onclick={() => goto('/nodes/create')}>添加节点</Button>
+			<Button variant="default" onclick={() => goto('/nodes/create')}>添加节点</Button>
 		</div>
 	</div>
 
 	<!-- 统计卡片 -->
 	{#if stats}
 		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-			<StatCard title="总节点数" value={stats.total.toString()} icon="🖥️" variant="primary" />
-			<StatCard title="在线节点" value={stats.online.toString()} icon="✅" variant="success" />
-			<StatCard title="离线节点" value={stats.offline.toString()} icon="❌" variant="danger" />
-			<StatCard
-				title="运行任务"
-				value={stats.runningTasks.toString()}
-				icon="⚡"
-				variant="warning"
-			/>
+			<StatCard title="总节点数" value={stats.total.toString()} icon="🖥️" color="blue" />
+			<StatCard title="在线节点" value={stats.online.toString()} icon="✅" color="green" />
+			<StatCard title="离线节点" value={stats.offline.toString()} icon="❌" color="red" />
+			<StatCard title="运行任务" value={stats.runningTasks.toString()} icon="⚡" color="yellow" />
 		</div>
 	{/if}
 
@@ -344,11 +340,7 @@
 	<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
 		<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
 			<div class="md:col-span-2">
-				<SearchInput
-					bind:value={searchQuery}
-					placeholder="搜索节点名称或IP地址..."
-					onSearch={handleSearch}
-				/>
+				<SearchInput bind:value={searchQuery} placeholder="搜索节点名称或IP地址..." />
 			</div>
 			<Select bind:value={statusFilter} options={statusOptions} placeholder="选择状态" />
 			<Select bind:value={roleFilter} options={roleOptions} placeholder="选择角色" />
@@ -402,7 +394,7 @@
 					>
 						维护
 					</Button>
-					<Button variant="danger" size="sm" onclick={handleBatchDelete}>删除</Button>
+					<Button variant="destructive" size="sm" onclick={handleBatchDelete}>删除</Button>
 				</div>
 			</div>
 		</div>
@@ -430,7 +422,7 @@
 				<div class="text-gray-400 text-4xl mb-4">🖥️</div>
 				<h3 class="text-lg font-medium text-gray-900 mb-2">暂无节点</h3>
 				<p class="text-gray-600 mb-4">开始添加您的第一个节点</p>
-				<Button variant="primary" onclick={() => goto('/nodes/create')}>添加节点</Button>
+				<Button variant="default" onclick={() => goto('/nodes/create')}>添加节点</Button>
 			</div>
 		{:else}
 			<div class="overflow-x-auto">
@@ -441,7 +433,7 @@
 								<input
 									type="checkbox"
 									checked={selectedNodes.length === nodes.length && nodes.length > 0}
-									onchange={(e) => handleSelectAll(e.target.checked)}
+									onchange={(e) => handleSelectAll((e.target as HTMLInputElement).checked)}
 									class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 								/>
 							</th>
@@ -505,7 +497,8 @@
 									<input
 										type="checkbox"
 										checked={selectedNodes.includes(node.id)}
-										onchange={(e) => handleNodeSelect(node.id, e.target.checked)}
+										onchange={(e) =>
+											handleNodeSelect(node.id, (e.target as HTMLInputElement).checked)}
 										class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 									/>
 								</td>
@@ -577,7 +570,11 @@
 												禁用
 											</Button>
 										{/if}
-										<Button variant="danger" size="sm" onclick={() => handleDeleteNode(node.id)}>
+										<Button
+											variant="destructive"
+											size="sm"
+											onclick={() => handleDeleteNode(node.id)}
+										>
 											删除
 										</Button>
 									</div>
@@ -591,12 +588,14 @@
 	</div>
 
 	<!-- 分页 -->
-	{#if total > queryParams.pageSize}
+	{#if total > (queryParams.pageSize || 20)}
 		<div class="flex justify-center">
 			<Pagination
-				currentPage={queryParams.page}
-				totalPages={Math.ceil(total / queryParams.pageSize)}
-				onPageChange={handlePageChange}
+				currentPage={queryParams.page || 1}
+				totalPages={Math.ceil(total / (queryParams.pageSize || 20))}
+				total={total}
+				pageSize={queryParams.pageSize || 20}
+				on:pageChange={handlePageChange}
 			/>
 		</div>
 	{/if}

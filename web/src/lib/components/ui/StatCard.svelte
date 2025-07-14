@@ -10,14 +10,14 @@
 		color?: 'blue' | 'green' | 'yellow' | 'red' | 'purple' | 'indigo' | 'gray' | 'orange';
 		subtitle?: string;
 		pulse?: boolean;
-		onclick?: () => void;
+		onclick?: (event: MouseEvent | KeyboardEvent) => void;
 	}
 
 	let { title, value, icon, color = 'blue', subtitle, pulse = false, onclick }: Props = $props();
 
 	// 获取颜色类名
 	function getColorClasses(color: string) {
-		const colorMap = {
+		const colorMap: Record<string, { bg: string; icon: string; text: string }> = {
 			blue: {
 				bg: 'bg-blue-50 dark:bg-blue-900/20',
 				icon: 'text-blue-600 dark:text-blue-400',
@@ -59,19 +59,21 @@
 				text: 'text-orange-800 dark:text-orange-200'
 			}
 		};
-		return colorMap[color] || colorMap.blue;
+		return colorMap[color as keyof typeof colorMap] || colorMap.blue;
 	}
 
 	let colorClasses = $derived(getColorClasses(color));
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
 	class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 {onclick
 		? 'cursor-pointer hover:shadow-md transition-shadow'
 		: ''}"
 	{onclick}
 	role={onclick ? 'button' : undefined}
-	tabindex={onclick ? 0 : undefined}
+	tabindex={onclick ? 0 : -1}
+	onkeydown={onclick ? (e) => e.key === 'Enter' && onclick(e) : undefined}
 >
 	<div class="flex items-center justify-between">
 		<div class="flex-1">

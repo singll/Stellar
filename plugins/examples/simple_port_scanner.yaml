@@ -1,0 +1,76 @@
+# YAML插件示例 - 简单端口扫描器
+id: simple_port_scanner
+name: 简单端口扫描器
+version: "1.0.0"
+author: Stellar Team
+description: 基于nmap的简单端口扫描插件
+type: scanner
+category: port
+tags:
+  - port
+  - scanner
+  - nmap
+
+# 插件依赖
+dependencies:
+  - nmap
+
+# 插件配置
+config:
+  scan_type: "tcp"
+  top_ports: 1000
+  timeout: 30
+  timing: 4
+
+# 脚本配置
+script:
+  language: shell
+  entry: main
+  args: []
+  content: |
+    #!/bin/bash
+    
+    # 读取参数（JSON格式从stdin）
+    read -r input_data
+    
+    # 解析JSON参数（简化实现）
+    target=$(echo "$input_data" | grep -o '"target":"[^"]*"' | cut -d'"' -f4)
+    scan_type=$(echo "$input_data" | grep -o '"scan_type":"[^"]*"' | cut -d'"' -f4)
+    top_ports=$(echo "$input_data" | grep -o '"top_ports":[0-9]*' | cut -d':' -f2)
+    
+    # 设置默认值
+    target=${target:-"127.0.0.1"}
+    scan_type=${scan_type:-"tcp"}
+    top_ports=${top_ports:-1000}
+    
+    # 构建nmap命令
+    nmap_cmd="nmap"
+    
+    if [ "$scan_type" = "tcp" ]; then
+        nmap_cmd="$nmap_cmd -sT"
+    elif [ "$scan_type" = "udp" ]; then
+        nmap_cmd="$nmap_cmd -sU"
+    else
+        nmap_cmd="$nmap_cmd -sS"
+    fi
+    
+    nmap_cmd="$nmap_cmd --top-ports $top_ports"
+    nmap_cmd="$nmap_cmd -oX -"  # XML输出到stdout
+    nmap_cmd="$nmap_cmd $target"
+    
+    # 执行扫描
+    scan_result=$($nmap_cmd 2>/dev/null)
+    
+    # 简单解析结果
+    open_ports=$(echo "$scan_result" | grep -o 'portid="[0-9]*".*state="open"' | wc -l)
+    
+    # 输出JSON格式结果
+    cat << EOF
+    {
+        "success": true,
+        "target": "$target",
+        "scan_type": "$scan_type",
+        "open_ports": $open_ports,
+        "raw_output": "$(echo "$scan_result" | sed 's/"/\\"/g' | tr '\n' ' ')"
+    }
+    EOF

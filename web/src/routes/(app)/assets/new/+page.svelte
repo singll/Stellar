@@ -31,7 +31,8 @@
 		port: 80,
 		appName: '',
 		projectId: '',
-		tags: []
+		tags: [],
+		data: {} // 添加必需的 data 字段
 	});
 
 	let loading = $state(false);
@@ -118,8 +119,9 @@
 			// 清理表单数据
 			const cleanData: CreateAssetRequest = {
 				type: formData.type,
-				projectId: formData.projectId || undefined,
-				tags: formData.tags || []
+				projectId: formData.projectId || '', // 改为空字符串而不是 undefined
+				tags: formData.tags || [],
+				data: {} // 添加必需的 data 字段
 			};
 
 			// 根据类型添加相应字段
@@ -307,8 +309,8 @@
 								type="number"
 								bind:value={formData.port}
 								placeholder="80"
-								min="1"
-								max="65535"
+								min={1}
+								max={65535}
 								class={errors.port ? 'border-red-500 focus:border-red-500' : ''}
 								disabled={loading}
 								required

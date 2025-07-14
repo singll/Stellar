@@ -7,6 +7,7 @@ import (
 
 	"github.com/StellarServer/internal/models"
 	"github.com/StellarServer/internal/services/taskmanager/executors"
+	"github.com/StellarServer/internal/services/vulnscan"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -30,6 +31,7 @@ type TaskManager struct {
 	dispatcher    *TaskDispatcher
 	queueManager  *QueueManager
 	executor      *ExecutionEngine
+	scheduler     *TaskScheduler
 }
 
 // TaskManagerConfig 任务管理器配置
@@ -101,6 +103,9 @@ func NewTaskManager(db *mongo.Database, redisClient *redis.Client, nodeManager N
 	}
 	executor := NewExecutionEngine(db, redisClient, executorConfig)
 
+	// 创建任务调度器
+	scheduler := NewTaskScheduler(db, nil) // 稍后会设置taskManager引用
+
 	tm := &TaskManager{
 		db:           db,
 		redisClient:  redisClient,
@@ -108,6 +113,7 @@ func NewTaskManager(db *mongo.Database, redisClient *redis.Client, nodeManager N
 		dispatcher:   dispatcher,
 		queueManager: queueManager,
 		executor:     executor,
+		scheduler:    scheduler,
 		config:       config,
 		ctx:          ctx,
 		cancel:       cancel,
@@ -115,6 +121,9 @@ func NewTaskManager(db *mongo.Database, redisClient *redis.Client, nodeManager N
 		queues:       make(map[string]*TaskQueue),
 		eventChan:    make(chan TaskEvent, 100),
 	}
+
+	// 设置调度器的taskManager引用
+	scheduler.taskManager = tm
 
 	// 注册默认执行器
 	tm.registerDefaultExecutors()
@@ -155,6 +164,22 @@ func (tm *TaskManager) registerDefaultExecutors() {
 		AutoCreateAssets:      true,
 	})
 	tm.executor.RegisterExecutor("asset_discovery", assetDiscoveryExecutor)
+
+	// 注册漏洞扫描执行器
+	vulnHandler := vulnscan.NewVulnHandler(tm.db)
+	pocEngineConfig := vulnscan.POCEngineConfig{
+		MaxConcurrency: 10,
+		Timeout:        30 * time.Second,
+		RateLimit:      10.0,
+		EnableCache:    true,
+		CacheTTL:       time.Hour,
+		EnableSandbox:  true,
+		MaxMemoryMB:    512,
+		MaxScriptSize:  1024 * 1024, // 1MB
+	}
+	pocEngine := vulnscan.NewPOCEngine(pocEngineConfig)
+	vulnScanExecutor := executors.NewVulnScanExecutor(tm.db, pocEngine, vulnHandler)
+	tm.executor.RegisterExecutor("vuln_scan", vulnScanExecutor)
 }
 
 // Start 启动任务管理器
@@ -169,6 +194,11 @@ func (tm *TaskManager) Start() error {
 		return err
 	}
 
+	// 启动任务调度器
+	if err := tm.scheduler.Start(); err != nil {
+		return err
+	}
+
 	// 启动任务监控
 	go tm.monitorTasks()
 
@@ -178,6 +208,7 @@ func (tm *TaskManager) Start() error {
 // Stop 停止任务管理器
 func (tm *TaskManager) Stop() {
 	tm.cancel()
+	tm.scheduler.Stop()
 	tm.dispatcher.Stop()
 	tm.executor.Shutdown()
 }
@@ -377,7 +408,7 @@ func (tm *TaskManager) checkStuckTasks() {
 
 	for _, task := range stuckTasks {
 		// 更新任务状态为超时
-		_ = tm.UpdateTaskStatus(task.ID.Hex(), models.TaskStatusTimeout, task.Progress)
+		_ = tm.UpdateTaskStatus(task.ID.Hex(), string(models.TaskStatusTimeout), task.Progress)
 
 		// 保存任务结果
 		_ = tm.SaveTaskResult(task.ID.Hex(), &models.TaskResult{
@@ -388,8 +419,45 @@ func (tm *TaskManager) checkStuckTasks() {
 		// 如果任务配置了重试，则重新提交任务
 		if tm.config.EnableRetry && task.RetryCount < tm.config.MaxRetries {
 			task.RetryCount++
-			task.Status = models.TaskStatusPending
+			task.Status = string(models.TaskStatusPending)
 			_ = tm.SubmitTask(&task)
 		}
 	}
+}
+
+// ==================== 任务调度相关方法 ====================
+
+// CreateScheduleRule 创建调度规则
+func (tm *TaskManager) CreateScheduleRule(rule *models.TaskScheduleRule) error {
+	return tm.scheduler.CreateScheduleRule(rule)
+}
+
+// UpdateScheduleRule 更新调度规则
+func (tm *TaskManager) UpdateScheduleRule(ruleID string, updates *models.TaskScheduleRule) error {
+	return tm.scheduler.UpdateScheduleRule(ruleID, updates)
+}
+
+// DeleteScheduleRule 删除调度规则
+func (tm *TaskManager) DeleteScheduleRule(ruleID string) error {
+	return tm.scheduler.DeleteScheduleRule(ruleID)
+}
+
+// ToggleScheduleRule 切换调度规则状态
+func (tm *TaskManager) ToggleScheduleRule(ruleID string, enabled bool) error {
+	return tm.scheduler.ToggleScheduleRule(ruleID, enabled)
+}
+
+// TriggerScheduleRule 手动触发调度规则
+func (tm *TaskManager) TriggerScheduleRule(ruleID string) (*models.Task, error) {
+	return tm.scheduler.TriggerScheduleRule(ruleID)
+}
+
+// GetScheduleRules 获取调度规则列表
+func (tm *TaskManager) GetScheduleRules(projectID string) ([]*models.TaskScheduleRule, error) {
+	return tm.scheduler.GetScheduleRules(projectID)
+}
+
+// GetSchedulerStats 获取调度器统计信息
+func (tm *TaskManager) GetSchedulerStats() map[string]interface{} {
+	return tm.scheduler.GetStats()
 }

@@ -23,11 +23,11 @@
 	let isRefreshing = $state(false);
 
 	// Store 订阅
-	const tasks = $derived(subdomainStore.tasks);
-	const loading = $derived(subdomainStore.loading);
-	const pagination = $derived(subdomainStore.pagination);
-	const taskSummary = $derived(subdomainStore.taskSummary);
-	const runningTasks = $derived(subdomainStore.runningTasks);
+	const tasks = subdomainStore.tasks;
+	const loading = subdomainStore.loading;
+	const pagination = subdomainStore.pagination;
+	const taskSummary = subdomainStore.taskSummary;
+	const runningTasks = subdomainStore.runningTasks;
 
 	// 状态选项
 	const statusOptions = [
@@ -62,7 +62,7 @@
 
 		// 设置定时刷新（每30秒）
 		const interval = setInterval(() => {
-			if ($runningTasks.length > 0) {
+			if (runningTasks.length > 0) {
 				refreshTasks();
 			}
 		}, 30000);
@@ -75,8 +75,8 @@
 		try {
 			const filters = buildFilters();
 			await subdomainStore.actions.loadTasks({
-				page: $pagination.page,
-				limit: $pagination.limit,
+				page: pagination.page,
+				limit: pagination.limit,
 				filters
 			});
 		} catch (error) {
@@ -134,11 +134,11 @@
 	}
 
 	// 分页处理
-	async function handlePageChange(event: CustomEvent<{ page: number }>) {
+	async function handlePageChange(event: CustomEvent<number>) {
 		const filters = buildFilters();
 		await subdomainStore.actions.loadTasks({
-			page: event.detail.page,
-			limit: $pagination.limit,
+			page: event.detail,
+			limit: pagination.limit,
 			filters
 		});
 	}
@@ -188,7 +188,7 @@
 
 	function handleSelectAll(checked: boolean) {
 		if (checked) {
-			selectedTasks = $tasks.map((task) => task.id);
+			selectedTasks = tasks.map((task) => task.id);
 		} else {
 			selectedTasks = [];
 		}
@@ -199,7 +199,8 @@
 
 		if (confirm(`确定要删除选中的 ${selectedTasks.length} 个任务吗？`)) {
 			try {
-				await subdomainStore.actions.batchDeleteTasks(selectedTasks);
+				// TODO: Implement batch delete when API is available
+				// await subdomainStore.actions.batchDeleteTasks(selectedTasks);
 				selectedTasks = [];
 				await loadTasks();
 			} catch (error) {
@@ -213,9 +214,9 @@
 	function getStatusVariant(status: string) {
 		switch (status) {
 			case 'completed':
-				return 'success';
+				return 'default';
 			case 'running':
-				return 'warning';
+				return 'secondary';
 			case 'failed':
 				return 'destructive';
 			case 'canceled':
@@ -290,22 +291,22 @@
 
 	<!-- 统计卡片 -->
 	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-		<StatCard title="总任务数" value={$taskSummary.total} variant="default" />
-		<StatCard title="运行中" value={$taskSummary.running} variant="warning" />
-		<StatCard title="已完成" value={$taskSummary.completed} variant="success" />
-		<StatCard title="成功率" value={`${$taskSummary.successRate}%`} variant="info" />
+		<StatCard title="总任务数" value={taskSummary().total} color="blue" />
+		<StatCard title="运行中" value={taskSummary().running} color="yellow" />
+		<StatCard title="已完成" value={taskSummary().completed} color="green" />
+		<StatCard title="成功率" value={`${taskSummary().successRate}%`} color="blue" />
 	</div>
 
 	<!-- 过滤器 -->
 	<div class="bg-white rounded-lg shadow-sm border p-4 mb-6">
 		<div class="flex flex-wrap gap-4 items-center">
-			<SearchInput bind:value={searchTerm} placeholder="搜索目标域名..." onchange={applyFilters} />
+			<SearchInput bind:value={searchTerm} placeholder="搜索目标域名..." on:search={applyFilters} />
 
-			<Select bind:value={selectedStatus} options={statusOptions} onchange={applyFilters} />
+			<Select bind:value={selectedStatus} options={statusOptions} onselect={applyFilters} />
 
-			<Select bind:value={selectedMethod} options={methodOptions} onchange={applyFilters} />
+			<Select bind:value={selectedMethod} options={methodOptions} onselect={applyFilters} />
 
-			<Select bind:value={selectedProject} options={projectOptions} onchange={applyFilters} />
+			<Select bind:value={selectedProject} options={projectOptions} onselect={applyFilters} />
 
 			<Button variant="outline" onclick={clearFilters}>清除过滤</Button>
 
@@ -318,22 +319,25 @@
 			<div class="mt-4 pt-4 border-t">
 				<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">创建时间</label>
+						<label for="create-time" class="block text-sm font-medium text-gray-700 mb-1">创建时间</label>
 						<input
+							id="create-time"
 							type="date"
 							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">结束时间</label>
+						<label for="end-time" class="block text-sm font-medium text-gray-700 mb-1">结束时间</label>
 						<input
+							id="end-time"
 							type="date"
 							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">创建者</label>
+						<label for="creator" class="block text-sm font-medium text-gray-700 mb-1">创建者</label>
 						<input
+							id="creator"
 							type="text"
 							placeholder="输入创建者..."
 							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -361,11 +365,11 @@
 
 	<!-- 任务列表 -->
 	<div class="bg-white rounded-lg shadow-sm border">
-		{#if $loading.tasks}
+		{#if loading.tasks}
 			<div class="flex justify-center items-center py-12">
 				<LoadingSpinner size="lg" />
 			</div>
-		{:else if $tasks.length === 0}
+		{:else if tasks.length === 0}
 			<div class="text-center py-12">
 				<div class="text-gray-400 text-lg mb-2">暂无任务</div>
 				<p class="text-gray-500 mb-4">创建您的第一个子域名枚举任务</p>
@@ -379,7 +383,7 @@
 							<th class="px-4 py-3 text-left">
 								<input
 									type="checkbox"
-									onchange={(e) => handleSelectAll(e.target.checked)}
+									onchange={(e) => handleSelectAll((e.target as HTMLInputElement).checked)}
 									class="rounded border-gray-300"
 								/>
 							</th>
@@ -394,13 +398,14 @@
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-gray-200">
-						{#each $tasks as task}
+						{#each tasks as task}
 							<tr class="hover:bg-gray-50">
 								<td class="px-4 py-3">
 									<input
 										type="checkbox"
 										checked={selectedTasks.includes(task.id)}
-										onchange={(e) => handleTaskSelect(task.id, e.target.checked)}
+										onchange={(e) =>
+											handleTaskSelect(task.id, (e.target as HTMLInputElement).checked)}
 										class="rounded border-gray-300"
 									/>
 								</td>
@@ -447,7 +452,7 @@
 								</td>
 								<td class="px-4 py-3">
 									<div class="text-sm text-gray-900">{formatDateTime(task.createdAt)}</div>
-									{#if task.endTime}
+									{#if task.endTime && task.startTime}
 										<div class="text-xs text-gray-500">
 											耗时: {formatDuration(task.startTime, task.endTime)}
 										</div>
@@ -513,14 +518,14 @@
 	</div>
 
 	<!-- 分页 -->
-	{#if $tasks.length > 0}
+	{#if tasks.length > 0}
 		<div class="mt-6">
 			<Pagination
-				currentPage={$pagination.page}
-				totalPages={$pagination.totalPages}
-				totalItems={$pagination.total}
-				itemsPerPage={$pagination.limit}
-				onPageChange={handlePageChange}
+				currentPage={pagination.page}
+				totalPages={pagination.totalPages}
+				total={pagination.total}
+				pageSize={pagination.limit}
+				on:pageChange={handlePageChange}
 			/>
 		</div>
 	{/if}

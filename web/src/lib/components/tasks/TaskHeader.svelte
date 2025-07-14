@@ -11,9 +11,10 @@
 	interface Props {
 		task: Task;
 		loading?: boolean;
+		detailed?: boolean; // 添加 detailed 属性
 	}
 
-	let { task, loading = false }: Props = $props();
+	let { task, loading = false, detailed = false }: Props = $props();
 
 	const dispatch = createEventDispatcher<{
 		start: void;
@@ -41,26 +42,33 @@
 
 	// 获取任务类型信息
 	function getTaskTypeInfo(type: string) {
-		const typeMap = {
+		const typeMap: Record<string, { label: string; icon: string }> = {
 			subdomain_enum: { label: '子域名枚举', icon: 'fas fa-globe' },
 			port_scan: { label: '端口扫描', icon: 'fas fa-network-wired' },
 			vuln_scan: { label: '漏洞扫描', icon: 'fas fa-bug' },
 			asset_discovery: { label: '资产发现', icon: 'fas fa-search' },
 			dir_scan: { label: '目录扫描', icon: 'fas fa-folder' },
-			web_crawl: { label: 'Web爬虫', icon: 'fas fa-spider' }
+			web_crawl: { label: 'Web爬虫', icon: 'fas fa-spider' },
+			sensitive_scan: { label: '敏感信息扫描', icon: 'fas fa-eye' },
+			page_monitor: { label: '页面监控', icon: 'fas fa-monitor' }
 		};
 		return typeMap[type] || { label: type, icon: 'fas fa-cog' };
 	}
 
 	// 获取优先级信息
 	function getPriorityInfo(priority: string) {
-		const priorityMap = {
+		const priorityMap: Record<string, { label: string; color: string }> = {
 			low: { label: '低', color: 'text-gray-500' },
 			normal: { label: '正常', color: 'text-blue-500' },
 			high: { label: '高', color: 'text-yellow-500' },
 			critical: { label: '紧急', color: 'text-red-500' }
 		};
-		return priorityMap[priority] || { label: priority, color: 'text-gray-500' };
+		return (
+			priorityMap[priority as keyof typeof priorityMap] || {
+				label: priority,
+				color: 'text-gray-500'
+			}
+		);
 	}
 
 	let typeInfo = $derived(getTaskTypeInfo(task.type));

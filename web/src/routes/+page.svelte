@@ -115,7 +115,7 @@
 
 				<div class="flex items-center space-x-4">
 					<Button variant="outline" onclick={() => goto('/login')}>登录</Button>
-					<Button variant="primary" onclick={() => goto('/register')}>注册</Button>
+					<Button variant="default" onclick={() => goto('/register')}>注册</Button>
 				</div>
 			</div>
 		</nav>
@@ -143,7 +143,7 @@
 
 					<div class="flex flex-col sm:flex-row gap-4 justify-center">
 						<Button
-							variant="primary"
+							variant="default"
 							size="lg"
 							class="text-lg px-8 py-4"
 							onclick={() => goto('/login')}

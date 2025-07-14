@@ -614,11 +614,9 @@ func (s *PortScanner) processResults(ctx context.Context) {
 		}
 		s.scannedPorts.Store(key, true)
 
-		// 如果需要保存到数据库
-		if s.Config.SaveToDB {
-			// 这里应该有保存到数据库的代码
-			// saveToDatabase(result)
-		}
+		// 所有结果都会通过ResultChan发送到TaskManager的handleResults处理
+		// TaskManager会负责调用ResultHandler.HandleResult来保存到数据库
+		// 这里不需要直接操作数据库，保持职责分离
 	}
 }
 

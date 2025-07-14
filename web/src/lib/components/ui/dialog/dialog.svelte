@@ -57,11 +57,14 @@
 	>
 		<!-- 对话框内容 -->
 		<div
+			role="dialog"
+			tabindex="-1"
 			class={cn(
 				'fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 border bg-white p-6 shadow-lg duration-200 sm:rounded-lg',
 				className
 			)}
 			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.key === 'Escape' && closeDialog()}
 		>
 			<!-- 标题和关闭按钮 -->
 			{#if title}

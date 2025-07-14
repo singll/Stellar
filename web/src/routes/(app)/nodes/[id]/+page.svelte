@@ -129,13 +129,13 @@
 	function getStatusBadgeVariant(status: NodeStatusType) {
 		switch (status) {
 			case NodeStatus.ONLINE:
-				return 'success';
+				return 'default';
 			case NodeStatus.OFFLINE:
-				return 'danger';
+				return 'destructive';
 			case NodeStatus.DISABLED:
-				return 'warning';
+				return 'secondary';
 			case NodeStatus.MAINTAIN:
-				return 'info';
+				return 'outline';
 			case NodeStatus.REGISTING:
 				return 'secondary';
 			default:
@@ -240,14 +240,14 @@
 					<Button variant="outline" onclick={() => (editMode = true)}>编辑</Button>
 				{:else}
 					<Button variant="outline" onclick={() => (editMode = false)}>取消</Button>
-					<Button variant="primary" onclick={saveNode}>保存</Button>
+					<Button variant="default" onclick={saveNode}>保存</Button>
 				{/if}
 
 				{#if node.status === NodeStatus.ONLINE}
 					<Button variant="outline" onclick={() => updateNodeStatus(NodeStatus.MAINTAIN)}>
 						维护
 					</Button>
-					<Button variant="warning" onclick={restartNode}>重启</Button>
+					<Button variant="secondary" onclick={restartNode}>重启</Button>
 				{:else if node.status === NodeStatus.MAINTAIN}
 					<Button variant="outline" onclick={() => updateNodeStatus(NodeStatus.ONLINE)}>
 						恢复
@@ -262,7 +262,7 @@
 					</Button>
 				{/if}
 
-				<Button variant="danger" onclick={deleteNode}>删除</Button>
+				<Button variant="destructive" onclick={deleteNode}>删除</Button>
 			</div>
 		</div>
 
@@ -272,25 +272,25 @@
 				title="CPU使用率"
 				value={`${node.nodeStatus.cpuUsage.toFixed(1)}%`}
 				icon="🖥️"
-				variant="info"
+				color="blue"
 			/>
 			<StatCard
 				title="内存使用"
 				value={formatMemory(node.nodeStatus.memoryUsage)}
 				icon="💾"
-				variant="info"
+				color="blue"
 			/>
 			<StatCard
 				title="运行任务"
 				value={node.nodeStatus.runningTasks.toString()}
 				icon="⚡"
-				variant="warning"
+				color="gray"
 			/>
 			<StatCard
 				title="正常运行"
 				value={formatUptime(node.nodeStatus.uptimeSeconds)}
 				icon="⏰"
-				variant="success"
+				color="green"
 			/>
 		</div>
 
@@ -303,7 +303,11 @@
 						<div class="flex items-center space-x-2 mb-2">
 							<span class="text-sm font-medium text-gray-700">健康评分</span>
 							<Badge
-								variant={health.score >= 80 ? 'success' : health.score >= 60 ? 'warning' : 'danger'}
+								variant={health.score >= 80
+									? 'default'
+									: health.score >= 60
+										? 'secondary'
+										: 'destructive'}
 							>
 								{health.score}/100
 							</Badge>
@@ -311,7 +315,7 @@
 						<ProgressBar
 							value={health.score}
 							max={100}
-							variant={health.score >= 80 ? 'success' : health.score >= 60 ? 'warning' : 'danger'}
+							color={health.score >= 80 ? 'green' : health.score >= 60 ? 'yellow' : 'red'}
 						/>
 					</div>
 					<div>
@@ -424,48 +428,57 @@
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 							<div class="space-y-4">
 								<div>
-									<label class="block text-sm font-medium text-gray-700 mb-2">
+									<label for="max-concurrent-tasks" class="block text-sm font-medium text-gray-700 mb-2">
 										最大并发任务数
 									</label>
-									{#if editMode}
+									{#if editMode && editData.config}
 										<Input
+											id="max-concurrent-tasks"
 											type="number"
 											bind:value={editData.config.maxConcurrentTasks}
-											min="1"
-											max="100"
+											min={1}
+											max={100}
 										/>
+									{:else if editMode}
+										<span class="text-sm text-gray-500">配置加载中...</span>
 									{:else}
 										<span class="text-sm text-gray-900">{node.config.maxConcurrentTasks}</span>
 									{/if}
 								</div>
 
 								<div>
-									<label class="block text-sm font-medium text-gray-700 mb-2">
+									<label for="max-memory-usage" class="block text-sm font-medium text-gray-700 mb-2">
 										最大内存使用量 (MB)
 									</label>
-									{#if editMode}
+									{#if editMode && editData.config}
 										<Input
+											id="max-memory-usage"
 											type="number"
 											bind:value={editData.config.maxMemoryUsage}
-											min="512"
-											max="32768"
+											min={512}
+											max={32768}
 										/>
+									{:else if editMode}
+										<span class="text-sm text-gray-500">配置加载中...</span>
 									{:else}
 										<span class="text-sm text-gray-900">{node.config.maxMemoryUsage}</span>
 									{/if}
 								</div>
 
 								<div>
-									<label class="block text-sm font-medium text-gray-700 mb-2">
+									<label for="max-cpu-usage" class="block text-sm font-medium text-gray-700 mb-2">
 										最大CPU使用率 (%)
 									</label>
-									{#if editMode}
+									{#if editMode && editData.config}
 										<Input
+											id="max-cpu-usage"
 											type="number"
 											bind:value={editData.config.maxCpuUsage}
-											min="10"
-											max="100"
+											min={10}
+											max={100}
 										/>
+									{:else if editMode}
+										<span class="text-sm text-gray-500">配置加载中...</span>
 									{:else}
 										<span class="text-sm text-gray-900">{node.config.maxCpuUsage}</span>
 									{/if}
@@ -474,40 +487,46 @@
 
 							<div class="space-y-4">
 								<div>
-									<label class="block text-sm font-medium text-gray-700 mb-2">
+									<label for="heartbeat-interval" class="block text-sm font-medium text-gray-700 mb-2">
 										心跳间隔 (秒)
 									</label>
-									{#if editMode}
+									{#if editMode && editData.config}
 										<Input
+											id="heartbeat-interval"
 											type="number"
 											bind:value={editData.config.heartbeatInterval}
-											min="5"
-											max="300"
+											min={5}
+											max={300}
 										/>
+									{:else if editMode}
+										<span class="text-sm text-gray-500">配置加载中...</span>
 									{:else}
 										<span class="text-sm text-gray-900">{node.config.heartbeatInterval}</span>
 									{/if}
 								</div>
 
 								<div>
-									<label class="block text-sm font-medium text-gray-700 mb-2">
+									<label for="task-timeout" class="block text-sm font-medium text-gray-700 mb-2">
 										任务超时时间 (秒)
 									</label>
-									{#if editMode}
+									{#if editMode && editData.config}
 										<Input
+											id="task-timeout"
 											type="number"
 											bind:value={editData.config.taskTimeout}
-											min="60"
-											max="3600"
+											min={60}
+											max={3600}
 										/>
+									{:else if editMode}
+										<span class="text-sm text-gray-500">配置加载中...</span>
 									{:else}
 										<span class="text-sm text-gray-900">{node.config.taskTimeout}</span>
 									{/if}
 								</div>
 
 								<div>
-									<label class="block text-sm font-medium text-gray-700 mb-2"> 日志级别 </label>
-									{#if editMode}
+									<span class="block text-sm font-medium text-gray-700 mb-2"> 日志级别 </span>
+									{#if editMode && editData.config}
 										<Select
 											bind:value={editData.config.logLevel}
 											options={[
@@ -517,6 +536,8 @@
 												{ value: 'error', label: 'Error' }
 											]}
 										/>
+									{:else if editMode}
+										<span class="text-sm text-gray-500">配置加载中...</span>
 									{:else}
 										<span class="text-sm text-gray-900">{node.config.logLevel}</span>
 									{/if}

@@ -33,19 +33,16 @@
 	let eventSource = $state<EventSource | null>(null);
 	let logSource = $state<EventSource | null>(null);
 
-	// Store 订阅
-	let store = $state();
-	taskStore.subscribe((value) => {
-		store = value;
-	});
+	// Store 订阅 - Svelte 5 方式
+	let store = taskStore;
 
 	// 标签页配置
 	const tabs = [
-		{ key: 'overview', label: '概览', icon: 'fas fa-info-circle' },
-		{ key: 'config', label: '配置', icon: 'fas fa-cog' },
-		{ key: 'result', label: '结果', icon: 'fas fa-chart-bar' },
-		{ key: 'events', label: '事件', icon: 'fas fa-bell' },
-		{ key: 'logs', label: '日志', icon: 'fas fa-file-alt' }
+		{ id: 'overview', label: '概览', icon: 'fas fa-info-circle' },
+		{ id: 'config', label: '配置', icon: 'fas fa-cog' },
+		{ id: 'result', label: '结果', icon: 'fas fa-chart-bar' },
+		{ id: 'events', label: '事件', icon: 'fas fa-bell' },
+		{ id: 'logs', label: '日志', icon: 'fas fa-file-alt' }
 	];
 
 	onMount(async () => {
@@ -69,7 +66,7 @@
 
 		try {
 			await taskActions.selectTask(taskId);
-			task = store?.selectedTask || null;
+			task = taskActions.selectedTask || null;
 
 			if (!task) {
 				error = '任务不存在';
@@ -184,25 +181,25 @@
 		goto('/tasks');
 	}
 
-	// 获取状态颜色
-	function getStatusColor(status: string) {
+	// 状态颜色映射到 Badge variant
+	function getStatusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
 		switch (status) {
 			case 'pending':
-				return 'gray';
+				return 'secondary';
 			case 'queued':
-				return 'blue';
+				return 'outline';
 			case 'running':
-				return 'yellow';
+				return 'default';
 			case 'completed':
-				return 'green';
+				return 'secondary'; // 需要添加绿色变体或使用 secondary
 			case 'failed':
-				return 'red';
+				return 'destructive';
 			case 'canceled':
-				return 'gray';
+				return 'secondary';
 			case 'timeout':
-				return 'orange';
+				return 'destructive';
 			default:
-				return 'gray';
+				return 'secondary';
 		}
 	}
 
@@ -263,7 +260,7 @@
 						{task.name}
 					</h1>
 					<div class="flex items-center gap-2 mt-1">
-						<Badge color={getStatusColor(task.status)}>
+						<Badge variant={getStatusVariant(task.status)}>
 							{getStatusText(task.status)}
 						</Badge>
 						<span class="text-gray-600 dark:text-gray-400 text-sm">
@@ -275,7 +272,7 @@
 
 			<!-- 操作按钮 -->
 			<div class="flex gap-2">
-				{#if task.status === 'pending' || task.status === 'failed' || task.status === 'canceled'}
+				{#if task.status === 'pending' || task.status === 'failed' || task.status === 'cancelled'}
 					<Button onclick={startTask}>
 						<i class="fas fa-play mr-2"></i>
 						启动
@@ -349,12 +346,12 @@
 								</Button>
 							</div>
 						{/if}
-						<TaskResult {task} result={store?.taskResult} />
+						<TaskResult {task} result={task?.result} />
 					</div>
 				{:else if activeTab === 'events'}
-					<TaskEvents {task} {events} />
+					<TaskEvents {task} />
 				{:else if activeTab === 'logs'}
-					<TaskLogs {task} {logs} />
+					<TaskLogs {task} />
 				{/if}
 			</div>
 		</div>

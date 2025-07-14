@@ -62,11 +62,18 @@ export function validateTheme(theme: Theme): ThemeValidationResult {
 export function createTheme(options: CreateThemeRequest): Theme {
 	const now = new Date().toISOString();
 
+	// 合并默认颜色和用户提供的颜色
+	const defaultLight = getDefaultLightColors();
+	const defaultDark = getDefaultDarkColors();
+
 	return {
 		id: uuidv4(),
 		name: options.name,
 		description: options.description,
-		colors: options.colors,
+		colors: {
+			light: { ...defaultLight, ...options.colors.light },
+			dark: { ...defaultDark, ...options.colors.dark }
+		},
 		metadata: {
 			...options.metadata,
 			createdAt: now,
@@ -102,37 +109,55 @@ export function getDefaultTheme(): Theme {
 
 function getDefaultLightColors(): ThemeColors {
 	return {
-		primary: createColorSet('#3b82f6', '#ffffff'),
-		secondary: createColorSet('#6b7280', '#ffffff'),
-		accent: createColorSet('#8b5cf6', '#ffffff'),
-		success: createColorSet('#22c55e', '#ffffff'),
-		warning: createColorSet('#f59e0b', '#ffffff'),
-		error: createColorSet('#ef4444', '#ffffff'),
-		info: createColorSet('#3b82f6', '#ffffff'),
-		background: createColorSet('#ffffff', '#000000'),
-		foreground: createColorSet('#000000', '#ffffff'),
-		border: createColorSet('#e5e7eb', '#000000'),
-		card: createColorSet('#ffffff', '#000000'),
-		sidebar: createColorSet('#f8fafc', '#000000'),
-		header: createColorSet('#ffffff', '#000000')
+		primary: '#3b82f6',
+		secondary: '#6b7280',
+		accent: '#8b5cf6',
+		success: '#22c55e',
+		warning: '#f59e0b',
+		error: '#ef4444',
+		info: '#3b82f6',
+		background: '#ffffff',
+		foreground: '#000000',
+		border: '#e5e7eb',
+		card: '#ffffff',
+		sidebar: '#f8fafc',
+		header: '#ffffff',
+		muted: '#f9fafb',
+		mutedForeground: '#6b7280',
+		input: '#f9fafb',
+		ring: '#3b82f6',
+		destructive: '#ef4444',
+		destructiveForeground: '#ffffff',
+		successForeground: '#ffffff',
+		warningForeground: '#ffffff',
+		infoForeground: '#ffffff'
 	};
 }
 
 function getDefaultDarkColors(): ThemeColors {
 	return {
-		primary: createColorSet('#60a5fa', '#000000'),
-		secondary: createColorSet('#9ca3af', '#000000'),
-		accent: createColorSet('#a78bfa', '#000000'),
-		success: createColorSet('#4ade80', '#000000'),
-		warning: createColorSet('#fbbf24', '#000000'),
-		error: createColorSet('#f87171', '#000000'),
-		info: createColorSet('#60a5fa', '#000000'),
-		background: createColorSet('#0f172a', '#ffffff'),
-		foreground: createColorSet('#ffffff', '#000000'),
-		border: createColorSet('#1e293b', '#ffffff'),
-		card: createColorSet('#1e293b', '#ffffff'),
-		sidebar: createColorSet('#0f172a', '#ffffff'),
-		header: createColorSet('#1e293b', '#ffffff')
+		primary: '#60a5fa',
+		secondary: '#9ca3af',
+		accent: '#a78bfa',
+		success: '#4ade80',
+		warning: '#fbbf24',
+		error: '#f87171',
+		info: '#60a5fa',
+		background: '#0f172a',
+		foreground: '#ffffff',
+		border: '#1e293b',
+		card: '#1e293b',
+		sidebar: '#0f172a',
+		header: '#1e293b',
+		muted: '#1e293b',
+		mutedForeground: '#9ca3af',
+		input: '#1e293b',
+		ring: '#60a5fa',
+		destructive: '#f87171',
+		destructiveForeground: '#000000',
+		successForeground: '#000000',
+		warningForeground: '#000000',
+		infoForeground: '#000000'
 	};
 }
 
@@ -192,8 +217,7 @@ export function generateCssVariables(colors: ThemeColors): string {
 	const variables: string[] = [];
 
 	for (const [key, color] of Object.entries(colors)) {
-		variables.push(`--${key}: ${color.value};`);
-		variables.push(`--${key}-foreground: ${color.foreground};`);
+		variables.push(`--${key}: ${color};`);
 	}
 
 	return variables.join('\n');
@@ -204,7 +228,6 @@ export function applyTheme(theme: Theme, mode: 'light' | 'dark'): void {
 	const root = document.documentElement;
 
 	for (const [key, color] of Object.entries(colors)) {
-		root.style.setProperty(`--${key}`, color.value);
-		root.style.setProperty(`--${key}-foreground`, color.foreground);
+		root.style.setProperty(`--${key}`, color);
 	}
 }

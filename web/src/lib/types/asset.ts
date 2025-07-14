@@ -22,6 +22,13 @@ export interface BaseAsset {
 	taskName?: string;
 	rootDomain?: string;
 	changeHistory?: AssetChange[];
+	status?: 'active' | 'inactive' | 'deleted';
+	riskLevel?: 'low' | 'medium' | 'high' | 'critical';
+	// 公共属性，所有资产类型都应该有
+	name?: string;
+	description?: string;
+	lastScan?: string;
+	value?: string; // 资产的主要值（域名、IP、URL等）
 }
 
 // 资产变更记录
@@ -58,7 +65,7 @@ export interface SubdomainAsset extends BaseAsset {
 	ips: string[];
 	cname?: string;
 	dnsType?: string;
-	value?: string[];
+	dnsValue?: string[]; // 重命名为dnsValue避免与BaseAsset的value冲突
 	takeOver?: boolean;
 }
 
@@ -94,7 +101,7 @@ export interface PortAsset extends BaseAsset {
 	banner?: string;
 	tls?: boolean;
 	transport?: string;
-	status?: string;
+	portStatus?: string; // 重命名为portStatus避免与BaseAsset的status冲突
 }
 
 // Favicon信息
@@ -208,6 +215,19 @@ export interface CreateAssetRequest {
 	taskName?: string;
 	tags?: string[];
 	data: Record<string, any>;
+	// 特定类型的字段，用于表单数据绑定
+	domain?: string;
+	subdomain?: string;
+	ip?: string;
+	port?: number;
+	url?: string;
+	appName?: string;
+	host?: string;
+	path?: string;
+	method?: string;
+	title?: string;
+	server?: string;
+	[key: string]: any; // 允许任意其他属性
 }
 
 // 更新资产请求

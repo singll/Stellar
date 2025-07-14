@@ -12,15 +12,19 @@
 	import { cn } from '$lib/utils';
 	import { createEventDispatcher } from 'svelte';
 
-	export let filters: Array<{
-		id: string;
-		label: string;
-		type: 'text' | 'select';
-		value: string;
-		options?: Array<{ value: string; label: string }>;
-	}> = [];
-
-	export let className: string = '';
+	let {
+		filters = [],
+		className = ''
+	}: {
+		filters?: Array<{
+			id: string;
+			label: string;
+			type: 'text' | 'select';
+			value: string;
+			options?: Array<{ value: string; label: string }>;
+		}>;
+		className?: string;
+	} = $props();
 
 	const dispatch = createEventDispatcher<{
 		filter: { filters: typeof filters };
@@ -43,7 +47,7 @@
 			<div class="grid gap-2">
 				<Label for={filter.id}>{filter.label}</Label>
 				{#if filter.type === 'select'}
-					<Select bind:value={filter.value} on:change={handleFilter}>
+					<Select bind:value={filter.value}>
 						<SelectTrigger>
 							<SelectValue placeholder="选择..." />
 						</SelectTrigger>
@@ -56,19 +60,14 @@
 						</SelectContent>
 					</Select>
 				{:else}
-					<Input
-						id={filter.id}
-						bind:value={filter.value}
-						on:input={handleFilter}
-						placeholder={`输入${filter.label}...`}
-					/>
+					<Input id={filter.id} bind:value={filter.value} placeholder={`输入${filter.label}...`} />
 				{/if}
 			</div>
 		{/each}
 	</div>
 
 	<div class="flex items-center space-x-2">
-		<Button variant="outline" on:click={handleReset}>重置</Button>
-		<Button on:click={handleFilter}>筛选</Button>
+		<Button variant="outline" onclick={handleReset}>重置</Button>
+		<Button onclick={handleFilter}>筛选</Button>
 	</div>
 </div>

@@ -3,7 +3,7 @@ import { goto } from '$app/navigation';
 import type { User, AuthState } from '$lib/types/auth';
 import { authApi } from '$lib/api/auth';
 import { notifications } from './notifications';
-import { writable } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
 
 const STORAGE_KEY = 'auth_state';
 
@@ -55,13 +55,32 @@ export const auth = {
 		unsubscribe();
 		return currentState;
 	},
-	login(data: { token: string; user: User }) {
-		store.set({
-			...initialState,
-			isAuthenticated: true,
-			token: data.token,
-			user: data.user
-		});
+	async login(credentials: { username?: string; email?: string; password: string }) {
+		try {
+			const response = await authApi.login(credentials);
+			if (response.code === 200 && response.data) {
+				store.set({
+					...initialState,
+					isAuthenticated: true,
+					token: response.data.token,
+					user: response.data.user
+				});
+				if (browser) {
+					localStorage.setItem(
+						STORAGE_KEY,
+						JSON.stringify({
+							token: response.data.token,
+							user: response.data.user
+						})
+					);
+				}
+				return response.data;
+			}
+			throw new Error('登录失败');
+		} catch (error) {
+			console.error('登录失败:', error);
+			throw error;
+		}
 	},
 	async logout() {
 		// 防止重复调用
@@ -122,7 +141,69 @@ export const auth = {
 	},
 	setCurrentUser(user: User) {
 		store.update((state) => ({ ...state, user }));
+	},
+	async register(userData: any) {
+		try {
+			const response = await authApi.register(userData);
+			if (response.code === 200 && response.data) {
+				store.set({
+					...initialState,
+					token: response.data.token,
+					user: response.data.user,
+					isAuthenticated: true
+				});
+				if (browser) {
+					localStorage.setItem(
+						STORAGE_KEY,
+						JSON.stringify({
+							token: response.data.token,
+							user: response.data.user
+						})
+					);
+				}
+				return response.data;
+			}
+			throw new Error('注册失败');
+		} catch (error) {
+			console.error('注册失败:', error);
+			throw error;
+		}
+	},
+	async resetPassword(email: string) {
+		try {
+			await authApi.resetPassword(email);
+			notifications.add({
+				type: 'success',
+				message: '密码重置邮件已发送'
+			});
+		} catch (error) {
+			console.error('密码重置失败:', error);
+			throw error;
+		}
+	},
+	async updatePassword(data: any) {
+		try {
+			await authApi.updatePassword(data);
+			notifications.add({
+				type: 'success',
+				message: '密码更新成功'
+			});
+		} catch (error) {
+			console.error('密码更新失败:', error);
+			throw error;
+		}
 	}
 };
+
+// 为了向后兼容测试文件，导出单独的函数和状态
+export const isAuthenticated = derived(store, (state) => state.isAuthenticated);
+export const currentUser = derived(store, (state) => state.user);
+export const isLoading = writable(false);
+
+export const login = auth.login.bind(auth);
+export const logout = auth.logout.bind(auth);
+export const register = auth.register.bind(auth);
+export const resetPassword = auth.resetPassword.bind(auth);
+export const updatePassword = auth.updatePassword.bind(auth);
 
 // End of file. No other exports or functions should exist.

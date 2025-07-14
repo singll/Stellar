@@ -89,7 +89,7 @@
 
 		<div class="flex items-center gap-2">
 			<Dialog bind:open={importDialogOpen}>
-				<DialogTrigger asChild>
+				<DialogTrigger>
 					<Button variant="outline">Import Theme</Button>
 				</DialogTrigger>
 				<DialogContent>
@@ -100,7 +100,7 @@
 					<div class="grid gap-4 py-4">
 						<div class="grid gap-2">
 							<Label for="import-file">Theme File</Label>
-							<Input id="import-file" type="file" accept=".json" on:change={handleImport} />
+							<Input id="import-file" type="file" accept=".json" onchange={handleImport} />
 							{#if importError}
 								<p class="text-sm text-destructive">{importError}</p>
 							{/if}
@@ -110,7 +110,7 @@
 			</Dialog>
 
 			<Dialog bind:open={createDialogOpen}>
-				<DialogTrigger asChild>
+				<DialogTrigger>
 					<Button>Create Theme</Button>
 				</DialogTrigger>
 				<DialogContent class="max-w-4xl">

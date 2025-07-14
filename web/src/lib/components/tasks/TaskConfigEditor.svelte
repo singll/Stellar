@@ -5,7 +5,7 @@
 <script lang="ts">
 	import type { TaskType } from '$lib/types/task';
 	import { Input } from '$lib/components/ui/input';
-	import { Textarea } from '$lib/components/ui/textarea';
+	import Textarea from '$lib/components/ui/Textarea.svelte';
 	import { Select } from '$lib/components/ui/select';
 	import TagInput from '$lib/components/ui/TagInput.svelte';
 
@@ -216,23 +216,23 @@
 	// 使用 derived 计算初始化后的配置，避免 effect 无限循环
 	let initializedConfig = $derived(() => {
 		const newConfig = { ...config };
-		
+
 		configFields.forEach((field) => {
 			if (newConfig[field.key] === undefined && field.defaultValue !== undefined) {
 				newConfig[field.key] = field.defaultValue;
 			}
 		});
-		
+
 		return newConfig;
 	});
 
 	// 当初始化配置改变时，更新 config
 	$effect(() => {
-		const initialized = initializedConfig();
-		const hasNewDefaults = configFields.some(field => 
-			config[field.key] === undefined && field.defaultValue !== undefined
+		const initialized = initializedConfig;
+		const hasNewDefaults = configFields.some(
+			(field) => config[field.key] === undefined && field.defaultValue !== undefined
 		);
-		
+
 		if (hasNewDefaults) {
 			config = initialized;
 		}
@@ -275,18 +275,19 @@
 							placeholder={field.placeholder}
 							{disabled}
 							class={errors[`config.${field.key}`] ? 'border-red-500' : ''}
-							onchange={(e) => handleFieldChange(field.key, e.target.value)}
+							onchange={(e) => handleFieldChange(field.key, (e.target as HTMLInputElement).value)}
 						/>
 					{:else if field.type === 'number'}
 						<Input
 							id="config-{field.key}"
 							type="number"
 							value={config[field.key] || field.defaultValue || ''}
-							min={field.min}
-							max={field.max}
+							min={'min' in field ? field.min : undefined}
+							max={'max' in field ? field.max : undefined}
 							{disabled}
 							class={errors[`config.${field.key}`] ? 'border-red-500' : ''}
-							onchange={(e) => handleFieldChange(field.key, parseInt(e.target.value))}
+							onchange={(e) =>
+								handleFieldChange(field.key, parseInt((e.target as HTMLInputElement).value))}
 						/>
 					{:else if field.type === 'textarea'}
 						<Textarea
@@ -295,7 +296,8 @@
 							placeholder={field.placeholder}
 							{disabled}
 							class={errors[`config.${field.key}`] ? 'border-red-500' : ''}
-							onchange={(e) => handleFieldChange(field.key, e.target.value)}
+							onchange={(e) =>
+								handleFieldChange(field.key, (e.target as HTMLTextAreaElement).value)}
 						/>
 					{:else if field.type === 'select'}
 						<Select
@@ -304,7 +306,7 @@
 							options={field.options}
 							{disabled}
 							class={errors[`config.${field.key}`] ? 'border-red-500' : ''}
-							onchange={(value) => handleFieldChange(field.key, value)}
+							onselect={(value) => handleFieldChange(field.key, value)}
 						/>
 					{:else if field.type === 'checkbox'}
 						<div class="flex items-center">
@@ -314,17 +316,17 @@
 								checked={config[field.key] || field.defaultValue || false}
 								{disabled}
 								class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-								onchange={(e) => handleFieldChange(field.key, e.target.checked)}
+								onchange={(e) =>
+									handleFieldChange(field.key, (e.target as HTMLInputElement).checked)}
 							/>
 							<span class="ml-2 text-sm text-gray-600 dark:text-gray-400">启用</span>
 						</div>
 					{:else if field.type === 'tags'}
 						<TagInput
-							tags={config[field.key] || field.defaultValue || []}
+							bind:tags={config[field.key]}
 							{disabled}
 							placeholder="添加标签"
 							class={errors[`config.${field.key}`] ? 'border-red-500' : ''}
-							onchange={(tags) => handleFieldChange(field.key, tags)}
 						/>
 					{/if}
 				</div>

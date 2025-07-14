@@ -14,11 +14,11 @@ import (
 // Handler 端口扫描处理器
 type Handler struct {
 	db      *mongo.Database
-	manager *Manager
+	manager *TaskManager
 }
 
 // NewHandler 创建端口扫描处理器
-func NewHandler(db *mongo.Database, manager *Manager) *Handler {
+func NewHandler(db *mongo.Database, manager *TaskManager) *Handler {
 	return &Handler{
 		db:      db,
 		manager: manager,

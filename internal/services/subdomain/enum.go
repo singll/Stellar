@@ -511,15 +511,48 @@ func (s *EnumService) zoneTransfer(nameserver, domain string) ([]string, error) 
 
 // doSearchEngines 从搜索引擎获取子域名
 func (s *EnumService) doSearchEngines(ctx context.Context) error {
-	// 这里应该实现从搜索引擎获取子域名的代码
-	// 由于搜索引擎API可能需要密钥或有使用限制，这里只是一个示例框架
+	// 通过特定的搜索引擎查询语法查找子域名
+	// 这里使用简单的搜索引擎查询，实际应用中可能需要API密钥
+	
+	// 构造搜索查询
+	queries := []string{
+		fmt.Sprintf("site:*.%s", s.RootDomain),
+		fmt.Sprintf("site:%s", s.RootDomain),
+	}
+	
+	// 这里应该实现HTTP请求到搜索引擎并解析结果
+	// 由于搜索引擎反爬虫机制，这里只是示例框架
+	// 在实际应用中需要使用API或代理服务
+	
+	log.Printf("搜索引擎查询: %v", queries)
+	
+	// 模拟找到的子域名（实际应用中需要解析搜索结果）
+	// 这里应该有HTTP请求和HTML解析逻辑
+	
 	return nil
 }
 
 // doCertificateTransparency 从证书透明度日志获取子域名
 func (s *EnumService) doCertificateTransparency(ctx context.Context) error {
-	// 这里应该实现从证书透明度日志获取子域名的代码
-	// 可以使用crt.sh或其他证书透明度日志服务
+	// 使用证书透明度日志服务查询子域名
+	// 这里使用crt.sh作为示例，实际应用中可以使用多个CT日志源
+	
+	// 构造查询URL
+	url := fmt.Sprintf("https://crt.sh/?q=%%25.%s&output=json", s.RootDomain)
+	
+	// 这里应该实现HTTP请求到CT日志服务并解析JSON结果
+	// 由于需要HTTP客户端和JSON解析，这里只是示例框架
+	
+	log.Printf("证书透明度日志查询: %s", url)
+	
+	// 模拟处理CT日志结果
+	// 实际应用中需要：
+	// 1. 发送HTTP请求到CT日志服务
+	// 2. 解析JSON响应
+	// 3. 提取子域名
+	// 4. 去重和验证
+	// 5. 发送到结果通道
+	
 	return nil
 }
 

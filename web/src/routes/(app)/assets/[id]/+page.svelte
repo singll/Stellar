@@ -7,8 +7,8 @@
 	import type { Asset } from '$lib/types/asset';
 	import { notifications } from '$lib/stores/notifications';
 	import { goto } from '$app/navigation';
+	import Icon from '@iconify/svelte';
 	import AssetDetails from '$lib/components/assets/AssetDetails.svelte';
-	import Icon from '$lib/components/ui/Icon.svelte';
 
 	let asset: Asset | null = $state(null);
 	let loading = $state(true);
@@ -85,8 +85,8 @@
 	<!-- 头部 -->
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-4">
-			<Button variant="ghost" size="sm" on:click={() => goto('/assets')}>
-				<ArrowLeft class="h-4 w-4" />
+			<Button variant="ghost" size="sm" onclick={() => goto('/assets')}>
+				<Icon icon="tabler:arrow-left" width={16} class="h-4 w-4" />
 				返回
 			</Button>
 			<div>
@@ -97,16 +97,16 @@
 
 		{#if asset}
 			<div class="flex items-center gap-2">
-				<Button variant="outline" size="sm" on:click={handleEdit}>
-					<Icon name="edit" class="h-4 w-4 mr-2" />
+				<Button variant="outline" size="sm" onclick={handleEdit}>
+					<Icon icon="tabler:edit" width={16} class="h-4 w-4 mr-2" />
 					编辑
 				</Button>
-				<Button variant="outline" size="sm" on:click={handleScan}>
-					<Icon name="wifi" class="h-4 w-4 mr-2" />
+				<Button variant="outline" size="sm" onclick={handleScan}>
+					<Icon icon="tabler:wifi" width={16} class="h-4 w-4 mr-2" />
 					扫描
 				</Button>
-				<Button variant="destructive" size="sm" on:click={handleDelete}>
-					<Icon name="trash" class="h-4 w-4 mr-2" />
+				<Button variant="destructive" size="sm" onclick={handleDelete}>
+					<Icon icon="tabler:trash" width={16} class="h-4 w-4 mr-2" />
 					删除
 				</Button>
 			</div>
@@ -128,7 +128,7 @@
 			<div class="text-center">
 				<h3 class="text-lg font-semibold mb-2">未找到资产</h3>
 				<p class="text-muted-foreground mb-4">请检查资产ID和类型参数是否正确</p>
-				<Button on:click={() => goto('/assets')}>返回资产列表</Button>
+				<Button onclick={() => goto('/assets')}>返回资产列表</Button>
 			</div>
 		</div>
 	{/if}

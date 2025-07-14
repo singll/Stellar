@@ -66,25 +66,29 @@
 		<Label>{label}</Label>
 	{/if}
 	<Popover bind:open={isOpen}>
-		<PopoverTrigger asChild>
-			<Button
-				variant="outline"
-				class={cn(
-					'w-[220px] justify-start text-left font-normal',
-					!value && 'text-muted-foreground'
-				)}
-			>
-				<div class="mr-2 h-4 w-4 rounded" style:background-color={value}></div>
-				<span>{value}</span>
-			</Button>
+		<PopoverTrigger>
+			{#snippet children()}
+				<Button
+					variant="outline"
+					class={cn(
+						'w-[220px] justify-start text-left font-normal',
+						!value && 'text-muted-foreground'
+					)}
+				>
+					<div class="mr-2 h-4 w-4 rounded" style:background-color={value}></div>
+					<span>{value}</span>
+				</Button>
+			{/snippet}
 		</PopoverTrigger>
-		<PopoverContent class="w-[220px] p-3">
-			<div class="grid gap-2">
-				<div class="flex items-center justify-center">
-					<div class="h-9 w-9 rounded" style:background-color={value}></div>
+		<PopoverContent>
+			{#snippet children()}
+				<div class="grid gap-2">
+					<div class="flex items-center justify-center">
+						<div class="h-9 w-9 rounded" style:background-color={value}></div>
+					</div>
+					<Input id="color" type="color" {value} oninput={handleChange} />
 				</div>
-				<Input id="color" type="color" {value} on:input={handleChange} />
-			</div>
+			{/snippet}
 		</PopoverContent>
 	</Popover>
 </div>

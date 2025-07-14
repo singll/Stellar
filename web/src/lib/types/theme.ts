@@ -32,6 +32,10 @@ export interface ThemeColors {
 	warningForeground: string;
 	info: string;
 	infoForeground: string;
+	error: string;
+	header: string;
+	card: string;
+	sidebar: string;
 }
 
 /**
@@ -48,6 +52,7 @@ export interface ThemeMetadata {
 	tags?: string[];
 	createdAt?: string;
 	updatedAt?: string;
+	isBuiltin?: boolean;
 }
 
 /**
@@ -96,6 +101,14 @@ export interface UpdateThemeRequest {
 export interface ThemeValidationError {
 	field: string;
 	message: string;
+}
+
+/**
+ * Theme validation result interface
+ */
+export interface ThemeValidationResult {
+	isValid: boolean;
+	errors: string[];
 }
 
 /**
@@ -165,7 +178,11 @@ export const DEFAULT_THEME_COLORS = {
 		warning: '32.6 94.6% 43.7%',
 		warningForeground: '210 40% 98%',
 		info: '221.2 83.2% 53.3%',
-		infoForeground: '210 40% 98%'
+		infoForeground: '210 40% 98%',
+		error: '0 84.2% 60.2%',
+		header: '0 0% 100%',
+		card: '0 0% 100%',
+		sidebar: '210 40% 96.1%'
 	},
 	dark: {
 		primary: '217.2 91.2% 59.8%',
@@ -185,6 +202,10 @@ export const DEFAULT_THEME_COLORS = {
 		warning: '32.6 94.6% 43.7%',
 		warningForeground: '210 40% 98%',
 		info: '217.2 91.2% 59.8%',
-		infoForeground: '222.2 47.4% 11.2%'
+		infoForeground: '222.2 47.4% 11.2%',
+		error: '0 62.8% 30.6%',
+		header: '222.2 84% 4.9%',
+		card: '222.2 84% 4.9%',
+		sidebar: '217.2 32.6% 17.5%'
 	}
 } as const;

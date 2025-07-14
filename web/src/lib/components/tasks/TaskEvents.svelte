@@ -113,7 +113,7 @@
 	}
 
 	// 自动滚动到底部
-	let eventsContainer: HTMLElement | undefined;
+	let eventsContainer = $state<HTMLElement | undefined>();
 	let autoScroll = $state(true);
 
 	function scrollToBottom() {

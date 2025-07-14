@@ -6,477 +6,340 @@ import (
 	"time"
 
 	"github.com/StellarServer/internal/models"
-	"github.com/StellarServer/internal/utils"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+// TODO: 完善以下类型的实现
+// TargetStats 目标统计信息
+type TargetStats struct {
+	// TODO: 添加字段实现
+}
+
+// TrendPoint 趋势点数据
+type TrendPoint struct {
+	// TODO: 添加字段实现
+}
+
+// ReportConfig 报告配置
+type ReportConfig struct {
+	// TODO: 添加字段实现
+}
 
 // Service 敏感信息检测服务
 type Service struct {
-	db             *mongo.Database
-	rulesColl      *mongo.Collection
-	ruleGroupsColl *mongo.Collection
-	whitelistColl  *mongo.Collection
-	resultsColl    *mongo.Collection
-	ctx            context.Context
+	db                      *mongo.Database
+	detector                *Detector
+	engine                  *DetectionEngine
+	ruleManager            *RuleManager
+	reportGenerator        *ReportGenerator
+	falsePositiveManager   *FalsePositiveManager
 }
 
 // NewService 创建敏感信息检测服务
 func NewService(db *mongo.Database) *Service {
-	return &Service{
-		db:             db,
-		rulesColl:      db.Collection("sensitiveRules"),
-		ruleGroupsColl: db.Collection("sensitiveRuleGroups"),
-		whitelistColl:  db.Collection("sensitiveWhitelists"),
-		resultsColl:    db.Collection("sensitiveResults"),
-		ctx:            context.Background(),
+	// 创建检测引擎
+	engine := NewDetectionEngine(db)
+	
+	// 创建检测器
+	detector := NewDetector(db, engine.rules)
+	
+	// 创建其他组件
+	ruleManager := NewRuleManager(db, engine)
+	reportGenerator := NewReportGenerator(detector)
+	falsePositiveManager := NewFalsePositiveManager(db, engine)
+	
+	service := &Service{
+		db:                      db,
+		detector:                detector,
+		engine:                  engine,
+		ruleManager:            ruleManager,
+		reportGenerator:        reportGenerator,
+		falsePositiveManager:   falsePositiveManager,
 	}
+	
+	return service
 }
 
-// CreateRule 创建敏感规则
-func (s *Service) CreateRule(req models.SensitiveRuleCreateRequest) (*models.SensitiveRule, error) {
-	rule := &models.SensitiveRule{
-		ID:                    primitive.NewObjectID(),
-		Name:                  req.Name,
-		Description:           req.Description,
-		Type:                  req.Type,
-		Pattern:               req.Pattern,
-		Category:              req.Category,
-		RiskLevel:             req.RiskLevel,
-		Tags:                  req.Tags,
-		Enabled:               req.Enabled,
-		Context:               req.Context,
-		Examples:              req.Examples,
-		FalsePositivePatterns: req.FalsePositivePatterns,
-		CreatedAt:             time.Now(),
-		UpdatedAt:             time.Now(),
+// StartDetection 启动敏感信息检测
+func (s *Service) StartDetection(ctx context.Context, req models.SensitiveDetectionRequest) (*models.SensitiveDetectionResult, error) {
+	// 验证请求
+	if err := s.validateRequest(req); err != nil {
+		return nil, fmt.Errorf("请求验证失败: %v", err)
 	}
-
-	_, err := s.rulesColl.InsertOne(s.ctx, rule)
-	if err != nil {
-		return nil, fmt.Errorf("创建敏感规则失败: %v", err)
-	}
-
-	return rule, nil
+	
+	// 使用检测器启动检测
+	return s.detector.Detect(ctx, req)
 }
 
-// UpdateRule 更新敏感规则
-func (s *Service) UpdateRule(id string, req models.SensitiveRuleUpdateRequest) (*models.SensitiveRule, error) {
-	// 解析ID
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return nil, fmt.Errorf("无效的规则ID: %v", err)
-	}
-
-	// 构建更新内容
-	update := bson.M{
-		"$set": bson.M{
-			"name":                  req.Name,
-			"description":           req.Description,
-			"pattern":               req.Pattern,
-			"category":              req.Category,
-			"riskLevel":             req.RiskLevel,
-			"tags":                  req.Tags,
-			"enabled":               req.Enabled,
-			"context":               req.Context,
-			"examples":              req.Examples,
-			"falsePositivePatterns": req.FalsePositivePatterns,
-			"updatedAt":             time.Now(),
-		},
-	}
-
-	// 执行更新
-	result := s.rulesColl.FindOneAndUpdate(
-		s.ctx,
-		bson.M{"_id": objID},
-		update,
-		options.FindOneAndUpdate().SetReturnDocument(options.After),
-	)
-
-	// 检查更新结果
-	if result.Err() != nil {
-		return nil, fmt.Errorf("更新敏感规则失败: %v", result.Err())
-	}
-
-	// 解析更新后的规则
-	var rule models.SensitiveRule
-	if err := result.Decode(&rule); err != nil {
-		return nil, fmt.Errorf("解析更新后的规则失败: %v", err)
-	}
-
-	return &rule, nil
+// ScanContent 扫描内容
+func (s *Service) ScanContent(content, source string) (*DetectionResult, error) {
+	return s.engine.ScanContent(content, source)
 }
 
-// DeleteRule 删除敏感规则
-func (s *Service) DeleteRule(id string) error {
-	// 解析ID
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return fmt.Errorf("无效的规则ID: %v", err)
-	}
+// ScanURL 扫描URL
+func (s *Service) ScanURL(url string) (*DetectionResult, error) {
+	return s.engine.ScanURL(url)
+}
 
-	// 执行删除
-	result, err := s.rulesColl.DeleteOne(s.ctx, bson.M{"_id": objID})
-	if err != nil {
-		return fmt.Errorf("删除敏感规则失败: %v", err)
-	}
+// ScanFile 扫描文件
+func (s *Service) ScanFile(filePath string) (*DetectionResult, error) {
+	return s.engine.ScanFile(filePath)
+}
 
-	// 检查删除结果
-	if result.DeletedCount == 0 {
-		return fmt.Errorf("未找到要删除的规则: %s", id)
-	}
+// ScanDirectory 扫描目录
+func (s *Service) ScanDirectory(dirPath string, recursive bool) ([]*DetectionResult, error) {
+	return s.engine.ScanDirectory(dirPath, recursive)
+}
 
+// GetResults 获取检测结果
+func (s *Service) GetResults(projectID primitive.ObjectID, limit int) ([]*models.SensitiveDetectionResult, error) {
+	return s.detector.GetResults(projectID, limit)
+}
+
+// GetResult 获取单个检测结果
+func (s *Service) GetResult(resultID primitive.ObjectID) (*models.SensitiveDetectionResult, error) {
+	return s.detector.GetResult(resultID)
+}
+
+// UpdateResult 更新检测结果
+func (s *Service) UpdateResult(resultID primitive.ObjectID, updates map[string]interface{}) error {
+	return s.detector.UpdateResult(resultID, updates)
+}
+
+// DeleteResult 删除检测结果
+func (s *Service) DeleteResult(resultID primitive.ObjectID) error {
+	return s.detector.DeleteResult(resultID)
+}
+
+// 规则管理相关方法
+func (s *Service) CreateRuleSet(ruleset *RuleSet) error {
+	return s.ruleManager.CreateRuleSet(ruleset)
+}
+
+func (s *Service) UpdateRuleSet(rulesetID string, updates map[string]interface{}) error {
+	return s.ruleManager.UpdateRuleSet(rulesetID, updates)
+}
+
+func (s *Service) DeleteRuleSet(rulesetID string) error {
+	return s.ruleManager.DeleteRuleSet(rulesetID)
+}
+
+func (s *Service) GetRuleSet(rulesetID string) (*RuleSet, error) {
+	return s.ruleManager.GetRuleSet(rulesetID)
+}
+
+func (s *Service) ListRuleSets() []*RuleSet {
+	return s.ruleManager.ListRuleSets()
+}
+
+func (s *Service) GetRuleStatistics() *RuleStatistics {
+	return s.ruleManager.GetStatistics()
+}
+
+func (s *Service) ValidateRule(rule *DetectionRule) *RuleValidationResult {
+	return s.ruleManager.ValidateRule(rule)
+}
+
+func (s *Service) ExportRuleSet(rulesetID string) ([]byte, error) {
+	return s.ruleManager.ExportRuleSet(rulesetID)
+}
+
+func (s *Service) ImportRuleSet(data []byte) error {
+	return s.ruleManager.ImportRuleSet(data)
+}
+
+func (s *Service) ImportRuleSetFromFile(filePath string) error {
+	return s.ruleManager.ImportRuleSetFromFile(filePath)
+}
+
+func (s *Service) ExportRuleSetToFile(rulesetID, filePath string) error {
+	return s.ruleManager.ExportRuleSetToFile(rulesetID, filePath)
+}
+
+func (s *Service) GetRuleTemplates() []*RuleTemplate {
+	return s.ruleManager.GetRuleTemplates()
+}
+
+// 报告生成相关方法
+func (s *Service) GenerateReport(result *models.SensitiveDetectionResult, req ReportRequest) (*ReportResult, error) {
+	return s.reportGenerator.GenerateReport(result, req)
+}
+
+// 误报处理相关方法
+func (s *Service) CreateWhitelistRule(rule *WhitelistRule) error {
+	return s.falsePositiveManager.CreateWhitelistRule(rule)
+}
+
+func (s *Service) AddToReviewQueue(result *DetectionResult, matchIndex int, priority ReviewPriority) error {
+	return s.falsePositiveManager.AddToReviewQueue(result, matchIndex, priority)
+}
+
+func (s *Service) ProcessReviewItem(itemID primitive.ObjectID, userID string, action ReviewAction, comments string) error {
+	return s.falsePositiveManager.ProcessReviewItem(itemID, userID, action, comments)
+}
+
+func (s *Service) GetPendingReviews(limit int) ([]*ReviewItem, error) {
+	return s.falsePositiveManager.GetPendingReviews(limit)
+}
+
+func (s *Service) GetSuggestions() []*AutoSuggestion {
+	return s.falsePositiveManager.GetSuggestions()
+}
+
+func (s *Service) ApplySuggestion(suggestionID primitive.ObjectID, userID string) error {
+	return s.falsePositiveManager.ApplySuggestion(suggestionID, userID)
+}
+
+// validateRequest 验证检测请求
+func (s *Service) validateRequest(req models.SensitiveDetectionRequest) error {
+	if req.Name == "" {
+		return fmt.Errorf("检测名称不能为空")
+	}
+	
+	if len(req.Targets) == 0 {
+		return fmt.Errorf("检测目标不能为空")
+	}
+	
+	if req.Config.Concurrency <= 0 {
+		req.Config.Concurrency = 5 // 默认并发数
+	}
+	
+	if req.Config.Timeout <= 0 {
+		req.Config.Timeout = 30 // 默认超时时间30秒
+	}
+	
 	return nil
 }
 
-// GetRule 获取敏感规则
-func (s *Service) GetRule(id string) (*models.SensitiveRule, error) {
-	// 解析ID
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return nil, fmt.Errorf("无效的规则ID: %v", err)
+// GetEngineStatus 获取引擎状态
+func (s *Service) GetEngineStatus() map[string]interface{} {
+	return map[string]interface{}{
+		"rules_count":          len(s.engine.GetRules()),
+		"rulesets_count":       len(s.ruleManager.ListRuleSets()),
+		"whitelist_rules":      len(s.falsePositiveManager.whitelistRules),
+		"pending_reviews":      len(s.falsePositiveManager.reviewQueue),
+		"suggestions_count":    len(s.falsePositiveManager.GetSuggestions()),
+		"last_updated":         time.Now(),
 	}
-
-	// 查询规则
-	var rule models.SensitiveRule
-	err = s.rulesColl.FindOne(s.ctx, bson.M{"_id": objID}).Decode(&rule)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("未找到规则: %s", id)
-		}
-		return nil, fmt.Errorf("获取敏感规则失败: %v", err)
-	}
-
-	return &rule, nil
 }
 
-// ListRules 列出敏感规则
-func (s *Service) ListRules(category string, riskLevel string, enabled *bool, limit int, skip int) ([]*models.SensitiveRule, error) {
-	// 构建查询条件
-	filter := bson.M{}
-	if category != "" {
-		filter["category"] = category
-	}
-	if riskLevel != "" {
-		filter["riskLevel"] = riskLevel
-	}
-	if enabled != nil {
-		filter["enabled"] = *enabled
-	}
-
-	// 设置查询选项
-	opts := options.Find().
-		SetSort(bson.M{"updatedAt": -1}).
-		SetLimit(int64(limit)).
-		SetSkip(int64(skip))
-
-	// 执行查询
-	cursor, err := s.rulesColl.Find(s.ctx, filter, opts)
-	if err != nil {
-		return nil, fmt.Errorf("查询敏感规则失败: %v", err)
-	}
-	defer cursor.Close(s.ctx)
-
-	// 解析结果
-	var rules []*models.SensitiveRule
-	if err := cursor.All(s.ctx, &rules); err != nil {
-		return nil, fmt.Errorf("解析敏感规则失败: %v", err)
-	}
-
-	return rules, nil
+// ReloadRules 重新加载规则
+func (s *Service) ReloadRules() error {
+	// 重新加载规则管理器中的规则
+	s.ruleManager.reloadRules()
+	
+	// 重新加载误报管理器中的白名单规则
+	s.falsePositiveManager.loadWhitelistRules()
+	
+	return nil
 }
 
-// CreateRuleGroup 创建敏感规则组
-func (s *Service) CreateRuleGroup(req models.SensitiveRuleGroupCreateRequest) (*models.SensitiveRuleGroup, error) {
-	// 解析规则ID
-	var ruleIDs []primitive.ObjectID
-	for _, idStr := range req.Rules {
-		id, err := primitive.ObjectIDFromHex(idStr)
+// GetDetectionHistory 获取检测历史
+func (s *Service) GetDetectionHistory(projectID primitive.ObjectID, days int) ([]*models.SensitiveDetectionResult, error) {
+	startTime := time.Now().AddDate(0, 0, -days)
+	return s.detector.GetResultsByTimeRange(startTime, time.Now())
+}
+
+// GetDetectionStatistics 获取检测统计
+func (s *Service) GetDetectionStatistics(projectID primitive.ObjectID) (*DetectionStatistics, error) {
+	stats, err := s.detector.GetStatistics()
+	if err != nil {
+		return nil, err
+	}
+	
+	// 转换为DetectionStatistics结构
+	return &DetectionStatistics{
+		TotalResults: stats["total_results"].(int64),
+		ActiveRules:  stats["active_rules"].(int),
+	}, nil
+}
+
+// DetectionStatistics 检测统计
+type DetectionStatistics struct {
+	TotalDetections    int64                     `json:"total_detections"`
+	TotalResults       int64                     `json:"total_results"`
+	ActiveRules        int                       `json:"active_rules"`
+	TotalFindings      int64                     `json:"total_findings"`
+	FindingsByCategory map[string]int64          `json:"findings_by_category"`
+	FindingsBySeverity map[SeverityLevel]int64   `json:"findings_by_severity"`
+	RecentActivity     []*ActivityPoint          `json:"recent_activity"`
+	TopTargets         []*TargetStats            `json:"top_targets"`
+	TrendData          []*TrendPoint             `json:"trend_data"`
+}
+
+// ActivityPoint 活动点
+type ActivityPoint struct {
+	Date     time.Time `json:"date"`
+	Count    int64     `json:"count"`
+	Findings int64     `json:"findings"`
+}
+
+// 批量操作方法
+func (s *Service) BatchScanURLs(urls []string) ([]*DetectionResult, error) {
+	var results []*DetectionResult
+	
+	for _, url := range urls {
+		result, err := s.engine.ScanURL(url)
 		if err != nil {
-			return nil, fmt.Errorf("无效的规则ID: %s - %v", idStr, err)
+			// 记录错误但继续处理其他URL
+			continue
 		}
-		ruleIDs = append(ruleIDs, id)
+		results = append(results, result)
 	}
-
-	// 创建规则组
-	group := &models.SensitiveRuleGroup{
-		ID:          primitive.NewObjectID(),
-		Name:        req.Name,
-		Description: req.Description,
-		Rules:       ruleIDs,
-		Enabled:     req.Enabled,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-	}
-
-	// 保存规则组
-	_, err := s.ruleGroupsColl.InsertOne(s.ctx, group)
-	if err != nil {
-		return nil, fmt.Errorf("创建敏感规则组失败: %v", err)
-	}
-
-	return group, nil
+	
+	return results, nil
 }
 
-// UpdateRuleGroup 更新敏感规则组
-func (s *Service) UpdateRuleGroup(id string, req models.SensitiveRuleGroupUpdateRequest) (*models.SensitiveRuleGroup, error) {
-	// 解析ID
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return nil, fmt.Errorf("无效的规则组ID: %v", err)
-	}
-
-	// 解析规则ID
-	var ruleIDs []primitive.ObjectID
-	for _, idStr := range req.Rules {
-		id, err := primitive.ObjectIDFromHex(idStr)
+func (s *Service) BatchScanFiles(filePaths []string) ([]*DetectionResult, error) {
+	var results []*DetectionResult
+	
+	for _, filePath := range filePaths {
+		result, err := s.engine.ScanFile(filePath)
 		if err != nil {
-			return nil, fmt.Errorf("无效的规则ID: %s - %v", idStr, err)
+			// 记录错误但继续处理其他文件
+			continue
 		}
-		ruleIDs = append(ruleIDs, id)
+		results = append(results, result)
 	}
-
-	// 构建更新内容
-	update := bson.M{
-		"$set": bson.M{
-			"name":        req.Name,
-			"description": req.Description,
-			"rules":       ruleIDs,
-			"enabled":     req.Enabled,
-			"updatedAt":   time.Now(),
-		},
-	}
-
-	// 执行更新
-	result := s.ruleGroupsColl.FindOneAndUpdate(
-		s.ctx,
-		bson.M{"_id": objID},
-		update,
-		options.FindOneAndUpdate().SetReturnDocument(options.After),
-	)
-
-	// 检查更新结果
-	if result.Err() != nil {
-		return nil, fmt.Errorf("更新敏感规则组失败: %v", result.Err())
-	}
-
-	// 解析更新后的规则组
-	var group models.SensitiveRuleGroup
-	if err := result.Decode(&group); err != nil {
-		return nil, fmt.Errorf("解析更新后的规则组失败: %v", err)
-	}
-
-	return &group, nil
+	
+	return results, nil
 }
 
-// DeleteRuleGroup 删除敏感规则组
-func (s *Service) DeleteRuleGroup(id string) error {
-	// 解析ID
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return fmt.Errorf("无效的规则组ID: %v", err)
-	}
+// 配置管理方法
+func (s *Service) UpdateEngineConfig(config *DetectionConfig) {
+	s.engine.LoadConfig(config)
+}
 
-	// 执行删除
-	result, err := s.ruleGroupsColl.DeleteOne(s.ctx, bson.M{"_id": objID})
-	if err != nil {
-		return fmt.Errorf("删除敏感规则组失败: %v", err)
-	}
+func (s *Service) GetEngineConfig() *DetectionConfig {
+	return s.engine.config
+}
 
-	// 检查删除结果
-	if result.DeletedCount == 0 {
-		return fmt.Errorf("未找到要删除的规则组: %s", id)
+// 健康检查
+func (s *Service) HealthCheck() error {
+	// 检查数据库连接
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	
+	if err := s.db.Client().Ping(ctx, nil); err != nil {
+		return fmt.Errorf("数据库连接失败: %v", err)
 	}
-
+	
+	// 检查规则加载
+	if len(s.engine.GetRules()) == 0 {
+		return fmt.Errorf("没有加载任何检测规则")
+	}
+	
 	return nil
 }
 
-// GetRuleGroup 获取敏感规则组
-func (s *Service) GetRuleGroup(id string) (*models.SensitiveRuleGroup, error) {
-	// 解析ID
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return nil, fmt.Errorf("无效的规则组ID: %v", err)
-	}
-
-	// 查询规则组
-	var group models.SensitiveRuleGroup
-	err = s.ruleGroupsColl.FindOne(s.ctx, bson.M{"_id": objID}).Decode(&group)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("未找到规则组: %s", id)
-		}
-		return nil, fmt.Errorf("获取敏感规则组失败: %v", err)
-	}
-
-	return &group, nil
-}
-
-// ListRuleGroups 列出敏感规则组
-func (s *Service) ListRuleGroups(enabled *bool, limit int, skip int) ([]*models.SensitiveRuleGroup, error) {
-	// 构建查询条件
-	filter := bson.M{}
-	if enabled != nil {
-		filter["enabled"] = *enabled
-	}
-
-	// 设置查询选项
-	opts := options.Find().
-		SetSort(bson.M{"updatedAt": -1}).
-		SetLimit(int64(limit)).
-		SetSkip(int64(skip))
-
-	// 执行查询
-	cursor, err := s.ruleGroupsColl.Find(s.ctx, filter, opts)
-	if err != nil {
-		return nil, fmt.Errorf("查询敏感规则组失败: %v", err)
-	}
-	defer cursor.Close(s.ctx)
-
-	// 解析结果
-	var groups []*models.SensitiveRuleGroup
-	if err := cursor.All(s.ctx, &groups); err != nil {
-		return nil, fmt.Errorf("解析敏感规则组失败: %v", err)
-	}
-
-	return groups, nil
-}
-
-// CreateWhitelist 创建敏感信息白名单
-func (s *Service) CreateWhitelist(req models.SensitiveWhitelistCreateRequest) (*models.SensitiveWhitelist, error) {
-	whitelist := &models.SensitiveWhitelist{
-		ID:          primitive.NewObjectID(),
-		Type:        req.Type,
-		Value:       req.Value,
-		Description: req.Description,
-		ExpiresAt:   req.ExpiresAt,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-	}
-
-	_, err := s.whitelistColl.InsertOne(s.ctx, whitelist)
-	if err != nil {
-		return nil, fmt.Errorf("创建敏感信息白名单失败: %v", err)
-	}
-
-	return whitelist, nil
-}
-
-// UpdateWhitelist 更新敏感信息白名单
-func (s *Service) UpdateWhitelist(id string, req models.SensitiveWhitelistUpdateRequest) (*models.SensitiveWhitelist, error) {
-	// 解析ID
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return nil, fmt.Errorf("无效的白名单ID: %v", err)
-	}
-
-	// 构建更新内容
-	update := bson.M{
-		"$set": bson.M{
-			"description": req.Description,
-			"expiresAt":   req.ExpiresAt,
-			"updatedAt":   time.Now(),
-		},
-	}
-
-	// 执行更新
-	result := s.whitelistColl.FindOneAndUpdate(
-		s.ctx,
-		bson.M{"_id": objID},
-		update,
-		options.FindOneAndUpdate().SetReturnDocument(options.After),
-	)
-
-	// 检查更新结果
-	if result.Err() != nil {
-		return nil, fmt.Errorf("更新敏感信息白名单失败: %v", result.Err())
-	}
-
-	// 解析更新后的白名单
-	var whitelist models.SensitiveWhitelist
-	if err := result.Decode(&whitelist); err != nil {
-		return nil, fmt.Errorf("解析更新后的白名单失败: %v", err)
-	}
-
-	return &whitelist, nil
-}
-
-// DeleteWhitelist 删除敏感信息白名单
-func (s *Service) DeleteWhitelist(id string) error {
-	// 解析ID
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return fmt.Errorf("无效的白名单ID: %v", err)
-	}
-
-	// 执行删除
-	result, err := s.whitelistColl.DeleteOne(s.ctx, bson.M{"_id": objID})
-	if err != nil {
-		return fmt.Errorf("删除敏感信息白名单失败: %v", err)
-	}
-
-	// 检查删除结果
-	if result.DeletedCount == 0 {
-		return fmt.Errorf("未找到要删除的白名单: %s", id)
-	}
-
+// 清理资源
+func (s *Service) Cleanup() error {
+	// 这里可以添加清理逻辑，如关闭连接、清理缓存等
 	return nil
 }
 
-// GetWhitelist 获取敏感信息白名单
-func (s *Service) GetWhitelist(id string) (*models.SensitiveWhitelist, error) {
-	// 解析ID
-	objID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return nil, fmt.Errorf("无效的白名单ID: %v", err)
-	}
-
-	// 查询白名单
-	var whitelist models.SensitiveWhitelist
-	err = s.whitelistColl.FindOne(s.ctx, bson.M{"_id": objID}).Decode(&whitelist)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("未找到白名单: %s", id)
-		}
-		return nil, fmt.Errorf("获取敏感信息白名单失败: %v", err)
-	}
-
-	return &whitelist, nil
-}
-
-// ListWhitelists 列出敏感信息白名单
-func (s *Service) ListWhitelists(whitelistType string, limit int, skip int) ([]*models.SensitiveWhitelist, error) {
-	// 构建查询条件
-	filter := bson.M{}
-	if whitelistType != "" {
-		filter["type"] = whitelistType
-	}
-
-	// 设置查询选项
-	opts := options.Find().
-		SetSort(bson.M{"updatedAt": -1}).
-		SetLimit(int64(limit)).
-		SetSkip(int64(skip))
-
-	// 执行查询
-	cursor, err := s.whitelistColl.Find(s.ctx, filter, opts)
-	if err != nil {
-		return nil, fmt.Errorf("查询敏感信息白名单失败: %v", err)
-	}
-	defer cursor.Close(s.ctx)
-
-	// 解析结果
-	var whitelists []*models.SensitiveWhitelist
-	if err := cursor.All(s.ctx, &whitelists); err != nil {
-		return nil, fmt.Errorf("解析敏感信息白名单失败: %v", err)
-	}
-
-	return whitelists, nil
-}
-
-// DetectSensitiveInfo 敏感信息检测
+// 兼容性方法，用于保持与现有API的兼容
 func (s *Service) DetectSensitiveInfo(projectID string, req models.SensitiveDetectionRequest) (*models.SensitiveDetectionResult, error) {
 	// 解析项目ID
 	projID, err := primitive.ObjectIDFromHex(projectID)
@@ -484,345 +347,30 @@ func (s *Service) DetectSensitiveInfo(projectID string, req models.SensitiveDete
 		return nil, fmt.Errorf("无效的项目ID: %v", err)
 	}
 	req.ProjectID = projID
-
-	// 验证请求
-	if len(req.Targets) == 0 {
-		return nil, fmt.Errorf("目标不能为空")
-	}
-	if len(req.RuleGroups) == 0 && len(req.Rules) == 0 {
-		return nil, fmt.Errorf("规则组或规则不能同时为空")
-	}
-
-	// 设置默认值
-	if req.Name == "" {
-		req.Name = fmt.Sprintf("敏感信息检测-%s", time.Now().Format("2006-01-02 15:04:05"))
-	}
-	if req.Config.Concurrency <= 0 {
-		req.Config.Concurrency = 10
-	}
-	if req.Config.Timeout <= 0 {
-		req.Config.Timeout = 30
-	}
-	if req.Config.ContextLines <= 0 {
-		req.Config.ContextLines = 3
-	}
-
-	// 获取规则
-	var rules []*models.SensitiveRule
-
-	// 如果指定了规则组，获取规则组中的规则
-	if len(req.RuleGroups) > 0 {
-		for _, groupID := range req.RuleGroups {
-			group, err := s.GetRuleGroup(groupID.Hex())
-			if err != nil {
-				return nil, fmt.Errorf("获取规则组失败: %v", err)
-			}
-
-			for _, ruleID := range group.Rules {
-				rule, err := s.GetRule(ruleID.Hex())
-				if err != nil {
-					return nil, fmt.Errorf("获取规则失败: %v", err)
-				}
-				rules = append(rules, rule)
-			}
-		}
-	}
-
-	// 如果指定了规则，获取规则
-	if len(req.Rules) > 0 {
-		for _, ruleID := range req.Rules {
-			rule, err := s.GetRule(ruleID.Hex())
-			if err != nil {
-				return nil, fmt.Errorf("获取规则失败: %v", err)
-			}
-			rules = append(rules, rule)
-		}
-	}
-
-	// 去重
-	ruleMap := make(map[string]*models.SensitiveRule)
-	for _, rule := range rules {
-		ruleMap[rule.ID.Hex()] = rule
-	}
-
-	rules = make([]*models.SensitiveRule, 0, len(ruleMap))
-	for _, rule := range ruleMap {
-		rules = append(rules, rule)
-	}
-
-	// 获取白名单
-	var whitelist []*models.SensitiveWhitelist
-	cursor, err := s.whitelistColl.Find(s.ctx, bson.M{"enabled": true})
-	if err != nil {
-		return nil, fmt.Errorf("获取白名单失败: %v", err)
-	}
-	defer cursor.Close(s.ctx)
-
-	if err := cursor.All(s.ctx, &whitelist); err != nil {
-		return nil, fmt.Errorf("解析白名单失败: %v", err)
-	}
-
-	// 创建检测器
-	logConfig := utils.DefaultLogConfig()
-	logger, err := utils.NewLogger(logConfig)
-	if err != nil {
-		return nil, fmt.Errorf("创建日志记录器失败: %v", err)
-	}
-	detector := NewDetector(rules, whitelist, req.Config, logger)
-
-	// 执行检测
-	result, err := detector.Detect(s.ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("执行敏感信息检测失败: %v", err)
-	}
-
-	// 保存结果到数据库
-	_, err = s.resultsColl.InsertOne(s.ctx, result)
-	if err != nil {
-		return nil, fmt.Errorf("保存检测结果失败: %v", err)
-	}
-
-	return result, nil
+	
+	return s.StartDetection(context.Background(), req)
 }
 
-// GetDetectionResult 获取检测结果
 func (s *Service) GetDetectionResult(id string) (*models.SensitiveDetectionResult, error) {
-	// 解析ID
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, fmt.Errorf("无效的结果ID: %v", err)
 	}
-
-	// 查询结果
-	var result models.SensitiveDetectionResult
-	err = s.resultsColl.FindOne(s.ctx, bson.M{"_id": objID}).Decode(&result)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("未找到结果: %s", id)
-		}
-		return nil, fmt.Errorf("获取检测结果失败: %v", err)
-	}
-
-	return &result, nil
+	return s.GetResult(objID)
 }
 
-// ListDetectionResults 列出检测结果
 func (s *Service) ListDetectionResults(projectID string, status string, limit int, skip int) ([]*models.SensitiveDetectionResult, error) {
-	// 构建查询条件
-	filter := bson.M{}
-	if projectID != "" {
-		objID, err := primitive.ObjectIDFromHex(projectID)
-		if err != nil {
-			return nil, fmt.Errorf("无效的项目ID: %v", err)
-		}
-		filter["projectId"] = objID
-	}
-	if status != "" {
-		filter["status"] = status
-	}
-
-	// 设置查询选项
-	opts := options.Find().
-		SetSort(bson.M{"startTime": -1}).
-		SetLimit(int64(limit)).
-		SetSkip(int64(skip))
-
-	// 执行查询
-	cursor, err := s.resultsColl.Find(s.ctx, filter, opts)
+	objID, err := primitive.ObjectIDFromHex(projectID)
 	if err != nil {
-		return nil, fmt.Errorf("查询检测结果失败: %v", err)
+		return nil, fmt.Errorf("无效的项目ID: %v", err)
 	}
-	defer cursor.Close(s.ctx)
-
-	// 解析结果
-	var results []*models.SensitiveDetectionResult
-	if err := cursor.All(s.ctx, &results); err != nil {
-		return nil, fmt.Errorf("解析检测结果失败: %v", err)
-	}
-
-	return results, nil
+	return s.GetResults(objID, limit)
 }
 
-// DeleteDetectionResult 删除检测结果
 func (s *Service) DeleteDetectionResult(id string) error {
-	// 解析ID
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return fmt.Errorf("无效的结果ID: %v", err)
 	}
-
-	// 执行删除
-	result, err := s.resultsColl.DeleteOne(s.ctx, bson.M{"_id": objID})
-	if err != nil {
-		return fmt.Errorf("删除检测结果失败: %v", err)
-	}
-
-	// 检查删除结果
-	if result.DeletedCount == 0 {
-		return fmt.Errorf("未找到要删除的结果: %s", id)
-	}
-
-	return nil
-}
-
-// CreateScanTask 创建敏感信息扫描任务
-func (s *Service) CreateScanTask(projectID primitive.ObjectID, urls []string, ruleIDs []string) (primitive.ObjectID, error) {
-	// 将字符串ID转换为ObjectID
-	var rules []primitive.ObjectID
-	for _, id := range ruleIDs {
-		objID, err := primitive.ObjectIDFromHex(id)
-		if err != nil {
-			return primitive.NilObjectID, fmt.Errorf("无效的规则ID: %s - %v", id, err)
-		}
-		rules = append(rules, objID)
-	}
-
-	// 创建敏感信息检测请求
-	req := models.SensitiveDetectionRequest{
-		ProjectID: projectID,
-		Name:      fmt.Sprintf("敏感信息扫描-%s", time.Now().Format("2006-01-02 15:04:05")),
-		Targets:   urls,
-		Rules:     rules,
-		Config: models.SensitiveDetectionConfig{
-			Concurrency:  10,
-			Timeout:      30,
-			ContextLines: 3,
-			FollowLinks:  true,
-			UserAgent:    "StellarServer/1.0",
-		},
-	}
-
-	// 执行敏感信息检测
-	result, err := s.DetectSensitiveInfo(projectID.Hex(), req)
-	if err != nil {
-		return primitive.NilObjectID, err
-	}
-
-	return result.ID, nil
-}
-
-// ListSensitiveInfo 列出敏感信息
-func (s *Service) ListSensitiveInfo(projectID primitive.ObjectID, page, limit int) ([]*models.SensitiveDetectionResult, int64, error) {
-	// 计算跳过的记录数
-	skip := (page - 1) * limit
-
-	// 构建查询条件
-	filter := bson.M{"projectId": projectID}
-
-	// 获取总记录数
-	total, err := s.resultsColl.CountDocuments(s.ctx, filter)
-	if err != nil {
-		return nil, 0, fmt.Errorf("计算敏感信息总数失败: %v", err)
-	}
-
-	// 查询敏感信息列表
-	results, err := s.ListDetectionResults(projectID.Hex(), "", limit, skip)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return results, total, nil
-}
-
-// GetSensitiveInfo 获取敏感信息详情
-func (s *Service) GetSensitiveInfo(id primitive.ObjectID) (*models.SensitiveDetectionResult, error) {
-	return s.GetDetectionResult(id.Hex())
-}
-
-// UpdateSensitiveInfoStatus 更新敏感信息状态
-func (s *Service) UpdateSensitiveInfoStatus(id primitive.ObjectID, status string) error {
-	// 验证状态值
-	validStatus := map[string]bool{
-		string(models.SensitiveDetectionStatusPending):   true,
-		string(models.SensitiveDetectionStatusRunning):   true,
-		string(models.SensitiveDetectionStatusCompleted): true,
-		string(models.SensitiveDetectionStatusFailed):    true,
-		string(models.SensitiveDetectionStatusCancelled): true,
-	}
-
-	if !validStatus[status] {
-		return fmt.Errorf("无效的状态值: %s", status)
-	}
-
-	// 更新状态
-	update := bson.M{
-		"$set": bson.M{
-			"status":    models.SensitiveDetectionStatus(status),
-			"updatedAt": time.Now(),
-		},
-	}
-
-	result, err := s.resultsColl.UpdateOne(s.ctx, bson.M{"_id": id}, update)
-	if err != nil {
-		return fmt.Errorf("更新敏感信息状态失败: %v", err)
-	}
-
-	if result.MatchedCount == 0 {
-		return fmt.Errorf("未找到要更新的敏感信息: %s", id.Hex())
-	}
-
-	return nil
-}
-
-// DeleteSensitiveInfo 删除敏感信息
-func (s *Service) DeleteSensitiveInfo(id primitive.ObjectID) error {
-	return s.DeleteDetectionResult(id.Hex())
-}
-
-// ListSensitiveRules 列出敏感规则
-func (s *Service) ListSensitiveRules() ([]*models.SensitiveRule, error) {
-	// 使用现有的ListRules方法，不过滤任何条件，获取所有规则
-	return s.ListRules("", "", nil, 100, 0)
-}
-
-// CreateSensitiveRule 创建敏感规则
-func (s *Service) CreateSensitiveRule(rule models.SensitiveRule) (primitive.ObjectID, error) {
-	// 将SensitiveRule转换为SensitiveRuleCreateRequest
-	req := models.SensitiveRuleCreateRequest{
-		Name:                  rule.Name,
-		Description:           rule.Description,
-		Type:                  rule.Type,
-		Pattern:               rule.Pattern,
-		Category:              rule.Category,
-		RiskLevel:             rule.RiskLevel,
-		Tags:                  rule.Tags,
-		Enabled:               rule.Enabled,
-		Context:               rule.Context,
-		Examples:              rule.Examples,
-		FalsePositivePatterns: rule.FalsePositivePatterns,
-	}
-
-	// 使用现有的CreateRule方法
-	createdRule, err := s.CreateRule(req)
-	if err != nil {
-		return primitive.NilObjectID, err
-	}
-
-	return createdRule.ID, nil
-}
-
-// UpdateSensitiveRule 更新敏感规则
-func (s *Service) UpdateSensitiveRule(rule models.SensitiveRule) error {
-	// 将SensitiveRule转换为SensitiveRuleUpdateRequest
-	req := models.SensitiveRuleUpdateRequest{
-		Name:                  rule.Name,
-		Description:           rule.Description,
-		Pattern:               rule.Pattern,
-		Category:              rule.Category,
-		RiskLevel:             rule.RiskLevel,
-		Tags:                  rule.Tags,
-		Enabled:               rule.Enabled,
-		Context:               rule.Context,
-		Examples:              rule.Examples,
-		FalsePositivePatterns: rule.FalsePositivePatterns,
-	}
-
-	// 使用现有的UpdateRule方法
-	_, err := s.UpdateRule(rule.ID.Hex(), req)
-	return err
-}
-
-// DeleteSensitiveRule 删除敏感规则
-func (s *Service) DeleteSensitiveRule(id primitive.ObjectID) error {
-	return s.DeleteRule(id.Hex())
+	return s.DeleteResult(objID)
 }

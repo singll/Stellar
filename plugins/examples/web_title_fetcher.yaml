@@ -1,0 +1,228 @@
+# YAML插件示例 - Web标题获取器
+id: web_title_fetcher
+name: Web标题获取器
+version: "1.0.0"
+author: Stellar Team
+description: 获取网站标题和基本信息的JavaScript插件
+type: info_gatherer
+category: web
+tags:
+  - web
+  - title
+  - info
+
+# 插件依赖
+dependencies: []
+
+# 插件配置
+config:
+  timeout: 10000
+  user_agent: "Mozilla/5.0 (compatible; Stellar Scanner)"
+  follow_redirects: true
+  max_redirects: 5
+
+# 脚本配置
+script:
+  language: javascript
+  entry: main
+  args: []
+  content: |
+    const https = require('https');
+    const http = require('http');
+    const { URL } = require('url');
+    
+    class WebTitleFetcher {
+        constructor(config) {
+            this.config = config || {};
+            this.timeout = this.config.timeout || 10000;
+            this.userAgent = this.config.user_agent || 'Mozilla/5.0 (compatible; Stellar Scanner)';
+            this.followRedirects = this.config.follow_redirects !== false;
+            this.maxRedirects = this.config.max_redirects || 5;
+        }
+        
+        async fetchTitle(url) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const urlObj = new URL(url);
+                    const isHttps = urlObj.protocol === 'https:';
+                    const client = isHttps ? https : http;
+                    
+                    const options = {
+                        hostname: urlObj.hostname,
+                        port: urlObj.port || (isHttps ? 443 : 80),
+                        path: urlObj.pathname + urlObj.search,
+                        method: 'GET',
+                        timeout: this.timeout,
+                        headers: {
+                            'User-Agent': this.userAgent,
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                            'Accept-Language': 'en-US,en;q=0.5',
+                            'Accept-Encoding': 'gzip, deflate',
+                            'Connection': 'close'
+                        }
+                    };
+                    
+                    const req = client.request(options, (res) => {
+                        let data = '';
+                        let chunks = [];
+                        
+                        res.on('data', (chunk) => {
+                            chunks.push(chunk);
+                            data += chunk.toString();
+                            
+                            // 如果已经获取到title标签，提前结束
+                            if (data.includes('</title>')) {
+                                res.destroy();
+                            }
+                        });
+                        
+                        res.on('end', () => {
+                            try {
+                                const result = this.parseResponse(res, data, url);
+                                resolve(result);
+                            } catch (error) {
+                                reject(error);
+                            }
+                        });
+                        
+                        res.on('error', (error) => {
+                            reject(error);
+                        });
+                    });
+                    
+                    req.on('timeout', () => {
+                        req.destroy();
+                        reject(new Error('Request timeout'));
+                    });
+                    
+                    req.on('error', (error) => {
+                        reject(error);
+                    });
+                    
+                    req.end();
+                    
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+        
+        parseResponse(res, data, originalUrl) {
+            // 提取标题
+            const titleMatch = data.match(/<title[^>]*>([^<]*)<\/title>/i);
+            const title = titleMatch ? titleMatch[1].trim() : '';
+            
+            // 提取服务器信息
+            const server = res.headers['server'] || '';
+            
+            // 提取内容类型
+            const contentType = res.headers['content-type'] || '';
+            
+            // 提取内容长度
+            const contentLength = res.headers['content-length'] || data.length;
+            
+            // 检查是否有常见的CMS特征
+            const cms = this.detectCMS(data, res.headers);
+            
+            return {
+                url: originalUrl,
+                status_code: res.statusCode,
+                title: title,
+                server: server,
+                content_type: contentType,
+                content_length: parseInt(contentLength) || 0,
+                cms: cms,
+                headers: res.headers
+            };
+        }
+        
+        detectCMS(content, headers) {
+            const cmsSignatures = {
+                'WordPress': [
+                    /wp-content/i,
+                    /wp-includes/i,
+                    /wordpress/i
+                ],
+                'Drupal': [
+                    /drupal/i,
+                    /sites\/default/i
+                ],
+                'Joomla': [
+                    /joomla/i,
+                    /administrator\/index\.php/i
+                ],
+                'Laravel': [
+                    /laravel_session/i
+                ],
+                'Django': [
+                    /django/i,
+                    /csrftoken/i
+                ]
+            };
+            
+            const detectedCMS = [];
+            
+            for (const [cms, patterns] of Object.entries(cmsSignatures)) {
+                for (const pattern of patterns) {
+                    if (pattern.test(content) || pattern.test(JSON.stringify(headers))) {
+                        detectedCMS.push(cms);
+                        break;
+                    }
+                }
+            }
+            
+            return detectedCMS;
+        }
+    }
+    
+    function main(params) {
+        return new Promise(async (resolve) => {
+            try {
+                const url = params.url || params.target;
+                if (!url) {
+                    resolve({ success: false, error: '缺少url参数' });
+                    return;
+                }
+                
+                const config = params.config || {};
+                const fetcher = new WebTitleFetcher(config);
+                
+                const result = await fetcher.fetchTitle(url);
+                
+                resolve({
+                    success: true,
+                    data: result
+                });
+                
+            } catch (error) {
+                resolve({
+                    success: false,
+                    error: error.message || '未知错误'
+                });
+            }
+        });
+    }
+    
+    // 处理输入和输出
+    if (require.main === module) {
+        let inputData = '';
+        
+        process.stdin.on('data', (chunk) => {
+            inputData += chunk;
+        });
+        
+        process.stdin.on('end', async () => {
+            try {
+                const params = inputData ? JSON.parse(inputData) : {};
+                const result = await main(params);
+                console.log(JSON.stringify(result, null, 2));
+            } catch (error) {
+                console.log(JSON.stringify({
+                    success: false,
+                    error: error.message
+                }, null, 2));
+            }
+        });
+    }
+    
+    module.exports = { main };

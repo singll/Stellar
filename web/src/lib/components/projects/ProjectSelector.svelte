@@ -31,9 +31,10 @@
 		}))
 	]);
 
-	function handleChange(selectedValue: string) {
-		value = selectedValue;
+	function handleChange(event: Event) {
+		const target = event.target as HTMLSelectElement;
+		value = target.value;
 	}
 </script>
 
-<Select {value} options={projectOptions} {disabled} class={className} onchange={handleChange} />
+<Select {value} options={projectOptions} {disabled} class={className} onselect={handleChange} />

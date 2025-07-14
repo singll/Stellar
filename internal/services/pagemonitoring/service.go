@@ -183,8 +183,8 @@ func (s *PageMonitoringService) CreateMonitoring(req *models.PageMonitoringCreat
 	}
 
 	// 验证项目ID
-	projectID, err := primitive.ObjectIDFromHex(req.ProjectID)
-	if err != nil {
+	projectID := req.ProjectID
+	if projectID.IsZero() {
 		return nil, errors.New("无效的项目ID")
 	}
 
@@ -202,7 +202,7 @@ func (s *PageMonitoringService) CreateMonitoring(req *models.PageMonitoringCreat
 		ID:          primitive.NewObjectID(),
 		URL:         req.URL,
 		Name:        req.Name,
-		Status:      models.PageMonitoringStatusActive,
+		Status:      string(models.PageMonitoringStatusActive),
 		ProjectID:   projectID,
 		Interval:    req.Interval,
 		LastCheckAt: time.Time{},
@@ -212,7 +212,6 @@ func (s *PageMonitoringService) CreateMonitoring(req *models.PageMonitoringCreat
 		Tags:        req.Tags,
 		Config:      req.Config,
 		ChangeCount: 0,
-		HasChanged:  false,
 	}
 
 	// 设置默认配置
@@ -227,7 +226,7 @@ func (s *PageMonitoringService) CreateMonitoring(req *models.PageMonitoringCreat
 	}
 
 	// 保存到数据库
-	_, err = s.db.Collection("page_monitoring").InsertOne(s.ctx, monitoring)
+	_, err := s.db.Collection("page_monitoring").InsertOne(s.ctx, monitoring)
 	if err != nil {
 		return nil, err
 	}

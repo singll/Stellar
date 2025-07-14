@@ -4,10 +4,13 @@ export interface APIResponse<T = any> {
 	data: T;
 }
 
-export interface PaginatedResponse<T = any> extends APIResponse<T> {
+export interface PaginatedResponse<T = any> {
+	items: T[];
 	total: number;
 	page: number;
-	limit: number;
+	pageSize: number;
+	totalPages: number;
+	limit?: number; // 兼容性
 }
 
 // 添加兼容别名

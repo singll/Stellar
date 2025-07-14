@@ -24,9 +24,9 @@
 	let refreshInterval: NodeJS.Timeout | null = null;
 
 	// Store 订阅
-	const currentTask = $derived(portScanStore.currentTask);
-	const taskResults = $derived(portScanStore.results);
-	const loading = $derived(portScanStore.loading);
+	const currentTask = portScanStore.currentTask;
+	const taskResults = portScanStore.taskResults;
+	const loading = portScanStore.loading;
 
 	// Tab 选项
 	const tabs = [
@@ -139,9 +139,9 @@
 	function getStatusVariant(status: string) {
 		switch (status) {
 			case 'completed':
-				return 'success';
+				return 'default';
 			case 'running':
-				return 'warning';
+				return 'secondary';
 			case 'failed':
 				return 'destructive';
 			case 'canceled':
@@ -175,11 +175,11 @@
 	function getPortStatusVariant(status: string) {
 		switch (status) {
 			case 'open':
-				return 'success';
+				return 'default';
 			case 'closed':
 				return 'secondary';
 			case 'filtered':
-				return 'warning';
+				return 'outline';
 			default:
 				return 'default';
 		}
@@ -190,49 +190,53 @@
 	let filterStatus = $state('all');
 	let filterService = $state('all');
 
-	$: filteredResults = results.filter((result) => {
-		// 搜索过滤
-		if (searchTerm) {
-			const search = searchTerm.toLowerCase();
-			if (
-				!result.host.toLowerCase().includes(search) &&
-				!result.port.toString().includes(search) &&
-				!(result.service || '').toLowerCase().includes(search)
-			) {
+	let filteredResults = $derived(
+		results.filter((result) => {
+			// 搜索过滤
+			if (searchTerm) {
+				const search = searchTerm.toLowerCase();
+				if (
+					!result.host.toLowerCase().includes(search) &&
+					!result.port.toString().includes(search) &&
+					!(result.service || '').toLowerCase().includes(search)
+				) {
+					return false;
+				}
+			}
+
+			// 状态过滤
+			if (filterStatus !== 'all' && result.status !== filterStatus) {
 				return false;
 			}
-		}
 
-		// 状态过滤
-		if (filterStatus !== 'all' && result.status !== filterStatus) {
-			return false;
-		}
+			// 服务过滤
+			if (filterService !== 'all' && result.service !== filterService) {
+				return false;
+			}
 
-		// 服务过滤
-		if (filterService !== 'all' && result.service !== filterService) {
-			return false;
-		}
-
-		return true;
-	});
+			return true;
+		})
+	);
 
 	// 获取可用的服务列表
-	$: availableServices = [...new Set(results.map((r) => r.service).filter(Boolean))];
+	let availableServices = $derived([...new Set(results.map((r) => r.service).filter(Boolean))]);
 
 	// 分页
 	let currentPage = $state(1);
 	let pageSize = $state(50);
 
-	$: totalPages = Math.ceil(filteredResults.length / pageSize);
-	$: paginatedResults = filteredResults.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+	let totalPages = $derived(Math.ceil(filteredResults.length / pageSize));
+	let paginatedResults = $derived(
+		filteredResults.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+	);
 
 	// 统计信息
-	$: stats = {
+	let stats = $derived({
 		total: results.length,
 		open: results.filter((r) => r.status === 'open').length,
 		closed: results.filter((r) => r.status === 'closed').length,
 		filtered: results.filter((r) => r.status === 'filtered').length
-	};
+	});
 </script>
 
 <svelte:head>

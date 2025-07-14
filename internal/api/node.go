@@ -217,10 +217,10 @@ func (h *NodeHandler) UpdateNode(c *gin.Context) {
 		node.Name = updateReq.Name
 	}
 	if updateReq.Role != "" {
-		node.Role = updateReq.Role
+		node.Type = models.NodeType(updateReq.Role)
 	}
 	if updateReq.Status != "" {
-		node.Status = updateReq.Status
+		node.Status = models.NodeStatus(updateReq.Status)
 	}
 	if updateReq.Tags != nil {
 		node.Tags = updateReq.Tags
@@ -672,12 +672,12 @@ func (h *NodeHandler) SetMaintenanceMode(c *gin.Context) {
 		return
 	}
 
-	status := models.NodeStatusMaintain
+	status := models.NodeStatusMaintenance
 	if !req.Maintenance {
 		status = models.NodeStatusOnline
 	}
 
-	if err := h.NodeRepo.UpdateStatus(c.Request.Context(), id, status); err != nil {
+	if err := h.NodeRepo.UpdateStatus(c.Request.Context(), id, string(status)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
 			"message": "设置维护模式失败",

@@ -17,7 +17,8 @@ const generateToken = (userId: string) => `mock-token-${userId}-${Date.now()}`;
 export const handlers = [
 	// 登录接口
 	http.post('/api/v1/auth/login', async ({ request }) => {
-		const { username, password } = await request.json();
+		const requestBody = (await request.json()) as { username: string; password: string };
+		const { username, password } = requestBody;
 
 		// 模拟验证
 		const user = mockUsers.find((u) => u.username === username);

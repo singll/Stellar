@@ -11,6 +11,9 @@ importers:
       '@felte/validator-zod':
         specifier: ^1.0.18
         version: 1.0.18(zod@3.25.75)
+      '@iconify/svelte':
+        specifier: ^5.0.0
+        version: 5.0.0(svelte@5.35.2)
       '@radix-ui/colors':
         specifier: ^3.0.0
         version: 3.0.0
@@ -35,15 +38,15 @@ importers:
       framer-motion:
         specifier: ^12.23.3
         version: 12.23.3
-      lucide-svelte:
-        specifier: ^0.525.0
-        version: 0.525.0(svelte@5.35.2)
       mode-watcher:
         specifier: ^1.1.0
         version: 1.1.0(svelte@5.35.2)
       nanoid:
         specifier: ^5.0.0
         version: 5.1.5
+      phosphor-svelte:
+        specifier: ^3.0.1
+        version: 3.0.1(svelte@5.35.2)(vite@6.3.5(@types/node@20.19.4)(jiti@1.21.7)(yaml@2.8.0))
       svelte-headless-table:
         specifier: ^0.18.0
         version: 0.18.3(svelte@5.35.2)
@@ -540,6 +543,14 @@ packages:
 
   '@floating-ui/utils@0.2.10':
     resolution: {integrity: sha512-aGTxbpbg8/b5JfU1HXSrbH3wXZuLPJcNEcZQFMxLs3oSzgtVu6nFPkbbGGUvBcUjKV2YyB9Wxxabo+HEH9tcRQ==}
+
+  '@iconify/svelte@5.0.0':
+    resolution: {integrity: sha512-Bm5iKnNpIWHuUlWaaf16QgVL1tcbQUUSdPdkvDlpmYXg3nFJSA1SLY9V4rRTd+K4h3QT12ZS7JHFLkf8khQd8Q==}
+    peerDependencies:
+      svelte: '>4.0.0'
+
+  '@iconify/types@2.0.0':
+    resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
 
   '@inquirer/confirm@5.1.13':
     resolution: {integrity: sha512-EkCtvp67ICIVVzjsquUiVSd+V5HRGOGQfsqA4E4vMWhYnB7InUL0pa0TIWt1i+OfP16Gkds8CdIu6yGZwOM1Yw==}
@@ -1845,11 +1856,6 @@ packages:
   lru-cache@10.4.3:
     resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
 
-  lucide-svelte@0.525.0:
-    resolution: {integrity: sha512-kfuN6JcCqTfCz2B76aXnyGLAzEBRSYw5GaUspM5RNHQZS5aI5yaKu06fbaofOk8cDvUtY0AUm/zAix7aUX6Q3A==}
-    peerDependencies:
-      svelte: ^3 || ^4 || ^5.0.0-next.42
-
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
     hasBin: true
@@ -2089,6 +2095,15 @@ packages:
 
   performance-now@2.1.0:
     resolution: {integrity: sha512-7EAHlyLHI56VEIdK57uwHdHKIaAGbnXPiw0yWbarQZOKaKpvUIgW0jWRVLiatnM+XXlSwsanIBH/hzGMJulMow==}
+
+  phosphor-svelte@3.0.1:
+    resolution: {integrity: sha512-QuxdzWCBjNZXglk4XpmaKb+JRA6XgKOYWpBY8k82NZwxO5ec7u2iFuueAijKYgj/7hLWHtreAPc2Q5uZFNTRSQ==}
+    peerDependencies:
+      svelte: ^5.0.0 || ^5.0.0-next.96
+      vite: '>=5'
+    peerDependenciesMeta:
+      vite:
+        optional: true
 
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
@@ -3245,6 +3260,13 @@ snapshots:
       '@floating-ui/utils': 0.2.10
 
   '@floating-ui/utils@0.2.10': {}
+
+  '@iconify/svelte@5.0.0(svelte@5.35.2)':
+    dependencies:
+      '@iconify/types': 2.0.0
+      svelte: 5.35.2
+
+  '@iconify/types@2.0.0': {}
 
   '@inquirer/confirm@5.1.13(@types/node@20.19.4)':
     dependencies:
@@ -4643,10 +4665,6 @@ snapshots:
 
   lru-cache@10.4.3: {}
 
-  lucide-svelte@0.525.0(svelte@5.35.2):
-    dependencies:
-      svelte: 5.35.2
-
   lz-string@1.5.0: {}
 
   magic-string@0.30.17:
@@ -4856,6 +4874,14 @@ snapshots:
   pend@1.2.0: {}
 
   performance-now@2.1.0: {}
+
+  phosphor-svelte@3.0.1(svelte@5.35.2)(vite@6.3.5(@types/node@20.19.4)(jiti@1.21.7)(yaml@2.8.0)):
+    dependencies:
+      estree-walker: 3.0.3
+      magic-string: 0.30.17
+      svelte: 5.35.2
+    optionalDependencies:
+      vite: 6.3.5(@types/node@20.19.4)(jiti@1.21.7)(yaml@2.8.0)
 
   picocolors@1.1.1: {}
 

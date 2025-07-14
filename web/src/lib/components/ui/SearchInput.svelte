@@ -10,18 +10,21 @@
 		placeholder?: string;
 		disabled?: boolean;
 		class?: string;
+		onenter?: () => void;
 	}
 
 	let {
 		value = $bindable(''),
 		placeholder = '搜索...',
 		disabled = false,
-		class: className = ''
+		class: className = '',
+		onenter
 	}: Props = $props();
 
 	const dispatch = createEventDispatcher<{
 		search: string;
 		clear: void;
+		enter: string;
 	}>();
 
 	function handleInput(event: Event) {
@@ -30,16 +33,18 @@
 		dispatch('search', value);
 	}
 
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			onenter?.();
+			dispatch('enter', value);
+			dispatch('search', value);
+		}
+	}
+
 	function handleClear() {
 		value = '';
 		dispatch('clear');
 		dispatch('search', '');
-	}
-
-	function handleKeydown(event: KeyboardEvent) {
-		if (event.key === 'Enter') {
-			dispatch('search', value);
-		}
 	}
 </script>
 

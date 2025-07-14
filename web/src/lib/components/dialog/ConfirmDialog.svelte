@@ -10,12 +10,21 @@
 	} from '$lib/components/ui/dialog';
 	import { createEventDispatcher } from 'svelte';
 
-	export let open = false;
-	export let title = '确认';
-	export let message = '您确定要执行此操作吗？';
-	export let confirmText = '确认';
-	export let cancelText = '取消';
-	export let type: 'danger' | 'warning' | 'info' = 'info';
+	let {
+		open = $bindable(false),
+		title = '确认',
+		message = '您确定要执行此操作吗？',
+		confirmText = '确认',
+		cancelText = '取消',
+		type = 'info'
+	}: {
+		open?: boolean;
+		title?: string;
+		message?: string;
+		confirmText?: string;
+		cancelText?: string;
+		type?: 'danger' | 'warning' | 'info';
+	} = $props();
 
 	const dispatch = createEventDispatcher();
 
@@ -44,7 +53,7 @@
 					{cancelText}
 				</Button>
 				<Button
-					variant={type === 'danger' ? 'destructive' : type === 'warning' ? 'warning' : 'primary'}
+					variant={type === 'danger' ? 'destructive' : type === 'warning' ? 'secondary' : 'default'}
 					on:click={handleConfirm}
 				>
 					{confirmText}

@@ -11,7 +11,7 @@
 	import FormField from '$lib/components/ui/FormField.svelte';
 	import LoadingSpinner from '$lib/components/ui/LoadingSpinner.svelte';
 	import TagInput from '$lib/components/ui/TagInput.svelte';
-	import type { SubdomainFormData } from '$lib/types/subdomain';
+	import type { SubdomainTaskCreateRequest, SubdomainFormData } from '$lib/types/subdomain';
 
 	// 表单数据
 	let formData = $state<SubdomainFormData>({
@@ -19,7 +19,7 @@
 		description: '',
 		target: '',
 		methodPreset: 'standard',
-		enumMethods: ['dns_brute', 'cert_transparency'],
+		enumMethods: ['dns_brute'],
 		wordlistType: 'preset',
 		wordlistPreset: 'common',
 		customWordlist: [],
@@ -221,7 +221,7 @@
 			const task = await subdomainStore.actions.createTask(taskData);
 
 			toastStore.success('任务创建成功');
-			await goto(`/subdomain/${task.id}`);
+			await goto(`/subdomain/${task.taskId}`);
 		} catch (error) {
 			console.error('创建任务失败:', error);
 			toastStore.error('创建任务失败: ' + (error as Error).message);
@@ -268,30 +268,32 @@
 	}
 
 	// 预估扫描时间
-	$: estimatedTime = (() => {
-		const wordlistSize =
-			formData.wordlistType === 'custom'
-				? formData.customWordlist.length
-				: wordlistPresets[formData.wordlistPreset]?.size
-					? parseInt(wordlistPresets[formData.wordlistPreset].size.replace(/[^\d]/g, '')) || 1000
-					: 1000;
+	let estimatedTime = $derived(
+		(() => {
+			const wordlistSize =
+				formData.wordlistType === 'custom'
+					? formData.customWordlist.length
+					: wordlistPresets[formData.wordlistPreset]?.size
+						? parseInt(wordlistPresets[formData.wordlistPreset].size.replace(/[^\d]/g, '')) || 1000
+						: 1000;
 
-		const time = subdomainApi.estimateScanTime({
-			wordlistSize,
-			enumMethods: formData.enumMethods,
-			maxWorkers: formData.advanced.maxWorkers,
-			rateLimit: formData.advanced.rateLimit,
-			enableRecursive: formData.advanced.enableRecursive
-		});
+			const time = subdomainApi.estimateScanTime({
+				wordlistSize,
+				enumMethods: formData.enumMethods,
+				maxWorkers: formData.advanced.maxWorkers,
+				rateLimit: formData.advanced.rateLimit,
+				enableRecursive: formData.advanced.enableRecursive
+			});
 
-		if (time < 60) {
-			return `约${time}秒`;
-		} else if (time < 3600) {
-			return `约${Math.ceil(time / 60)}分钟`;
-		} else {
-			return `约${Math.ceil(time / 3600)}小时`;
-		}
-	})();
+			if (time < 60) {
+				return `约${time}秒`;
+			} else if (time < 3600) {
+				return `约${Math.ceil(time / 60)}分钟`;
+			} else {
+				return `约${Math.ceil(time / 3600)}小时`;
+			}
+		})()
+	);
 
 	// 处理自定义字典输入
 	function handleWordlistChange(value: string) {
@@ -330,7 +332,13 @@
 
 	<!-- 表单 -->
 	<div class="max-w-4xl mx-auto">
-		<form onsubmit|preventDefault={handleSubmit} class="space-y-6">
+		<form
+			onsubmit={(e) => {
+				e.preventDefault();
+				handleSubmit();
+			}}
+			class="space-y-6"
+		>
 			<!-- 基本信息 -->
 			<div class="bg-white rounded-lg shadow-sm border p-6">
 				<h2 class="text-lg font-semibold text-gray-900 mb-4">基本信息</h2>
@@ -372,7 +380,7 @@
 					<Select
 						bind:value={formData.methodPreset}
 						options={methodPresetOptions}
-						onchange={handleMethodPresetChange}
+						onselect={handleMethodPresetChange}
 						disabled={isSubmitting}
 					/>
 					{#if methodPresets[formData.methodPreset]}
@@ -443,7 +451,7 @@
 						<FormField label="自定义字典" required error={validationErrors.customWordlist}>
 							<Textarea
 								value={formData.customWordlist.join('\n')}
-								onchange={(e) => handleWordlistChange(e.target.value)}
+								onchange={(e) => handleWordlistChange((e.target as HTMLTextAreaElement).value)}
 								placeholder="每行一个子域名前缀，例如：&#10;www&#10;mail&#10;ftp&#10;api"
 								rows={8}
 								disabled={isSubmitting}
@@ -460,7 +468,7 @@
 					<Select
 						bind:value={formData.dnsPreset}
 						options={dnsPresetOptions}
-						onchange={handleDnsPresetChange}
+						onselect={handleDnsPresetChange}
 						disabled={isSubmitting}
 					/>
 					{#if dnsPresets[formData.dnsPreset]}
@@ -496,8 +504,8 @@
 							<Input
 								type="number"
 								bind:value={formData.advanced.maxWorkers}
-								min="1"
-								max="200"
+								min={1}
+								max={200}
 								disabled={isSubmitting}
 							/>
 							<div class="text-sm text-gray-500 mt-1">同时进行的DNS查询数量（1-200）</div>
@@ -507,8 +515,8 @@
 							<Input
 								type="number"
 								bind:value={formData.advanced.timeout}
-								min="1"
-								max="300"
+								min={1}
+								max={300}
 								disabled={isSubmitting}
 							/>
 						</FormField>
@@ -517,8 +525,8 @@
 							<Input
 								type="number"
 								bind:value={formData.advanced.maxRetries}
-								min="0"
-								max="10"
+								min={0}
+								max={10}
 								disabled={isSubmitting}
 							/>
 						</FormField>
@@ -527,8 +535,8 @@
 							<Input
 								type="number"
 								bind:value={formData.advanced.rateLimit}
-								min="1"
-								max="100"
+								min={1}
+								max={100}
 								disabled={isSubmitting}
 							/>
 							<div class="text-sm text-gray-500 mt-1">每秒最大DNS查询数（1-100）</div>
@@ -538,8 +546,8 @@
 							<Input
 								type="number"
 								bind:value={formData.advanced.maxDepth}
-								min="1"
-								max="5"
+								min={1}
+								max={5}
 								disabled={isSubmitting}
 							/>
 						</FormField>
@@ -548,8 +556,8 @@
 							<Input
 								type="number"
 								bind:value={formData.advanced.cacheTimeout}
-								min="60"
-								max="3600"
+								min={60}
+								max={3600}
 								disabled={isSubmitting}
 							/>
 						</FormField>
@@ -560,32 +568,35 @@
 							<h4 class="font-medium text-gray-900">DNS选项</h4>
 							<div class="flex items-center gap-2">
 								<input
+									id="enableWildcard"
 									type="checkbox"
 									bind:checked={formData.advanced.enableWildcard}
 									disabled={isSubmitting}
 									class="rounded border-gray-300"
 								/>
-								<label class="text-sm text-gray-700">启用通配符检测</label>
+								<label for="enableWildcard" class="text-sm text-gray-700">启用通配符检测</label>
 							</div>
 
 							<div class="flex items-center gap-2">
 								<input
+									id="enableDoH"
 									type="checkbox"
 									bind:checked={formData.advanced.enableDoH}
 									disabled={isSubmitting}
 									class="rounded border-gray-300"
 								/>
-								<label class="text-sm text-gray-700">启用DNS over HTTPS</label>
+								<label for="enableDoH" class="text-sm text-gray-700">启用DNS over HTTPS</label>
 							</div>
 
 							<div class="flex items-center gap-2">
 								<input
+									id="enableCache"
 									type="checkbox"
 									bind:checked={formData.advanced.enableCache}
 									disabled={isSubmitting}
 									class="rounded border-gray-300"
 								/>
-								<label class="text-sm text-gray-700">启用DNS缓存</label>
+								<label for="enableCache" class="text-sm text-gray-700">启用DNS缓存</label>
 							</div>
 						</div>
 
@@ -593,22 +604,24 @@
 							<h4 class="font-medium text-gray-900">扫描选项</h4>
 							<div class="flex items-center gap-2">
 								<input
+									id="enableRecursive"
 									type="checkbox"
 									bind:checked={formData.advanced.enableRecursive}
 									disabled={isSubmitting}
 									class="rounded border-gray-300"
 								/>
-								<label class="text-sm text-gray-700">启用递归枚举</label>
+								<label for="enableRecursive" class="text-sm text-gray-700">启用递归枚举</label>
 							</div>
 
 							<div class="flex items-center gap-2">
 								<input
+									id="verifySubdomains"
 									type="checkbox"
 									bind:checked={formData.advanced.verifySubdomains}
 									disabled={isSubmitting}
 									class="rounded border-gray-300"
 								/>
-								<label class="text-sm text-gray-700">验证子域名活跃性</label>
+								<label for="verifySubdomains" class="text-sm text-gray-700">验证子域名活跃性</label>
 							</div>
 						</div>
 					</div>

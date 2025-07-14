@@ -25,20 +25,22 @@
 
 	// 获取任务类型信息
 	function getTaskTypeInfo(type: string) {
-		const typeMap = {
+		const typeMap: Record<string, { label: string; icon: string; color: string }> = {
 			subdomain_enum: { label: '子域名枚举', icon: 'fas fa-globe', color: 'blue' },
 			port_scan: { label: '端口扫描', icon: 'fas fa-network-wired', color: 'green' },
 			vuln_scan: { label: '漏洞扫描', icon: 'fas fa-bug', color: 'red' },
 			asset_discovery: { label: '资产发现', icon: 'fas fa-search', color: 'purple' },
 			dir_scan: { label: '目录扫描', icon: 'fas fa-folder', color: 'yellow' },
-			web_crawl: { label: 'Web爬虫', icon: 'fas fa-spider', color: 'indigo' }
+			web_crawl: { label: 'Web爬虫', icon: 'fas fa-spider', color: 'indigo' },
+			sensitive_scan: { label: '敏感信息扫描', icon: 'fas fa-eye', color: 'orange' },
+			page_monitor: { label: '页面监控', icon: 'fas fa-monitor', color: 'teal' }
 		};
 		return typeMap[type] || { label: type, icon: 'fas fa-cog', color: 'gray' };
 	}
 
 	// 获取优先级信息
 	function getPriorityInfo(priority: string) {
-		const priorityMap = {
+		const priorityMap: Record<string, { label: string; color: string }> = {
 			low: { label: '低', color: 'gray' },
 			normal: { label: '正常', color: 'blue' },
 			high: { label: '高', color: 'yellow' },
@@ -83,7 +85,7 @@
 	/>
 
 	<!-- 已取消 -->
-	<StatCard title="已取消" value={stats.canceled} icon="fas fa-ban" color="gray" />
+	<StatCard title="已取消" value={stats.cancelled} icon="fas fa-ban" color="gray" />
 
 	<!-- 超时 -->
 	<StatCard title="超时" value={stats.timeout} icon="fas fa-clock" color="orange" />

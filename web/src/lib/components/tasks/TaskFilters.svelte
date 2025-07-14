@@ -15,6 +15,7 @@
 		priority?: TaskPriority | '';
 		projectId?: string;
 		projects?: Project[];
+		onchange?: (filters: any) => void;
 	}
 
 	let {
@@ -22,7 +23,8 @@
 		type = $bindable(''),
 		priority = $bindable(''),
 		projectId = $bindable(''),
-		projects = []
+		projects = [],
+		onchange
 	}: Props = $props();
 
 	const dispatch = createEventDispatcher<{
@@ -67,12 +69,15 @@
 	]);
 
 	function handleFilterChange() {
-		dispatch('filter', {
+		const filters = {
 			status: status as TaskStatus | '',
 			type: type as TaskType | '',
 			priority: priority as TaskPriority | '',
 			projectId
-		});
+		};
+
+		onchange?.(filters);
+		dispatch('filter', filters);
 	}
 
 	function resetFilters() {
@@ -92,25 +97,25 @@
 	<!-- 状态过滤 -->
 	<div>
 		<div class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">状态</div>
-		<Select bind:value={status} options={statusOptions} onchange={handleFilterChange} />
+		<Select bind:value={status} options={statusOptions} onselect={handleFilterChange} />
 	</div>
 
 	<!-- 类型过滤 -->
 	<div>
 		<div class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">类型</div>
-		<Select bind:value={type} options={typeOptions} onchange={handleFilterChange} />
+		<Select bind:value={type} options={typeOptions} onselect={handleFilterChange} />
 	</div>
 
 	<!-- 优先级过滤 -->
 	<div>
 		<div class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">优先级</div>
-		<Select bind:value={priority} options={priorityOptions} onchange={handleFilterChange} />
+		<Select bind:value={priority} options={priorityOptions} onselect={handleFilterChange} />
 	</div>
 
 	<!-- 项目过滤 -->
 	<div>
 		<div class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">项目</div>
-		<Select bind:value={projectId} options={projectOptions} onchange={handleFilterChange} />
+		<Select bind:value={projectId} options={projectOptions} onselect={handleFilterChange} />
 	</div>
 
 	<!-- 重置按钮 -->

@@ -148,7 +148,7 @@ func (m *NodeManager) RegisterNode(req models.NodeRegistrationRequest) (*models.
 	// 创建节点
 	node := models.Node{
 		Name:              req.Name,
-		Role:              req.Role,
+		Type:              models.NodeTypeWorker, // 根据req.Role设置，这里暂时用默认值
 		Status:            models.NodeStatusRegisting,
 		IP:                req.IP,
 		Port:              req.Port,
@@ -221,16 +221,16 @@ func (m *NodeManager) UpdateNodeStatus(nodeID string, heartbeat models.NodeHeart
 	wasOffline := node.Status == models.NodeStatusOffline
 
 	// 更新节点状态信息
-	nodeStatus := models.NodeStatus{
+	nodeStatus := models.NodeStatusInfo{
 		CpuUsage:       heartbeat.CpuUsage,
-		MemoryUsage:    heartbeat.MemoryUsage,
+		MemoryUsage:    int64(heartbeat.MemoryUsage),
 		RunningTasks:   heartbeat.RunningTasks,
 		QueuedTasks:    heartbeat.QueuedTasks,
 		LastUpdateTime: now,
 	}
 
 	// 更新数据库
-	err = m.nodeRepo.UpdateStatus(context.Background(), nodeID, models.NodeStatusOnline)
+	err = m.nodeRepo.UpdateStatus(context.Background(), nodeID, string(models.NodeStatusOnline))
 	if err != nil {
 		return err
 	}
@@ -240,7 +240,7 @@ func (m *NodeManager) UpdateNodeStatus(nodeID string, heartbeat models.NodeHeart
 		return err
 	}
 
-	err = m.nodeRepo.UpdateNodeStatus(context.Background(), nodeID, nodeStatus)
+	err = m.nodeRepo.UpdateNodeStatus(context.Background(), nodeID, models.NodeStatusOnline)
 	if err != nil {
 		return err
 	}
@@ -358,7 +358,7 @@ func (m *NodeManager) GetNodesByRole(role string) []*models.Node {
 
 	var nodes []*models.Node
 	for _, node := range m.nodes {
-		if node.Role == role {
+		if node.Type == models.NodeType(role) {
 			nodes = append(nodes, node)
 		}
 	}
@@ -373,7 +373,7 @@ func (m *NodeManager) GetNodesByStatus(status string) []*models.Node {
 
 	var nodes []*models.Node
 	for _, node := range m.nodes {
-		if node.Status == status {
+		if node.Status == models.NodeStatus(status) {
 			nodes = append(nodes, node)
 		}
 	}
@@ -475,7 +475,7 @@ func (m *NodeManager) checkNodeHeartbeats() {
 			node.Status = models.NodeStatusOffline
 
 			// 更新数据库
-			err := m.nodeRepo.UpdateStatus(context.Background(), id, models.NodeStatusOffline)
+			err := m.nodeRepo.UpdateStatus(context.Background(), id, string(models.NodeStatusOffline))
 			if err != nil {
 				continue
 			}

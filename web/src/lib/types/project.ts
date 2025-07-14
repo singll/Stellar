@@ -82,6 +82,9 @@ export interface ProjectResponse {
 	updated_at: string;
 }
 
+// 添加复数形式别名
+export interface ProjectsResponse extends ProjectListResponse {}
+
 // 项目颜色选项
 export const PROJECT_COLORS = [
 	'blue',

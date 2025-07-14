@@ -1,22 +1,26 @@
 import Root, { type DialogProps } from './dialog.svelte';
-
-// 为了兼容性，创建简单的组件替代品
-const DialogContent = Root;
-const DialogDescription = Root;
-const DialogFooter = Root;
-const DialogHeader = Root;
-const DialogTitle = Root;
-const DialogTrigger = Root;
+import DialogClose from './dialog-close.svelte';
+import DialogContent from './dialog-content.svelte';
+import DialogDescription from './dialog-description.svelte';
+import DialogFooter from './dialog-footer.svelte';
+import DialogHeader from './dialog-header.svelte';
+import DialogOverlay from './dialog-overlay.svelte';
+import DialogTitle from './dialog-title.svelte';
+import DialogTrigger from './dialog-trigger.svelte';
 
 export {
-	Root,
 	Root as Dialog,
+	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
+	DialogOverlay,
 	DialogTitle,
-	DialogTrigger
+	DialogTrigger,
+	// 添加 Portal 和 Overlay 别名以保持向后兼容
+	DialogOverlay as Portal,
+	DialogOverlay as Overlay
 };
 
 export type { DialogProps };

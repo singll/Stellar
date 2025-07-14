@@ -98,6 +98,55 @@ export function createDefaultTheme(name: string, description?: string): Theme {
 }
 
 /**
+ * 根据创建请求创建主题
+ */
+export function createTheme(request: CreateThemeRequest): Theme {
+	const defaultColors = DEFAULT_THEME_COLORS;
+
+	return {
+		id: nanoid(),
+		name: request.name,
+		description: request.description,
+		colors: {
+			light: mergeThemeColors(defaultColors.light as ThemeColors, request.colors.light || {}),
+			dark: mergeThemeColors(defaultColors.dark as ThemeColors, request.colors.dark || {})
+		},
+		metadata: {
+			author: request.metadata?.author || 'Unknown',
+			version: request.metadata?.version || '1.0.0',
+			tags: request.metadata?.tags || [],
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+			isBuiltin: request.metadata?.isBuiltin || false
+		}
+	};
+}
+
+/**
+ * 根据更新请求更新主题
+ */
+export function updateTheme(theme: Theme, request: UpdateThemeRequest): Theme {
+	return {
+		...theme,
+		name: request.name ?? theme.name,
+		description: request.description ?? theme.description,
+		colors: {
+			light: request.colors?.light
+				? mergeThemeColors(theme.colors.light, request.colors.light)
+				: theme.colors.light,
+			dark: request.colors?.dark
+				? mergeThemeColors(theme.colors.dark, request.colors.dark)
+				: theme.colors.dark
+		},
+		metadata: {
+			...theme.metadata,
+			...request.metadata,
+			updatedAt: new Date().toISOString()
+		}
+	};
+}
+
+/**
  * 合并主题颜色
  */
 export function mergeThemeColors(base: ThemeColors, override: Partial<ThemeColors>): ThemeColors {

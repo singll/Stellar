@@ -3,24 +3,23 @@
  * 使用Svelte 5 runes语法管理子域名枚举相关状态
  */
 
-import { writable, derived } from 'svelte/store';
 import type {
 	SubdomainTask,
 	SubdomainResult,
-	TaskFilter,
+	SubdomainFilter,
 	SubdomainStatistics,
 	ProgressUpdateEvent
 } from '$lib/types/subdomain';
 import { subdomainApi } from '$lib/api/subdomain';
 import { toastStore } from '$lib/stores/toast';
 
-// 任务列表状态
-export const subdomainTasks = writable<SubdomainTask[]>([]);
-export const currentTask = writable<SubdomainTask | null>(null);
-export const taskResults = writable<SubdomainResult[]>([]);
+// 使用Svelte 5 runes创建响应式状态
+let tasks = $state<SubdomainTask[]>([]);
+let currentTask = $state<SubdomainTask | null>(null);
+let taskResults = $state<SubdomainResult[]>([]);
 
 // 加载状态
-export const loading = writable({
+let loading = $state({
 	tasks: false,
 	taskDetail: false,
 	results: false,
@@ -29,7 +28,7 @@ export const loading = writable({
 });
 
 // 分页状态
-export const pagination = writable({
+let pagination = $state({
 	page: 1,
 	limit: 20,
 	total: 0,
@@ -37,22 +36,22 @@ export const pagination = writable({
 });
 
 // 过滤器状态
-export const filters = writable<TaskFilter>({});
+let filters = $state<SubdomainFilter>({});
 
 // 统计数据
-export const statistics = writable<SubdomainStatistics | null>(null);
+let statistics = $state<SubdomainStatistics | null>(null);
 
 // 实时进度更新
-export const progressUpdates = writable<Record<string, ProgressUpdateEvent>>({});
+let progressUpdates = $state<Record<string, ProgressUpdateEvent>>({});
 
 // 派生状态：运行中的任务
-export const runningTasks = derived(subdomainTasks, ($tasks) =>
-	$tasks.filter((task) => task.status === 'running' || task.status === 'queued')
+let runningTasks = $derived(
+	tasks.filter((task) => task.status === 'running' || task.status === 'queued')
 );
 
 // 派生状态：最近完成的任务
-export const recentCompletedTasks = derived(subdomainTasks, ($tasks) =>
-	$tasks
+let recentCompletedTasks = $derived(
+	tasks
 		.filter((task) => task.status === 'completed')
 		.sort(
 			(a, b) =>
@@ -62,12 +61,12 @@ export const recentCompletedTasks = derived(subdomainTasks, ($tasks) =>
 );
 
 // 派生状态：任务统计摘要
-export const taskSummary = derived(subdomainTasks, ($tasks) => {
-	const total = $tasks.length;
-	const completed = $tasks.filter((t) => t.status === 'completed').length;
-	const running = $tasks.filter((t) => t.status === 'running').length;
-	const failed = $tasks.filter((t) => t.status === 'failed').length;
-	const pending = $tasks.filter((t) => t.status === 'pending' || t.status === 'queued').length;
+let taskSummary = $derived(() => {
+	const total = tasks.length;
+	const completed = tasks.filter((t) => t.status === 'completed').length;
+	const running = tasks.filter((t) => t.status === 'running').length;
+	const failed = tasks.filter((t) => t.status === 'failed').length;
+	const pending = tasks.filter((t) => t.status === 'pending' || t.status === 'queued').length;
 
 	return {
 		total,
@@ -80,21 +79,21 @@ export const taskSummary = derived(subdomainTasks, ($tasks) => {
 });
 
 // 派生状态：子域名结果统计
-export const resultSummary = derived(taskResults, ($results) => {
-	const total = $results.length;
-	const active = $results.filter((r) => r.httpStatus && r.httpStatus < 400).length;
-	const withCNAME = $results.filter((r) => r.cname).length;
-	const vulnerable = $results.filter((r) => r.takeover?.vulnerable).length;
+let resultSummary = $derived(() => {
+	const total = taskResults.length;
+	const active = taskResults.filter((r) => r.httpStatus && r.httpStatus < 400).length;
+	const withCNAME = taskResults.filter((r) => r.cname).length;
+	const vulnerable = taskResults.filter((r) => r.takeover?.vulnerable).length;
 
 	// 按来源统计
 	const sourceStats: Record<string, number> = {};
-	$results.forEach((result) => {
+	taskResults.forEach((result) => {
 		sourceStats[result.source] = (sourceStats[result.source] || 0) + 1;
 	});
 
 	// 按IP统计
 	const ipStats: Record<string, number> = {};
-	$results.forEach((result) => {
+	taskResults.forEach((result) => {
 		result.ips.forEach((ip) => {
 			ipStats[ip] = (ipStats[ip] || 0) + 1;
 		});
@@ -114,12 +113,12 @@ export const resultSummary = derived(taskResults, ($results) => {
 /**
  * 子域名枚举操作函数
  */
-export const subdomainActions = {
+const subdomainActions = {
 	/**
 	 * 加载任务列表
 	 */
-	async loadTasks(params?: { page?: number; limit?: number; filters?: TaskFilter }) {
-		loading.update((state) => ({ ...state, tasks: true }));
+	async loadTasks(params?: { page?: number; limit?: number; filters?: SubdomainFilter }) {
+		loading.tasks = true;
 
 		try {
 			const currentFilters = params?.filters || {};
@@ -129,23 +128,20 @@ export const subdomainActions = {
 				...currentFilters
 			});
 
-			subdomainTasks.set(response.tasks);
-			pagination.update((state) => ({
-				...state,
-				page: response.page,
-				limit: response.limit,
-				total: response.total,
-				totalPages: response.totalPages
-			}));
+			tasks = response.tasks;
+			pagination.page = response.page;
+			pagination.limit = response.limit;
+			pagination.total = response.total;
+			pagination.totalPages = Math.ceil(response.total / response.limit);
 
 			if (params?.filters) {
-				filters.set(currentFilters);
+				filters = currentFilters;
 			}
 		} catch (error) {
 			console.error('Failed to load subdomain tasks:', error);
 			toastStore.error('加载子域名枚举任务失败: ' + (error as Error).message);
 		} finally {
-			loading.update((state) => ({ ...state, tasks: false }));
+			loading.tasks = false;
 		}
 	},
 
@@ -153,18 +149,18 @@ export const subdomainActions = {
 	 * 加载任务详情
 	 */
 	async loadTask(taskId: string) {
-		loading.update((state) => ({ ...state, taskDetail: true }));
+		loading.taskDetail = true;
 
 		try {
 			const task = await subdomainApi.getTask(taskId);
-			currentTask.set(task);
+			currentTask = task;
 			return task;
 		} catch (error) {
 			console.error('Failed to load task:', error);
 			toastStore.error('加载任务详情失败: ' + (error as Error).message);
 			throw error;
 		} finally {
-			loading.update((state) => ({ ...state, taskDetail: false }));
+			loading.taskDetail = false;
 		}
 	},
 
@@ -172,7 +168,7 @@ export const subdomainActions = {
 	 * 加载任务结果
 	 */
 	async loadTaskResults(taskId: string, params?: { page?: number; limit?: number }) {
-		loading.update((state) => ({ ...state, results: true }));
+		loading.results = true;
 
 		try {
 			const response = await subdomainApi.getTaskResults(taskId, {
@@ -180,14 +176,14 @@ export const subdomainActions = {
 				limit: params?.limit || 100
 			});
 
-			taskResults.set(response.results);
+			taskResults = response.results;
 			return response;
 		} catch (error) {
 			console.error('Failed to load task results:', error);
 			toastStore.error('加载任务结果失败: ' + (error as Error).message);
 			throw error;
 		} finally {
-			loading.update((state) => ({ ...state, results: false }));
+			loading.results = false;
 		}
 	},
 
@@ -195,22 +191,22 @@ export const subdomainActions = {
 	 * 创建新任务
 	 */
 	async createTask(taskData: any) {
-		loading.update((state) => ({ ...state, creating: true }));
+		loading.creating = true;
 
 		try {
-			const task = await subdomainApi.createTask(taskData);
+			const response = await subdomainApi.createTask(taskData);
 
-			// 添加到任务列表
-			subdomainTasks.update((tasks) => [task, ...tasks]);
+			// 创建成功后重新加载任务列表
+			await this.loadTasks();
 
-			toastStore.success(`子域名枚举任务 "${task.name}" 创建成功`);
-			return task;
+			toastStore.success(`子域名枚举任务创建成功`);
+			return response;
 		} catch (error) {
 			console.error('Failed to create task:', error);
 			toastStore.error('创建任务失败: ' + (error as Error).message);
 			throw error;
 		} finally {
-			loading.update((state) => ({ ...state, creating: false }));
+			loading.creating = false;
 		}
 	},
 
@@ -222,10 +218,12 @@ export const subdomainActions = {
 			await subdomainApi.deleteTask(taskId);
 
 			// 从任务列表中移除
-			subdomainTasks.update((tasks) => tasks.filter((t) => t.id !== taskId));
+			tasks = tasks.filter((t) => t.id !== taskId);
 
 			// 如果是当前任务，清除
-			currentTask.update((current) => (current?.id === taskId ? null : current));
+			if (currentTask?.id === taskId) {
+				currentTask = null;
+			}
 
 			toastStore.success('任务删除成功');
 		} catch (error) {
@@ -243,13 +241,11 @@ export const subdomainActions = {
 			await subdomainApi.cancelTask(taskId);
 
 			// 更新任务状态
-			subdomainTasks.update((tasks) =>
-				tasks.map((t) => (t.id === taskId ? { ...t, status: 'canceled' as const } : t))
-			);
+			tasks = tasks.map((t) => (t.id === taskId ? { ...t, status: 'canceled' as const } : t));
 
-			currentTask.update((current) =>
-				current?.id === taskId ? { ...current, status: 'canceled' as const } : current
-			);
+			if (currentTask?.id === taskId) {
+				currentTask = { ...currentTask, status: 'canceled' as const };
+			}
 
 			toastStore.success('任务已取消');
 		} catch (error) {
@@ -267,9 +263,11 @@ export const subdomainActions = {
 			const task = await subdomainApi.retryTask(taskId);
 
 			// 更新任务列表
-			subdomainTasks.update((tasks) => tasks.map((t) => (t.id === taskId ? task : t)));
+			tasks = tasks.map((t) => (t.id === taskId ? task : t));
 
-			currentTask.update((current) => (current?.id === taskId ? task : current));
+			if (currentTask?.id === taskId) {
+				currentTask = task;
+			}
 
 			toastStore.success('任务重试成功');
 			return task;
@@ -322,52 +320,52 @@ export const subdomainActions = {
 	 * 加载统计数据
 	 */
 	async loadStatistics(params?: { projectId?: string; dateRange?: any }) {
-		loading.update((state) => ({ ...state, statistics: true }));
+		loading.statistics = true;
 
 		try {
 			const stats = await subdomainApi.getStatistics(params);
-			statistics.set(stats);
-			return stats;
+
+			// 补充缺失的属性，确保类型匹配
+			const fullStats: SubdomainStatistics = {
+				successRate: stats.totalTasks > 0 ? (stats.completedTasks / stats.totalTasks) * 100 : 0,
+				averageDuration: 0, // API 暂未提供，设置默认值
+				methodStats: {}, // API 暂未提供，设置默认值
+				topTargets: [], // API 暂未提供，设置默认值
+				...stats
+			};
+
+			statistics = fullStats;
+			return fullStats;
 		} catch (error) {
 			console.error('Failed to load statistics:', error);
 			toastStore.error('加载统计数据失败: ' + (error as Error).message);
 		} finally {
-			loading.update((state) => ({ ...state, statistics: false }));
+			loading.statistics = false;
 		}
 	},
 
 	/**
 	 * 更新过滤器
 	 */
-	updateFilters(newFilters: TaskFilter) {
-		filters.set(newFilters);
+	updateFilters(newFilters: SubdomainFilter) {
+		filters = newFilters;
 	},
 
 	/**
 	 * 清除过滤器
 	 */
 	clearFilters() {
-		filters.set({});
+		filters = {};
 	},
 
 	/**
 	 * 刷新当前页面
 	 */
 	async refresh() {
-		const currentPagination = await new Promise((resolve) => {
-			const unsubscribe = pagination.subscribe(resolve);
-			unsubscribe();
-		});
-
-		const currentFilters = await new Promise((resolve) => {
-			const unsubscribe = filters.subscribe(resolve);
-			unsubscribe();
-		});
-
 		await this.loadTasks({
-			page: currentPagination.page,
-			limit: currentPagination.limit,
-			filters: currentFilters
+			page: pagination.page,
+			limit: pagination.limit,
+			filters: filters
 		});
 	},
 
@@ -376,45 +374,35 @@ export const subdomainActions = {
 	 */
 	handleProgressUpdate(update: ProgressUpdateEvent) {
 		// 更新进度缓存
-		progressUpdates.update((updates) => ({
-			...updates,
-			[update.taskId]: update
-		}));
+		progressUpdates[update.taskId] = update;
 
 		// 更新任务列表中的任务状态
-		subdomainTasks.update((tasks) =>
-			tasks.map((task) => {
-				if (task.id === update.taskId) {
-					return {
-						...task,
-						progress: update.progress,
-						status: update.status as any
-					};
-				}
-				return task;
-			})
-		);
-
-		// 更新当前任务状态
-		currentTask.update((current) => {
-			if (current?.id === update.taskId) {
+		tasks = tasks.map((task) => {
+			if (task.id === update.taskId) {
 				return {
-					...current,
+					...task,
 					progress: update.progress,
 					status: update.status as any
 				};
 			}
-			return current;
+			return task;
 		});
+
+		// 更新当前任务状态
+		if (currentTask?.id === update.taskId) {
+			currentTask = {
+				...currentTask,
+				progress: update.progress,
+				status: update.status as any
+			};
+		}
 
 		// 如果有最新结果，更新结果列表
 		if (update.latestResults && update.latestResults.length > 0) {
-			taskResults.update((results) => {
-				// 合并新结果，避免重复
-				const existingIds = new Set(results.map((r) => r.subdomain));
-				const newResults = update.latestResults!.filter((r) => !existingIds.has(r.subdomain));
-				return [...results, ...newResults];
-			});
+			// 合并新结果，避免重复
+			const existingIds = new Set(taskResults.map((r) => r.subdomain));
+			const newResults = update.latestResults!.filter((r) => !existingIds.has(r.subdomain));
+			taskResults = [...taskResults, ...newResults];
 		}
 	},
 
@@ -422,131 +410,87 @@ export const subdomainActions = {
 	 * 清除进度更新缓存
 	 */
 	clearProgressUpdates() {
-		progressUpdates.set({});
+		progressUpdates = {};
 	},
 
 	/**
 	 * 重置所有状态
 	 */
 	reset() {
-		subdomainTasks.set([]);
-		currentTask.set(null);
-		taskResults.set([]);
-		statistics.set(null);
-		filters.set({});
-		progressUpdates.set({});
-		pagination.set({
+		tasks = [];
+		currentTask = null;
+		taskResults = [];
+		statistics = null;
+		filters = {};
+		progressUpdates = {};
+		pagination = {
 			page: 1,
 			limit: 20,
 			total: 0,
 			totalPages: 0
-		});
-		loading.set({
+		};
+		loading = {
 			tasks: false,
 			taskDetail: false,
 			results: false,
 			creating: false,
 			statistics: false
-		});
-	},
-
-	/**
-	 * 批量操作：删除多个任务
-	 */
-	async batchDeleteTasks(taskIds: string[]) {
-		const results = {
-			success: 0,
-			failed: 0,
-			errors: [] as string[]
 		};
-
-		for (const taskId of taskIds) {
-			try {
-				await subdomainApi.deleteTask(taskId);
-				results.success++;
-			} catch (error) {
-				results.failed++;
-				results.errors.push(`删除任务 ${taskId} 失败: ${(error as Error).message}`);
-			}
-		}
-
-		// 刷新任务列表
-		await this.refresh();
-
-		if (results.success > 0) {
-			toastStore.success(`成功删除 ${results.success} 个任务`);
-		}
-		if (results.failed > 0) {
-			toastStore.error(`删除失败 ${results.failed} 个任务`);
-		}
-
-		return results;
-	},
-
-	/**
-	 * 获取任务结果的唯一子域名列表
-	 */
-	getUniqueSubdomains(results: SubdomainResult[]): SubdomainResult[] {
-		const seen = new Set<string>();
-		return results.filter((result) => {
-			if (seen.has(result.subdomain)) {
-				return false;
-			}
-			seen.add(result.subdomain);
-			return true;
-		});
-	},
-
-	/**
-	 * 按来源分组结果
-	 */
-	groupResultsBySource(results: SubdomainResult[]): Record<string, SubdomainResult[]> {
-		return results.reduce(
-			(groups, result) => {
-				const source = result.source;
-				if (!groups[source]) {
-					groups[source] = [];
-				}
-				groups[source].push(result);
-				return groups;
-			},
-			{} as Record<string, SubdomainResult[]>
-		);
-	},
-
-	/**
-	 * 过滤活跃的子域名
-	 */
-	filterActiveSubdomains(results: SubdomainResult[]): SubdomainResult[] {
-		return results.filter(
-			(result) => result.httpStatus && result.httpStatus >= 200 && result.httpStatus < 500
-		);
-	},
-
-	/**
-	 * 查找可能的子域名接管
-	 */
-	findPotentialTakeovers(results: SubdomainResult[]): SubdomainResult[] {
-		return results.filter(
-			(result) => result.takeover?.vulnerable || (result.cname && !result.ips.length)
-		);
 	}
 };
 
-// 导出常用功能
-export { subdomainActions as actions };
-export default {
-	tasks: subdomainTasks,
-	currentTask,
-	results: taskResults,
-	loading,
-	pagination,
-	filters,
-	statistics,
-	progressUpdates,
-	runningTasks,
-	recentCompletedTasks,
-	taskSummary,
-	resultSummary,
+// 导出Store对象
+export const subdomainStore = {
+	// 状态getters
+	get tasks() {
+		return tasks;
+	},
+	get currentTask() {
+		return currentTask;
+	},
+	get taskResults() {
+		return taskResults;
+	},
+	get loading() {
+		return loading;
+	},
+	get pagination() {
+		return pagination;
+	},
+	get filters() {
+		return filters;
+	},
+	get statistics() {
+		return statistics;
+	},
+	get progressUpdates() {
+		return progressUpdates;
+	},
+	get runningTasks() {
+		return runningTasks;
+	},
+	get recentCompletedTasks() {
+		return recentCompletedTasks;
+	},
+	get taskSummary() {
+		return taskSummary;
+	},
+	get resultSummary() {
+		return resultSummary;
+	},
+
+	// 操作函数
 	actions: subdomainActions
 };
+
+// 导出类型
+export type {
+	SubdomainTask,
+	SubdomainResult,
+	SubdomainFilter,
+	SubdomainStatistics,
+	ProgressUpdateEvent
+};
+
+// 默认导出
+export default subdomainStore;

@@ -81,11 +81,11 @@ func (h *ResultHandler) HandleResult(result map[string]interface{}) error {
 	}
 
 	if size, ok := snapshotData["size"].(float64); ok {
-		snapshot.Size = int(size)
+		snapshot.Size = int64(size)
 	}
 
 	if loadTime, ok := snapshotData["loadTime"].(float64); ok {
-		snapshot.LoadTime = int(loadTime)
+		snapshot.LoadTime = int64(loadTime)
 	}
 
 	// 解析响应头
@@ -199,7 +199,9 @@ func (h *ResultHandler) sendNotification(monitoring *models.PageMonitoring, newS
 	for _, method := range monitoring.Config.NotifyMethods {
 		switch method {
 		case "webhook":
-			h.sendWebhookNotification(monitoring.Config.NotifyConfig["webhook"], notificationData)
+			if webhookURL, ok := monitoring.Config.NotifyConfig["webhook"].(string); ok {
+				h.sendWebhookNotification(webhookURL, notificationData)
+			}
 		case "email":
 			// 实现邮件通知
 		case "sms":

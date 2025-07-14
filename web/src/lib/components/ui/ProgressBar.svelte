@@ -30,7 +30,7 @@
 
 	// 获取颜色类名
 	function getColorClass(color: string) {
-		const colorMap = {
+		const colorMap: Record<string, string> = {
 			blue: 'bg-blue-500',
 			green: 'bg-green-500',
 			yellow: 'bg-yellow-500',
@@ -44,7 +44,7 @@
 
 	// 获取尺寸类名
 	function getSizeClass(size: string) {
-		const sizeMap = {
+		const sizeMap: Record<string, string> = {
 			sm: 'h-1',
 			md: 'h-2',
 			lg: 'h-3'

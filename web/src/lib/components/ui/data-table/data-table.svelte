@@ -7,61 +7,53 @@
 		TableHeader,
 		TableRow
 	} from '$lib/components/ui/table';
-	import { createTable, type TableOptions, type ColumnDef } from 'svelte-headless-table';
-	import { addSortBy, addTableFilter, addPagination } from 'svelte-headless-table/plugins';
 
-	export let data: any[] = [];
-	export let columns: ColumnDef<any>[] = [];
-	export let options: Partial<TableOptions<any>> = {};
+	let {
+		data = [],
+		columns = [],
+		options = {}
+	}: {
+		data?: any[];
+		columns?: any[];
+		options?: any;
+	} = $props();
 
-	const table = createTable(data, {
-		columns,
-		...options,
-		plugins: [
-			addSortBy(),
-			addTableFilter(),
-			addPagination({ initialPageSize: 10 }),
-			...(options.plugins || [])
-		]
+	// 简化的数据表实现，避免 svelte-headless-table 的类型问题
+	let currentPage = $state(1);
+	let pageSize = $state(10);
+
+	let paginatedData = $derived(() => {
+		const start = (currentPage - 1) * pageSize;
+		const end = start + pageSize;
+		return data.slice(start, end);
 	});
 
-	const { headerRows, pageRows, tableAttrs, tableBodyAttrs, pluginStates } = table;
-	const { pageSize, pageIndex } = pluginStates.pagination;
+	let totalPages = $derived(() => Math.ceil(data.length / pageSize));
+
+	// 添加用于模板访问的数组变量
+	let paginatedDataArray = $derived(paginatedData());
+	let totalPagesNumber = $derived(totalPages());
 </script>
 
 <div class="rounded-md border">
-	<Table {...tableAttrs}>
+	<Table>
 		<TableHeader>
-			{#each $headerRows as headerRow}
-				<TableRow>
-					{#each headerRow.cells as cell}
-						<TableHead {...cell.attrs}>
-							{#if cell.column.sort}
-								<button
-									class="inline-flex items-center gap-2"
-									on:click={() => cell.column.sort?.toggle()}
-								>
-									{cell.column.header}
-									{#if cell.column.sort?.order === 'asc'}
-										<span>↑</span>
-									{:else if cell.column.sort?.order === 'desc'}
-										<span>↓</span>
-									{/if}
-								</button>
-							{:else}
-								{cell.column.header}
-							{/if}
-						</TableHead>
-					{/each}
-				</TableRow>
-			{/each}
+			<TableRow>
+				{#each columns as column}
+					<TableHead>{column.header}</TableHead>
+				{/each}
+			</TableRow>
 		</TableHeader>
-		<TableBody {...tableBodyAttrs}>
-			{#each $pageRows as row}
+		<TableBody>
+			{#each paginatedDataArray as row, i}
 				<TableRow>
-					{#each row.cells as cell}
-						<TableCell {...cell.attrs}>
-							{cell.value}
+					{#each columns as column}
+						<TableCell>
+							{#if column.cell}
+								{@render column.cell(row)}
+							{:else}
+								{(row as any)[column.accessorKey] || ''}
+							{/if}
 						</TableCell>
 					{/each}
 				</TableRow>
@@ -70,25 +62,29 @@
 	</Table>
 </div>
 
-<div class="flex items-center justify-between space-x-2 py-4">
-	<div class="flex-1 text-sm text-muted-foreground">
-		第 {$pageIndex * $pageSize + 1} - {Math.min(($pageIndex + 1) * $pageSize, data.length)} 条，共 {data.length}
-		条
+<!-- 简单的分页控件 -->
+{#if totalPagesNumber > 1}
+	<div class="flex items-center justify-between px-2 py-4">
+		<div class="text-sm text-gray-700">
+			显示 {(currentPage - 1) * pageSize + 1} 到 {Math.min(currentPage * pageSize, data.length)} 项，共
+			{data.length} 项
+		</div>
+		<div class="flex gap-2">
+			<button
+				class="px-3 py-1 border rounded disabled:opacity-50"
+				disabled={currentPage === 1}
+				onclick={() => currentPage--}
+			>
+				上一页
+			</button>
+			<span class="px-3 py-1">第 {currentPage} 页，共 {totalPagesNumber} 页</span>
+			<button
+				class="px-3 py-1 border rounded disabled:opacity-50"
+				disabled={currentPage === totalPagesNumber}
+				onclick={() => currentPage++}
+			>
+				下一页
+			</button>
+		</div>
 	</div>
-	<div class="space-x-2">
-		<button
-			class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
-			disabled={$pageIndex === 0}
-			on:click={() => pluginStates.pagination.previousPage()}
-		>
-			上一页
-		</button>
-		<button
-			class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
-			disabled={($pageIndex + 1) * $pageSize >= data.length}
-			on:click={() => pluginStates.pagination.nextPage()}
-		>
-			下一页
-		</button>
-	</div>
-</div>
+{/if}

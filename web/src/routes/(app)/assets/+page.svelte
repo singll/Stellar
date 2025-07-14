@@ -33,7 +33,7 @@
 		try {
 			loading = true;
 			const response = await assetApi.getAssets();
-			assets = response.data;
+			assets = response.data.items;
 		} catch (error) {
 			notifications.add({
 				type: 'error',

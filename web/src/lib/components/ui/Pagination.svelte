@@ -28,7 +28,7 @@
 	}>();
 
 	// 计算显示的页码范围
-	let visiblePages = $derived(() => {
+	let visiblePages = $derived.by(() => {
 		const halfVisible = Math.floor(maxVisiblePages / 2);
 		let start = Math.max(1, currentPage - halfVisible);
 		let end = Math.min(totalPages, start + maxVisiblePages - 1);
@@ -46,7 +46,7 @@
 	});
 
 	// 计算当前页的数据范围
-	let dataRange = $derived(() => {
+	let dataRange = $derived.by(() => {
 		const start = (currentPage - 1) * pageSize + 1;
 		const end = Math.min(currentPage * pageSize, total);
 		return { start, end };

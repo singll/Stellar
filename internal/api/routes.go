@@ -28,6 +28,7 @@ func RegisterAPIRoutes(
 	portScanTaskManager *portscan.TaskManager,
 	pluginManager *plugin.Manager,
 	pluginStore plugin.MetadataStore,
+	pluginMarketplace *plugin.Marketplace,
 	monitoringService *pagemonitoring.PageMonitoringService,
 	discoveryHandler *DiscoveryHandler,
 	sensitiveHandler *SensitiveHandler,
@@ -56,7 +57,7 @@ func RegisterAPIRoutes(
 	nodeHandler := NewNodeHandler(nodeManager, nodeRepo)
 	nodeHandler.RegisterRoutes(nodesGroup)
 
-	taskAPI := NewTaskAPI(taskManager)
+	taskAPI := NewTaskAPI(taskManager, db)
 	taskAPI.RegisterRoutes(router) // some task routes might be top-level
 
 	vulnerabilitiesGroup := apiV1.Group("/vulnerabilities")
@@ -78,6 +79,19 @@ func RegisterAPIRoutes(
 	pluginsGroup.Use(AuthMiddleware())
 	pluginHandler := NewPluginHandler(pluginManager, pluginStore)
 	pluginHandler.RegisterRoutes(pluginsGroup)
+
+	// 插件市场路由
+	marketplaceGroup := apiV1.Group("/marketplace")
+	marketplaceGroup.Use(AuthMiddleware())
+	marketplaceHandler := NewPluginMarketplaceHandler(pluginMarketplace)
+	marketplaceGroup.GET("/plugins/search", marketplaceHandler.SearchPlugins)
+	marketplaceGroup.GET("/plugins/:id", marketplaceHandler.GetPlugin)
+	marketplaceGroup.GET("/plugins/:id/download", marketplaceHandler.DownloadPlugin)
+	marketplaceGroup.POST("/plugins/install", marketplaceHandler.InstallPlugin)
+	marketplaceGroup.POST("/index/update", marketplaceHandler.UpdateIndex)
+	marketplaceGroup.GET("/stats", marketplaceHandler.GetStats)
+	marketplaceGroup.GET("/categories", marketplaceHandler.GetCategories)
+	marketplaceGroup.GET("/tags", marketplaceHandler.GetTags)
 
 	monitoringGroup := apiV1.Group("/monitoring")
 	monitoringGroup.Use(AuthMiddleware())

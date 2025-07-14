@@ -12,7 +12,11 @@
 		options?: { value: string; label: string }[];
 	}
 
-	export let filters: Filter[] = [];
+	let {
+		filters = []
+	}: {
+		filters?: Filter[];
+	} = $props();
 
 	const dispatch = createEventDispatcher<{
 		change: { id: string; value: string | boolean };
@@ -31,21 +35,21 @@
 				<Input
 					type={filter.type}
 					id={filter.id}
-					value={filter.value || ''}
-					on:input={(e) => handleChange(filter.id, e.currentTarget.value)}
+					value={typeof filter.value === 'string' ? filter.value : ''}
+					oninput={(e) => handleChange(filter.id, e.currentTarget.value)}
 				/>
 			{:else if filter.type === 'boolean'}
 				<input
 					type="checkbox"
 					id={filter.id}
-					checked={filter.value || false}
-					on:change={(e) => handleChange(filter.id, e.currentTarget.checked)}
+					checked={typeof filter.value === 'boolean' ? filter.value : false}
+					onchange={(e) => handleChange(filter.id, e.currentTarget.checked)}
 				/>
 			{:else if filter.type === 'select' && filter.options}
 				<select
 					id={filter.id}
 					value={filter.value || ''}
-					on:change={(e) => handleChange(filter.id, e.currentTarget.value)}
+					onchange={(e) => handleChange(filter.id, e.currentTarget.value)}
 				>
 					<option value="">请选择</option>
 					{#each filter.options as option}

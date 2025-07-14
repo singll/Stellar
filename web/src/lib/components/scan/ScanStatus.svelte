@@ -5,10 +5,17 @@
 
 	type ScanStatus = 'pending' | 'running' | 'completed' | 'failed';
 
-	export let status: ScanStatus = 'pending';
-	export let progress: number = 0;
-	export let message: string = '';
-	export let className: string = '';
+	let {
+		status = 'pending',
+		progress = 0,
+		message = '',
+		className = ''
+	}: {
+		status?: ScanStatus;
+		progress?: number;
+		message?: string;
+		className?: string;
+	} = $props();
 
 	const getStatusVariant = (status: ScanStatus) => {
 		switch (status) {

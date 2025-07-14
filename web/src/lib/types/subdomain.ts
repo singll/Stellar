@@ -6,22 +6,22 @@
  * 子域名枚举任务配置
  */
 export interface SubdomainConfig {
-	target: string; // 目标域名
-	maxWorkers?: number; // 最大并发数
+	target?: string; // 目标域名
+	dictionaryPath?: string; // 字典文件路径
+	wordlistPath?: string; // 字典文件路径（别名）
+	methods?: string[]; // 枚举方法列表
+	enumMethods?: string[]; // 枚举方法列表（别名）
+	concurrency?: number; // 最大并发数
+	maxWorkers?: number; // 最大并发数（别名）
 	timeout?: number; // 超时时间（秒）
-	wordlistPath?: string; // 字典文件路径
-	dnsServers?: string[]; // DNS服务器列表
-	enableWildcard?: boolean; // 启用通配符检测
-	maxRetries?: number; // 最大重试次数
-	enumMethods?: string[]; // 枚举方法列表
+	retryCount?: number; // 最大重试次数
 	rateLimit?: number; // 速率限制（每秒请求数）
-	enableDoH?: boolean; // 启用DNS over HTTPS
-	enableRecursive?: boolean; // 启用递归枚举
-	maxDepth?: number; // 最大递归深度
+	resolverServers?: string[]; // DNS服务器列表
+	dnsServers?: string[]; // DNS服务器列表（别名）
 	verifySubdomains?: boolean; // 验证子域名活跃性
-	enableCache?: boolean; // 启用DNS缓存
-	cacheTimeout?: number; // 缓存超时时间（秒）
-	searchEngineAPIs?: Record<string, string>; // 搜索引擎API配置
+	recursiveSearch?: boolean; // 启用递归枚举
+	enableWildcard?: boolean; // 启用通配符检测
+	saveToDB?: boolean; // 保存到数据库
 }
 
 /**
@@ -35,6 +35,7 @@ export interface SubdomainTask {
 	status: 'pending' | 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
 	priority: number;
 	config: SubdomainConfig;
+	rootDomain: string; // 根域名
 	projectId?: string;
 	nodeId?: string;
 	createdBy: string;
@@ -42,9 +43,10 @@ export interface SubdomainTask {
 	updatedAt: string;
 	startTime?: string;
 	endTime?: string;
-	progress: TaskProgress;
+	progress?: TaskProgress;
 	result?: TaskResult;
 	error?: string;
+	tags?: string[];
 }
 
 /**
@@ -53,8 +55,10 @@ export interface SubdomainTask {
 export interface TaskProgress {
 	total: number;
 	current: number;
+	completed: number; // 已完成数量
 	found: number;
 	failed: number;
+	success: number; // 成功数量
 	percentage: number;
 	speed?: number; // 每秒处理数量
 	estimatedTime?: number; // 预计剩余时间（秒）
@@ -80,7 +84,9 @@ export interface TaskResult {
  */
 export interface SubdomainResult {
 	subdomain: string;
+	domain?: string; // 添加域名字段
 	ips: string[];
+	ip?: string; // 主要IP地址
 	cname?: string;
 	status: 'found' | 'not_found';
 	source: string;
@@ -90,6 +96,7 @@ export interface SubdomainResult {
 	technologies?: string[];
 	takeover?: TakeoverInfo;
 	timestamp: string;
+	createdAt?: string; // 添加创建时间字段
 	metadata?: Record<string, string>;
 }
 
@@ -108,27 +115,31 @@ export interface TakeoverInfo {
  */
 export interface SubdomainTaskCreateRequest {
 	name: string;
-	description?: string;
 	target: string;
+	projectId?: string;
+	wordlistPath?: string;
+	enumMethods?: string[];
 	maxWorkers?: number;
 	timeout?: number;
-	wordlistPath?: string;
-	customWordlist?: string[];
-	dnsServers?: string[];
-	dnsPreset?: string;
-	enableWildcard?: boolean;
 	maxRetries?: number;
-	enumMethods?: string[];
-	methodPreset?: string;
 	rateLimit?: number;
-	enableDoH?: boolean;
-	enableRecursive?: boolean;
-	maxDepth?: number;
+	dnsServers?: string[];
 	verifySubdomains?: boolean;
-	enableCache?: boolean;
-	cacheTimeout?: number;
-	searchEngineAPIs?: Record<string, string>;
-	projectId?: string;
+	enableRecursive?: boolean;
+	tags?: string[];
+	advanced?: {
+		maxWorkers?: number;
+		timeout?: number;
+		maxRetries?: number;
+		rateLimit?: number;
+		enableWildcard?: boolean;
+		enableDoH?: boolean;
+		enableRecursive?: boolean;
+		maxDepth?: number;
+		verifySubdomains?: boolean;
+		enableCache?: boolean;
+		cacheTimeout?: number;
+	};
 }
 
 /**
@@ -235,7 +246,7 @@ export interface WordlistPreset {
 /**
  * 扫描任务过滤器
  */
-export interface TaskFilter {
+export interface SubdomainFilter {
 	status?: string;
 	target?: string;
 	projectId?: string;
