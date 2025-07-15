@@ -1,103 +1,59 @@
-# Stellar 项目开发规范
+# 星络（Stellar）项目开发规范
 
-## 规则体系索引
+## 项目简介
 
-本项目采用分层规则管理，具体规则分布如下：
+**星络（Stellar）** 是基于 ScopeSentry 项目的 Go 语言重构版本，是一个现代化的分布式安全资产管理和漏洞扫描平台。采用前后端分离架构，具备高性能、高可用性和高扩展性。
 
-### 核心项目规则 [P0]
-- 本文件 (`.cursorrules`): 项目概述、技术栈、结构规范
-- `.cursor/rules/context7.mdc`: Context7 MCP 集成规范
-- `.cursor/rules/llm.mdc`: LLM 严格模式规则
-
-### 开发规范 [P0]
-- `.cursor/rules/go-backend-standards.mdc`: Go 后端开发标准
-- `.cursor/rules/svelte5-frontend-standards.mdc`: Svelte 5 前端开发标准
-- `.cursor/rules/api-design.mdc`: API 设计规范
-- `.cursor/rules/error-handling.mdc`: 错误处理规范
-
-### 代码质量 [P1]
-- `.cursor/rules/naming-conventions.mdc`: 命名规范
-- `.cursor/rules/security-standards.mdc`: 安全标准
-- `.cursor/rules/observability-performance.mdc`: 性能监控规范
-
-### 工程实践 [P1]
-- `.cursor/rules/git-commit-message.mdc`: Git 提交消息规范
-- `.cursor/rules/task-master.mdc`: 任务管理规范
-- `.cursor/rules/docs-guide.mdc`: 文档编写指南
-
-## 项目概述
-
-**Stellar** 是基于 **ScopeSentry** 项目的 Go 语言重构版本，是一个分布式安全资产管理和漏洞扫描平台。
-
-### 原项目架构
-- **ScopeSentry-main**: 原后端项目 (Python + FastAPI + MongoDB)
-- **ScopeSentry-UI-main**: 原前端项目 (Vue 3 + Element Plus + Vite)
-
-### 重构目标架构
-- **后端**: Go + Gin + MongoDB + Redis (根目录重构)
-- **前端**: Svelte 5 + SvelteKit (web/ 目录重构)
-- **API**: 保持兼容的 RESTful API (/api/v1/)
-
-## 核心技术栈规范
+## 技术栈规范
 
 ### 后端技术栈 [P0]
-
-【必须】使用以下技术：
-- **框架**: Gin 1.10+
-- **数据库**: MongoDB + Redis  
-- **认证**: JWT (golang-jwt/jwt/v4)
-- **配置**: YAML 配置文件
-- **日志**: zerolog
-- **WebSocket**: gorilla/websocket
-
-```go
-// ✅ 正确 - API 路由注册
-func RegisterAPIRoutes(router *gin.Engine, deps *Dependencies) {
-    apiV1 := router.Group("/api/v1")
-    
-    // 认证路由
-    authHandler := NewAuthHandler(deps.DB)
-    authHandler.RegisterRoutes(apiV1.Group("/auth"))
-    
-    // 资产路由
-    assetHandler := NewAssetHandler(deps.DB)
-    assetHandler.RegisterRoutes(apiV1.Group("/assets"))
-}
-```
+- **语言/运行时**：Go 1.24.3
+- **Web 框架**：Gin 1.10+
+- **数据库**：MongoDB 6.0+（主库）、Redis 7.0+（缓存/会话）
+- **认证**：JWT（golang-jwt/jwt/v4）、bcrypt
+- **配置**：YAML 配置文件，支持环境变量
+- **日志**：zerolog
+- **WebSocket**：gorilla/websocket
+- **DNS/网络**：miekg/dns、自研网络扫描
+- **任务调度**：robfig/cron/v3、goroutine+channel
+- **依赖管理**：go mod
+- **测试**：Go testing、testify
+- **构建/脚本**：Makefile
 
 ### 前端技术栈 [P0]
+- **框架**：Svelte 5.7.0 + SvelteKit 2.0+
+- **构建工具**：Vite 6.0+
+- **语言**：TypeScript 5.0+
+- **UI 组件**：shadcn-svelte 0.9.0、bits-ui、Tailwind CSS 3.4.1
+- **状态管理**：Svelte 5 runes、@tanstack/store
+- **HTTP**：axios 1.6.0
+- **表单/校验**：felte 1.3.0、zod 3.22.4
+- **图标/主题**：@iconify/svelte、phosphor-svelte、@radix-ui/colors
+- **测试**：vitest、@testing-library/svelte、cypress、msw
+- **包管理**：pnpm 8+
 
-【必须】在 `web/` 目录下使用：
-- **框架**: Svelte 5 + SvelteKit 2+
-- **构建**: Vite 5+
-- **语言**: TypeScript 5+
-- **UI库**: shadcn-svelte + Tailwind CSS
-- **状态管理**: Svelte 5 内置 runes + TanStack Store (复杂状态)
-- **HTTP**: Axios (保持与原API兼容)
-- **表单**: Felte + Zod
+### 开发/部署环境
+- **操作系统**：开发 Windows 10+/macOS 10.15+/Linux，生产 Linux (Ubuntu 22.04+/CentOS 8+)
+- **IDE**：VSCode/GoLand
+- **Node.js**：20+
+- **数据库工具**：MongoDB Compass、Redis Desktop Manager
+- **容器化**：Docker 20.10+、Docker Compose v2.0+
+- **CI/CD/监控**：推荐 Prometheus、Grafana、GitHub Actions
 
-```typescript
-// ✅ 正确 - API 客户端配置
-import axios from 'axios';
+### 插件系统
+- **支持类型**：YAML 插件、Go 插件、Python 插件
+- **插件分类**：scanner/info_gatherer/vulnerability/utility/custom
+- **插件领域**：subdomain/port/web/network/osint/misc
 
-const api = axios.create({
-  baseURL: '/api/v1',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+### 安全与性能
+- **认证安全**：JWT、强密码、最小权限
+- **网络安全**：HTTPS、CORS、XSS/SQL注入防护
+- **数据安全**：加密存储、备份、审计日志
+- **性能优化**：并发控制、连接池、缓存、限流
 
-// 请求拦截器添加JWT
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-```
+---
 
-## 项目结构规范
+## 结构与规范
 
 ### 整体项目结构 [P0]
 

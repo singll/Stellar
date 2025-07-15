@@ -96,7 +96,7 @@ func GetProjects(c *gin.Context) {
 		PageSize  int    `json:"pageSize"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindQuery(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
 			"message": "无效的请求参数",

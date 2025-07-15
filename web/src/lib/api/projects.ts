@@ -19,13 +19,12 @@ export class ProjectAPI {
 	 * @returns 项目列表
 	 */
 	static async getProjects(params?: ProjectQueryParams): Promise<ProjectListResponse> {
-		// 后端实际路径由于路由重复问题是 /projects/projects
-		const requestData = {
+		const query = {
 			search: params?.search || '',
 			pageIndex: params?.page || 1,
 			pageSize: params?.limit || 20
 		};
-		const response = await api.post('/projects/projects', requestData);
+		const response = await api.get('/projects/projects', { params: query });
 		return response.data;
 	}
 

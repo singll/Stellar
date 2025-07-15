@@ -1,0 +1,5 @@
+# 强制所有 Go 文件使用 LF 行尾
+*.go text eol=lf
+
+# 其他文件自动处理
+* text=auto

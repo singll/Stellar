@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -18,12 +17,12 @@ type Sandbox struct {
 	tempDir    string
 	timeoutSec int
 	resources  map[string]int
-	
+
 	// 新增的安全特性
-	limits SandboxLimits
+	limits        SandboxLimits
 	accessControl AccessControl
-	monitor *ResourceMonitor
-	mutex sync.RWMutex
+	monitor       *ResourceMonitor
+	mutex         sync.RWMutex
 }
 
 // SandboxLimits 沙盒资源限制
@@ -101,13 +100,13 @@ func NewSandbox() *Sandbox {
 		resources:  make(map[string]int),
 		limits: SandboxLimits{
 			MaxMemory:          256 * 1024 * 1024, // 256MB
-			MaxCPUTime:         30 * time.Second,   // 30秒
-			MaxWallTime:        60 * time.Second,   // 60秒
-			MaxFileSize:        10 * 1024 * 1024,   // 10MB
-			MaxProcesses:       10,                 // 10个进程
-			MaxFileDescriptors: 100,                // 100个文件描述符
-			AllowNetwork:       false,              // 默认禁止网络访问
-			AllowFileSystem:    true,               // 允许文件系统访问（限制在临时目录）
+			MaxCPUTime:         30 * time.Second,  // 30秒
+			MaxWallTime:        60 * time.Second,  // 60秒
+			MaxFileSize:        10 * 1024 * 1024,  // 10MB
+			MaxProcesses:       10,                // 10个进程
+			MaxFileDescriptors: 100,               // 100个文件描述符
+			AllowNetwork:       false,             // 默认禁止网络访问
+			AllowFileSystem:    true,              // 允许文件系统访问（限制在临时目录）
 		},
 		accessControl: AccessControl{
 			AllowedSyscalls: []string{
@@ -164,9 +163,9 @@ func NewSandboxWithConfig(config SandboxConfig) (*Sandbox, error) {
 		resources:  config.Resources,
 		limits: SandboxLimits{
 			MaxMemory:          256 * 1024 * 1024, // 256MB
-			MaxCPUTime:         30 * time.Second,   // 30秒
+			MaxCPUTime:         30 * time.Second,  // 30秒
 			MaxWallTime:        time.Duration(config.TimeoutSec) * time.Second,
-			MaxFileSize:        10 * 1024 * 1024,   // 10MB
+			MaxFileSize:        10 * 1024 * 1024, // 10MB
 			MaxProcesses:       10,
 			MaxFileDescriptors: 100,
 			AllowNetwork:       false,
@@ -465,13 +464,8 @@ func (s *Sandbox) CreateRestrictedCommand(ctx context.Context, name string, args
 	// 设置工作目录
 	cmd.Dir = s.tempDir
 
-	// 设置资源限制（Linux/Unix特有）
-	if runtime.GOOS == "linux" {
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			// 创建新的进程组
-			Setpgid: true,
-		}
-	}
+	// 设置平台相关的进程属性
+	cmd.SysProcAttr = getSysProcAttr()
 
 	return cmd
 }
@@ -479,7 +473,7 @@ func (s *Sandbox) CreateRestrictedCommand(ctx context.Context, name string, args
 // buildRestrictedEnv 构建受限的环境变量
 func (s *Sandbox) buildRestrictedEnv() []string {
 	env := []string{}
-	
+
 	// 只添加允许的环境变量
 	for _, envVar := range s.accessControl.AllowedEnvVars {
 		if value := os.Getenv(envVar); value != "" {
