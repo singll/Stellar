@@ -11,8 +11,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// User 用户模型
-type User struct {
+// UserMongo 用户模型 (MongoDB版本，向后兼容)
+type UserMongo struct {
 	ID             primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
 	Username       string             `bson:"username" json:"username"`
 	Email          string             `bson:"email" json:"email"`
@@ -23,9 +23,9 @@ type User struct {
 }
 
 // CreateUser 创建用户
-func CreateUser(db *mongo.Database, username, email, password string, roles []string) (*User, error) {
+func CreateUser(db *mongo.Database, username, email, password string, roles []string) (*UserMongo, error) {
 	// 检查用户名或邮箱是否已存在
-	var existingUser User
+	var existingUser UserMongo
 	err := db.Collection("user").FindOne(context.Background(), bson.M{"$or": []bson.M{{"username": username}, {"email": email}}}).Decode(&existingUser)
 	if err == nil {
 		return nil, fmt.Errorf("用户名或邮箱已存在")
@@ -38,7 +38,7 @@ func CreateUser(db *mongo.Database, username, email, password string, roles []st
 		return nil, fmt.Errorf("密码加密失败: %v", err)
 	}
 
-	user := &User{
+	user := &UserMongo{
 		Username:       username,
 		Email:          email,
 		HashedPassword: string(hashed),
@@ -56,8 +56,8 @@ func CreateUser(db *mongo.Database, username, email, password string, roles []st
 }
 
 // GetUserByUsername 根据用户名获取用户
-func GetUserByUsername(db *mongo.Database, username string) (*User, error) {
-	var user User
+func GetUserByUsername(db *mongo.Database, username string) (*UserMongo, error) {
+	var user UserMongo
 	err := db.Collection("user").FindOne(context.Background(), bson.M{"username": username}).Decode(&user)
 	if err != nil {
 		return nil, err
@@ -66,8 +66,8 @@ func GetUserByUsername(db *mongo.Database, username string) (*User, error) {
 }
 
 // GetUserByEmail 根据邮箱获取用户
-func GetUserByEmail(db *mongo.Database, email string) (*User, error) {
-	var user User
+func GetUserByEmail(db *mongo.Database, email string) (*UserMongo, error) {
+	var user UserMongo
 	err := db.Collection("user").FindOne(context.Background(), bson.M{"email": email}).Decode(&user)
 	if err != nil {
 		return nil, err
@@ -76,8 +76,8 @@ func GetUserByEmail(db *mongo.Database, email string) (*User, error) {
 }
 
 // ValidateUser 验证用户凭证（用户名或邮箱+密码）
-func ValidateUser(db *mongo.Database, identifier, password string) (*User, error) {
-	var user User
+func ValidateUser(db *mongo.Database, identifier, password string) (*UserMongo, error) {
+	var user UserMongo
 	filter := bson.M{"$or": []bson.M{{"username": identifier}, {"email": identifier}}}
 	err := db.Collection("user").FindOne(context.Background(), filter).Decode(&user)
 	if err != nil {

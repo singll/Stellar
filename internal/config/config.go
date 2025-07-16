@@ -62,7 +62,8 @@ func GenerateRandomString(length int) string {
 // Config 应用程序配置
 type Config struct {
 	Server    ServerConfig    `yaml:"server"`
-	MongoDB   MongoDBConfig   `yaml:"mongodb"`
+	Database  DatabaseConfig  `yaml:"database"`  // 新增统一数据库配置
+	MongoDB   MongoDBConfig   `yaml:"mongodb"`   // 保持向后兼容
 	Redis     RedisConfig     `yaml:"redis"`
 	Auth      AuthConfig      `yaml:"auth"`
 	Subdomain SubdomainConfig `yaml:"subdomain"`
@@ -73,6 +74,18 @@ type Config struct {
 	Task      TaskConfig      `yaml:"task"`
 	Logs      LogsConfig      `yaml:"logs"`
 	System    SystemConfig    `yaml:"system"`
+}
+
+// DatabaseConfig 统一数据库配置
+type DatabaseConfig struct {
+	Type     string `yaml:"type"`     // mysql, postgres, sqlite, mongodb
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Database string `yaml:"database"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	SSLMode  string `yaml:"ssl_mode"`
+	Path     string `yaml:"path"` // for sqlite
 }
 
 // ServerConfig 服务器配置

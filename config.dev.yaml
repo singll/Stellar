@@ -2,73 +2,88 @@ server:
   host: "0.0.0.0"
   port: 8090
   mode: "debug"
+  readTimeout: 30s
+  writeTimeout: 30s
 
-# 开发环境 - 使用外部数据库服务，不同数据库名区分环境
+# 新的统一数据库配置
+database:
+  type: "sqlite"  # 开发环境使用SQLite
+  path: "./stellar.db"
+
+# MongoDB配置（向后兼容）
 mongodb:
   uri: "mongodb://192.168.7.216:27017"
   database: "stellarserver_dev"
   user: "admin"
   password: "admin"
-  maxPoolSize: 20
-  minPoolSize: 5
+  maxPoolSize: 100
+  minPoolSize: 10
   maxIdleTimeMS: 30000
 
 redis:
   addr: "192.168.7.128:6379"
   password: "redis"
-  db: 1  # 使用db 1作为开发环境，避免与生产环境冲突
-  poolSize: 20
+  db: 0
+  poolSize: 10
   minIdleConns: 5
   maxConnAgeMS: 30000
 
 auth:
-  jwtSecret: "stellarserver-dev-secret-key-change-in-production"
-  tokenExpiry: 24  # 小时
+  jwtSecret: "stellarserver-dev-secret-key"
+  tokenExpiry: 24
 
 subdomain:
-  resolvers:
+  methods:
+    - "subfinder"
+    - "amass"
+  dictionaryPath: "./dicts/subdomain_dict.txt"
+  concurrency: 50
+  timeout: 10
+  retryCount: 3
+  rateLimit: 100
+  resolverServers:
     - "8.8.8.8:53"
     - "114.114.114.114:53"
-  timeout: 10  # 秒
-  maxConcurrency: 50  # 开发环境适中并发
-  retryTimes: 2
-  dictPath: "./dicts/subdomain_dict.txt"
+  verifySubdomains: true
+  checkTakeover: false
+  recursiveSearch: false
 
 portscan:
-  timeout: 5  # 秒
-  rateLimit: 200  # 开发环境适中速率
-  maxConcurrency: 30  # 开发环境适中并发
-  defaultPorts:
-    - 21
-    - 22
-    - 80
-    - 443
-    - 3306
-    - 6379
-    - 8080
-    - 8443
+  ports: "1-1000,3000-4000,8000-9000"
+  concurrency: 100
+  timeout: 5
+  retryCount: 3
+  rateLimit: 1000
+  scanType: "tcp"
+  excludeIPs: []
 
 vulnscan:
-  timeout: 30  # 秒
-  maxConcurrency: 20  # 开发环境适中并发
-  pluginPath: "./plugins/vuln"
+  timeout: 30
+  maxConcurrency: 50
+  pluginPath: "./plugins"
 
 discovery:
-  timeout: 30  # 秒
-  maxConcurrency: 20
-  scanInterval: 24  # 小时
+  timeout: 30
+  maxConcurrency: 50
+  scanInterval: 24
 
 node:
-  heartbeatInterval: 30  # 秒
-  heartbeatTimeout: 90  # 秒
+  heartbeatInterval: 30
+  heartbeatTimeout: 90
   enableAutoRemove: false
-  autoRemoveAfter: 86400  # 秒，1天
-  masterNodeName: "dev-master-node"
+  autoRemoveAfter: 86400
+  masterNodeName: "master-node"
 
 task:
-  maxConcurrentTasks: 8  # 开发环境适中并发
-  taskTimeout: 3600  # 秒，1小时
+  maxConcurrentTasks: 10
+  taskTimeout: 3600
   enableRetry: true
   maxRetries: 3
-  retryInterval: 300  # 秒，5分钟
-  queueCapacity: 500  # 开发环境适中队列容量
+  retryInterval: 300
+  queueCapacity: 1000
+
+logs:
+  totalLogs: 1000
+
+system:
+  timezone: "Asia/Shanghai"
