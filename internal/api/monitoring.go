@@ -23,17 +23,14 @@ func NewMonitoringHandler(service *pagemonitoring.PageMonitoringService) *Monito
 
 // RegisterRoutes 注册路由
 func (h *MonitoringHandler) RegisterRoutes(router *gin.RouterGroup) {
-	monitoringGroup := router.Group("/monitoring")
-	{
-		monitoringGroup.POST("", h.CreateMonitoring)
-		monitoringGroup.GET("", h.ListMonitorings)
-		monitoringGroup.GET("/:id", h.GetMonitoring)
-		monitoringGroup.PUT("/:id", h.UpdateMonitoring)
-		monitoringGroup.DELETE("/:id", h.DeleteMonitoring)
-		monitoringGroup.GET("/:id/snapshots", h.GetSnapshots)
-		monitoringGroup.GET("/:id/changes", h.GetChanges)
-		monitoringGroup.GET("/:id/diff", h.GetDiff)
-	}
+	router.POST("", h.CreateMonitoring)
+	router.GET("", h.ListMonitorings)
+	router.GET("/:id", h.GetMonitoring)
+	router.PUT("/:id", h.UpdateMonitoring)
+	router.DELETE("/:id", h.DeleteMonitoring)
+	router.GET("/:id/snapshots", h.GetSnapshots)
+	router.GET("/:id/changes", h.GetChanges)
+	router.GET("/:id/diff", h.GetDiff)
 }
 
 // CreateMonitoring 创建监控任务

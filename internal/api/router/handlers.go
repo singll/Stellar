@@ -2,6 +2,7 @@ package router
 
 import (
 	"github.com/StellarServer/internal/api"
+	"github.com/StellarServer/internal/models"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,8 +30,7 @@ func NewTaskHandler(deps *AppDependencies) RouteHandler {
 
 // NewNodeHandler 创建节点处理器
 func NewNodeHandler(deps *AppDependencies) RouteHandler {
-	// 需要NodeRepository，暂时使用空实现
-	return &EmptyHandler{name: "node"}
+	return api.NewNodeHandler(deps.NodeManager, models.NewNodeRepository(deps.MongoDB))
 }
 
 // NewVulnerabilityHandler 创建漏洞处理器
@@ -71,6 +71,11 @@ func NewPluginHandler(deps *AppDependencies) RouteHandler {
 // NewVulnDBHandler 创建漏洞数据库处理器
 func NewVulnDBHandler(deps *AppDependencies) RouteHandler {
 	return &EmptyHandler{name: "vulndb"}
+}
+
+// NewStatisticsHandler 创建统计处理器
+func NewStatisticsHandler(deps *AppDependencies) RouteHandler {
+	return api.NewStatisticsAPI(deps.MongoDB)
 }
 
 // EmptyHandler 空处理器，用于暂时替代未完成的处理器

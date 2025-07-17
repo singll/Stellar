@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/StellarServer/internal/models"
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
+	"github.com/StellarServer/internal/pkg/logger"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/time/rate"
@@ -228,14 +230,20 @@ func (s *DiscoveryService) GetTaskProgress(taskID string) (float64, error) {
 	var dbTask models.AssetDiscoveryTask
 	objID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
-		return 0, err
+		logger.Error("GetTaskProgress invalid taskID", map[string]interface{}{"taskID": taskID, "error": err})
+		return 0, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的任务ID", 400, err)
 	}
 
 	err = s.db.Collection("asset_discovery_tasks").FindOne(context.Background(), map[string]interface{}{
 		"_id": objID,
 	}).Decode(&dbTask)
 	if err != nil {
-		return 0, err
+		if err == mongo.ErrNoDocuments {
+			logger.Warn("GetTaskProgress not found", map[string]interface{}{"taskID": taskID})
+			return 0, pkgerrors.NewNotFoundError("任务不存在")
+		}
+		logger.Error("GetTaskProgress failed", map[string]interface{}{"taskID": taskID, "error": err})
+		return 0, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeInternalError, "获取任务进度失败", 500, err)
 	}
 
 	return dbTask.Progress, nil

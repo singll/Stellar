@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/StellarServer/internal/models"
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
+	"github.com/StellarServer/internal/pkg/logger"
 	"github.com/StellarServer/internal/services/taskmanager/executors"
 	"github.com/StellarServer/internal/services/vulnscan"
 	"github.com/redis/go-redis/v9"
@@ -17,21 +19,21 @@ import (
 
 // TaskManager 任务管理器
 type TaskManager struct {
-	db            *mongo.Database
-	redisClient   *redis.Client
-	nodeManager   NodeManager
-	tasks         map[string]*TaskInfo
-	tasksMutex    sync.RWMutex
-	ctx           context.Context
-	cancel        context.CancelFunc
-	eventChan     chan TaskEvent
-	config        TaskManagerConfig
-	queues        map[string]*TaskQueue
-	queuesMutex   sync.RWMutex
-	dispatcher    *TaskDispatcher
-	queueManager  *QueueManager
-	executor      *ExecutionEngine
-	scheduler     *TaskScheduler
+	db           *mongo.Database
+	redisClient  *redis.Client
+	nodeManager  NodeManager
+	tasks        map[string]*TaskInfo
+	tasksMutex   sync.RWMutex
+	ctx          context.Context
+	cancel       context.CancelFunc
+	eventChan    chan TaskEvent
+	config       TaskManagerConfig
+	queues       map[string]*TaskQueue
+	queuesMutex  sync.RWMutex
+	dispatcher   *TaskDispatcher
+	queueManager *QueueManager
+	executor     *ExecutionEngine
+	scheduler    *TaskScheduler
 }
 
 // TaskManagerConfig 任务管理器配置
@@ -227,17 +229,17 @@ func (tm *TaskManager) SubmitTask(task *models.Task) error {
 // saveTask 保存任务到数据库
 func (tm *TaskManager) saveTask(task *models.Task) error {
 	collection := tm.db.Collection("tasks")
-	
+
 	if task.ID.IsZero() {
 		task.ID = primitive.NewObjectID()
 	}
-	
+
 	if task.CreatedAt.IsZero() {
 		task.CreatedAt = time.Now()
 	}
-	
+
 	task.UpdatedAt = time.Now()
-	
+
 	_, err := collection.InsertOne(tm.ctx, task)
 	return err
 }
@@ -251,16 +253,19 @@ func (tm *TaskManager) CancelTask(taskID string) error {
 func (tm *TaskManager) GetTask(taskID string) (*models.Task, error) {
 	objID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
-		return nil, err
+		logger.Error("GetTask invalid taskID", map[string]interface{}{"taskID": taskID, "error": err})
+		return nil, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的任务ID", 400, err)
 	}
 
 	var task models.Task
 	err = tm.db.Collection("tasks").FindOne(tm.ctx, bson.M{"_id": objID}).Decode(&task)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, nil
+			logger.Warn("GetTask not found", map[string]interface{}{"taskID": taskID})
+			return nil, pkgerrors.NewNotFoundError("任务不存在")
 		}
-		return nil, err
+		logger.Error("GetTask failed", map[string]interface{}{"taskID": taskID, "error": err})
+		return nil, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeInternalError, "获取任务失败", 500, err)
 	}
 
 	return &task, nil

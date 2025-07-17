@@ -5,6 +5,9 @@ import (
 	"time"
 
 	"github.com/StellarServer/internal/models"
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
+	"github.com/StellarServer/internal/pkg/logger"
+	"github.com/StellarServer/internal/utils"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -22,13 +25,10 @@ func NewAuthHandler(db *mongo.Database) *AuthHandler {
 
 // RegisterRoutes 注册路由
 func (h *AuthHandler) RegisterRoutes(router *gin.RouterGroup) {
-	authGroup := router.Group("/auth")
-	{
-		authGroup.POST("/login", h.Login)
-		authGroup.GET("/info", AuthMiddleware(), GetUserInfo) // 用户信息需要认证
-		authGroup.POST("/logout", Logout) // logout不需要认证中间件
-		authGroup.POST("/register", h.Register)
-	}
+	router.POST("/login", h.Login)
+	router.GET("/info", AuthMiddleware(), GetUserInfo) // 用户信息需要认证
+	router.POST("/logout", Logout)                     // logout不需要认证中间件
+	router.POST("/register", h.Register)
 }
 
 // JWTSecret JWT密钥
@@ -76,20 +76,15 @@ type RegisterRequest struct {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "无效的请求参数",
-			"details": err.Error(),
-		})
+		logger.Error("Login参数绑定失败", map[string]interface{}{"error": err})
+		utils.HandleError(c, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的请求参数", 400, err))
 		return
 	}
 
 	db := h.DB
 	if db == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "数据库连接未初始化",
-		})
+		logger.Error("Login数据库未初始化", nil)
+		utils.HandleError(c, pkgerrors.NewAppError(pkgerrors.CodeInternalError, "数据库连接未初始化", 500))
 		return
 	}
 
@@ -99,20 +94,15 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		identifier = req.Email
 	}
 	if identifier == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "用户名或邮箱不能为空",
-		})
+		logger.Error("Login用户名或邮箱为空", nil)
+		utils.HandleError(c, pkgerrors.NewAppError(pkgerrors.CodeBadRequest, "用户名或邮箱不能为空", 400))
 		return
 	}
 
 	user, err := models.ValidateUser(db, identifier, req.Password)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "用户名或密码错误",
-			"details": err.Error(),
-		})
+		logger.Error("Login用户校验失败", map[string]interface{}{"identifier": identifier, "error": err})
+		utils.HandleError(c, err)
 		return
 	}
 
@@ -132,10 +122,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(JWTSecret)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "生成令牌失败",
-		})
+		logger.Error("Login生成JWT失败", map[string]interface{}{"error": err})
+		utils.HandleError(c, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeInternalError, "生成令牌失败", 500, err))
 		return
 	}
 
@@ -267,31 +255,24 @@ func AuthMiddleware(allowedRoles ...string) gin.HandlerFunc {
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "无效的请求参数",
-		})
+		logger.Error("Register参数绑定失败", map[string]interface{}{"error": err})
+		utils.HandleError(c, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的请求参数", 400, err))
 		return
 	}
 
 	// 建议：复用handler中的DB连接
 	db := h.DB
 	if db == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "数据库连接未初始化",
-		})
+		logger.Error("Register数据库未初始化", nil)
+		utils.HandleError(c, pkgerrors.NewAppError(pkgerrors.CodeInternalError, "数据库连接未初始化", 500))
 		return
 	}
 
 	// 创建用户，默认角色为user
 	user, err := models.CreateUser(db, req.Username, req.Email, req.Password, []string{"user"})
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": err.Error(),
-			"details": err.Error(),
-		})
+		logger.Error("Register用户创建失败", map[string]interface{}{"username": req.Username, "error": err})
+		utils.HandleError(c, err)
 		return
 	}
 
@@ -310,10 +291,8 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(JWTSecret)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "生成令牌失败",
-		})
+		logger.Error("Register生成JWT失败", map[string]interface{}{"error": err})
+		utils.HandleError(c, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeInternalError, "生成令牌失败", 500, err))
 		return
 	}
 

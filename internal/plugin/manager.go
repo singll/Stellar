@@ -74,7 +74,7 @@ func (m *Manager) AddPluginDirectory(dir string) error {
 	// 检查目录是否存在
 	info, err := os.Stat(dir)
 	if err != nil {
-		return fmt.Errorf("访问插件目录失败: %v", err)
+		return fmt.Errorf("访问插件目录失败: %s", dir)
 	}
 	if !info.IsDir() {
 		return fmt.Errorf("指定的路径不是目录: %s", dir)
@@ -105,7 +105,7 @@ func (m *Manager) LoadPlugins() error {
 	// 加载每个目录中的插件
 	for _, dir := range dirs {
 		if err := m.registry.LoadPlugins(dir); err != nil {
-			return fmt.Errorf("加载插件目录 %s 失败: %v", dir, err)
+			return fmt.Errorf("加载插件目录 %s 失败", dir)
 		}
 	}
 
@@ -137,12 +137,12 @@ func (m *Manager) InstallPlugin(sourcePath string, destDir string) (string, erro
 	// 检查源文件是否存在
 	info, err := os.Stat(sourcePath)
 	if err != nil {
-		return "", fmt.Errorf("访问插件文件失败: %v", err)
+		return "", fmt.Errorf("访问插件文件失败: %s", sourcePath)
 	}
 
 	// 创建目标目录
 	if err := os.MkdirAll(destDir, 0755); err != nil {
-		return "", fmt.Errorf("创建插件目录失败: %v", err)
+		return "", fmt.Errorf("创建插件目录失败: %s", destDir)
 	}
 
 	// 目标文件路径
@@ -155,7 +155,7 @@ func (m *Manager) InstallPlugin(sourcePath string, destDir string) (string, erro
 
 	// 复制文件
 	if err := copyFile(sourcePath, destPath); err != nil {
-		return "", fmt.Errorf("复制插件文件失败: %v", err)
+		return "", fmt.Errorf("复制插件文件失败: %s", sourcePath)
 	}
 
 	// 加载插件
@@ -163,7 +163,7 @@ func (m *Manager) InstallPlugin(sourcePath string, destDir string) (string, erro
 	if err != nil {
 		// 如果加载失败，删除文件
 		os.Remove(destPath)
-		return "", fmt.Errorf("加载插件失败: %v", err)
+		return "", fmt.Errorf("加载插件失败: %s", destPath)
 	}
 
 	// 创建插件元数据
@@ -182,7 +182,7 @@ func (m *Manager) InstallPlugin(sourcePath string, destDir string) (string, erro
 
 	// 保存元数据
 	if err := m.metadataStore.SavePluginMetadata(metadata); err != nil {
-		return "", fmt.Errorf("保存插件元数据失败: %v", err)
+		return "", fmt.Errorf("保存插件元数据失败: %s", destPath)
 	}
 
 	// 触发插件安装事件
@@ -199,22 +199,22 @@ func (m *Manager) UninstallPlugin(id string) error {
 	// 获取插件元数据
 	metadata, err := m.metadataStore.GetPluginMetadata(id)
 	if err != nil {
-		return fmt.Errorf("获取插件元数据失败: %v", err)
+		return fmt.Errorf("获取插件元数据失败: %s", id)
 	}
 
 	// 从注册表中移除插件
 	if err := m.registry.UnregisterPlugin(id); err != nil {
-		return fmt.Errorf("注销插件失败: %v", err)
+		return fmt.Errorf("注销插件失败: %s", id)
 	}
 
 	// 删除插件文件
 	if err := os.Remove(metadata.Path); err != nil {
-		return fmt.Errorf("删除插件文件失败: %v", err)
+		return fmt.Errorf("删除插件文件失败: %s", metadata.Path)
 	}
 
 	// 删除元数据
 	if err := m.metadataStore.DeletePluginMetadata(id); err != nil {
-		return fmt.Errorf("删除插件元数据失败: %v", err)
+		return fmt.Errorf("删除插件元数据失败: %s", id)
 	}
 
 	// 触发插件卸载事件
@@ -228,7 +228,7 @@ func (m *Manager) EnablePlugin(id string) error {
 	// 获取插件元数据
 	metadata, err := m.metadataStore.GetPluginMetadata(id)
 	if err != nil {
-		return fmt.Errorf("获取插件元数据失败: %v", err)
+		return fmt.Errorf("获取插件元数据失败: %s", id)
 	}
 
 	// 检查插件是否已启用
@@ -240,7 +240,7 @@ func (m *Manager) EnablePlugin(id string) error {
 	metadata.Enabled = true
 	metadata.UpdateTime = time.Now()
 	if err := m.metadataStore.SavePluginMetadata(metadata); err != nil {
-		return fmt.Errorf("保存插件元数据失败: %v", err)
+		return fmt.Errorf("保存插件元数据失败: %s", id)
 	}
 
 	// 触发插件启用事件
@@ -254,7 +254,7 @@ func (m *Manager) DisablePlugin(id string) error {
 	// 获取插件元数据
 	metadata, err := m.metadataStore.GetPluginMetadata(id)
 	if err != nil {
-		return fmt.Errorf("获取插件元数据失败: %v", err)
+		return fmt.Errorf("获取插件元数据失败: %s", id)
 	}
 
 	// 检查插件是否已禁用
@@ -266,7 +266,7 @@ func (m *Manager) DisablePlugin(id string) error {
 	metadata.Enabled = false
 	metadata.UpdateTime = time.Now()
 	if err := m.metadataStore.SavePluginMetadata(metadata); err != nil {
-		return fmt.Errorf("保存插件元数据失败: %v", err)
+		return fmt.Errorf("保存插件元数据失败: %s", id)
 	}
 
 	// 触发插件禁用事件
@@ -332,12 +332,12 @@ func loadSinglePlugin(path string, registry Registry) (Plugin, error) {
 	// 加载插件
 	plugin, err := loader.Load(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("加载插件失败: %s", path)
 	}
 
 	// 注册插件
 	if err := registry.Register(plugin); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("注册插件失败: %s", path)
 	}
 
 	return plugin, nil
@@ -348,11 +348,15 @@ func copyFile(src, dst string) error {
 	// 读取源文件
 	data, err := os.ReadFile(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("读取插件文件失败: %s", src)
 	}
 
 	// 写入目标文件
-	return os.WriteFile(dst, data, 0644)
+	if err := os.WriteFile(dst, data, 0644); err != nil {
+		return fmt.Errorf("写入插件文件失败: %s", dst)
+	}
+
+	return nil
 }
 
 // InstallPluginFromFile 从本地文件安装插件
@@ -360,7 +364,7 @@ func (m *Manager) InstallPluginFromFile(sourcePath string, config map[string]int
 	// 检查源文件是否存在
 	_, err := os.Stat(sourcePath)
 	if err != nil {
-		return "", fmt.Errorf("访问插件文件失败: %v", err)
+		return "", fmt.Errorf("访问插件文件失败: %s", sourcePath)
 	}
 
 	// 获取默认插件目录
@@ -372,20 +376,20 @@ func (m *Manager) InstallPluginFromFile(sourcePath string, config map[string]int
 	// 安装插件
 	pluginID, err := m.InstallPlugin(sourcePath, destDir)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("安装插件失败: %s", sourcePath)
 	}
 
 	// 如果提供了配置，更新插件配置
 	if config != nil {
 		metadata, err := m.metadataStore.GetPluginMetadata(pluginID)
 		if err != nil {
-			return "", fmt.Errorf("获取插件元数据失败: %v", err)
+			return "", fmt.Errorf("获取插件元数据失败: %s", pluginID)
 		}
 
 		metadata.Config = config
 		metadata.UpdateTime = time.Now()
 		if err := m.metadataStore.SavePluginMetadata(metadata); err != nil {
-			return "", fmt.Errorf("保存插件配置失败: %v", err)
+			return "", fmt.Errorf("保存插件配置失败: %s", pluginID)
 		}
 	}
 
@@ -403,7 +407,7 @@ func (m *Manager) InstallPluginFromURL(url string, config map[string]interface{}
 	// 创建临时文件
 	tempFile, err := os.CreateTemp("", "plugin-*.tmp")
 	if err != nil {
-		return "", fmt.Errorf("创建临时文件失败: %v", err)
+		return "", fmt.Errorf("创建临时文件失败: %s", tempFile.Name())
 	}
 	defer os.Remove(tempFile.Name())
 	defer tempFile.Close()
@@ -411,7 +415,7 @@ func (m *Manager) InstallPluginFromURL(url string, config map[string]interface{}
 	// 下载文件
 	resp, err := http.Get(url)
 	if err != nil {
-		return "", fmt.Errorf("下载插件失败: %v", err)
+		return "", fmt.Errorf("下载插件失败: %s", url)
 	}
 	defer resp.Body.Close()
 
@@ -422,26 +426,26 @@ func (m *Manager) InstallPluginFromURL(url string, config map[string]interface{}
 	// 写入临时文件
 	_, err = io.Copy(tempFile, resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("保存插件失败: %v", err)
+		return "", fmt.Errorf("保存插件失败: %s", tempFile.Name())
 	}
 
 	// 安装插件
 	pluginID, err := m.InstallPlugin(tempFile.Name(), destDir)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("安装插件失败: %s", tempFile.Name())
 	}
 
 	// 如果提供了配置，更新插件配置
 	if config != nil {
 		metadata, err := m.metadataStore.GetPluginMetadata(pluginID)
 		if err != nil {
-			return "", fmt.Errorf("获取插件元数据失败: %v", err)
+			return "", fmt.Errorf("获取插件元数据失败: %s", pluginID)
 		}
 
 		metadata.Config = config
 		metadata.UpdateTime = time.Now()
 		if err := m.metadataStore.SavePluginMetadata(metadata); err != nil {
-			return "", fmt.Errorf("保存插件配置失败: %v", err)
+			return "", fmt.Errorf("保存插件配置失败: %s", pluginID)
 		}
 	}
 
@@ -471,23 +475,23 @@ func (m *Manager) ReloadPlugin(id string) error {
 	// 获取插件元数据
 	metadata, err := m.metadataStore.GetPluginMetadata(id)
 	if err != nil {
-		return fmt.Errorf("获取插件元数据失败: %v", err)
+		return fmt.Errorf("获取插件元数据失败: %s", id)
 	}
 
 	// 检查插件是否已启用
 	if !metadata.Enabled {
-		return fmt.Errorf("插件未启用，无法重新加载")
+		return fmt.Errorf("插件未启用，无法重新加载: %s", id)
 	}
 
 	// 从注册表中移除插件
 	if err := m.registry.UnregisterPlugin(id); err != nil {
-		return fmt.Errorf("注销插件失败: %v", err)
+		return fmt.Errorf("注销插件失败: %s", id)
 	}
 
 	// 重新加载插件
 	plugin, err := loadSinglePlugin(metadata.Path, m.registry)
 	if err != nil {
-		return fmt.Errorf("重新加载插件失败: %v", err)
+		return fmt.Errorf("重新加载插件失败: %s", metadata.Path)
 	}
 
 	// 触发插件重新加载事件

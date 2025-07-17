@@ -4,6 +4,9 @@ import (
 	"net/http"
 	"time"
 
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
+	"github.com/StellarServer/internal/pkg/logger"
+	"github.com/StellarServer/internal/utils"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -34,10 +37,8 @@ func (api *StatisticsAPI) DashboardStats(c *gin.Context) {
 	// 获取统计数据
 	stats, err := api.getDashboardStats(c)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取统计数据失败",
-		})
+		logger.Error("Failed to get dashboard stats", map[string]interface{}{"error": err})
+		utils.HandleError(c, pkgerrors.NewInternalError("获取统计数据失败"))
 		return
 	}
 
@@ -53,19 +54,19 @@ func (api *StatisticsAPI) getDashboardStats(c *gin.Context) (map[string]interfac
 	// 统计资产数量
 	assetCount, err := api.db.Collection("asset").CountDocuments(c, bson.M{})
 	if err != nil {
-		return nil, err
+		return nil, pkgerrors.NewInternalError("Failed to count assets")
 	}
 
 	// 统计漏洞数量
 	vulnCount, err := api.db.Collection("vulnerability").CountDocuments(c, bson.M{})
 	if err != nil {
-		return nil, err
+		return nil, pkgerrors.NewInternalError("Failed to count vulnerabilities")
 	}
 
 	// 统计项目数量
 	projectCount, err := api.db.Collection("project").CountDocuments(c, bson.M{})
 	if err != nil {
-		return nil, err
+		return nil, pkgerrors.NewInternalError("Failed to count projects")
 	}
 
 	// 统计今日任务数量
@@ -78,37 +79,37 @@ func (api *StatisticsAPI) getDashboardStats(c *gin.Context) (map[string]interfac
 		},
 	})
 	if err != nil {
-		return nil, err
+		return nil, pkgerrors.NewInternalError("Failed to count today's tasks")
 	}
 
 	// 统计资产类型分布
 	assetTypes, err := api.getAssetTypeDistribution(c)
 	if err != nil {
-		return nil, err
+		return nil, pkgerrors.NewInternalError("Failed to get asset type distribution")
 	}
 
 	// 统计漏洞风险等级分布
 	vulnLevels, err := api.getVulnerabilityLevelDistribution(c)
 	if err != nil {
-		return nil, err
+		return nil, pkgerrors.NewInternalError("Failed to get vulnerability level distribution")
 	}
 
 	// 统计任务执行趋势
 	taskTrend, err := api.getTaskExecutionTrend(c)
 	if err != nil {
-		return nil, err
+		return nil, pkgerrors.NewInternalError("Failed to get task execution trend")
 	}
 
 	// 获取最近漏洞
 	recentVulns, err := api.getRecentVulnerabilities(c)
 	if err != nil {
-		return nil, err
+		return nil, pkgerrors.NewInternalError("Failed to get recent vulnerabilities")
 	}
 
 	// 获取最近任务
 	recentTasks, err := api.getRecentTasks(c)
 	if err != nil {
-		return nil, err
+		return nil, pkgerrors.NewInternalError("Failed to get recent tasks")
 	}
 
 	return map[string]interface{}{
@@ -148,12 +149,12 @@ func (api *StatisticsAPI) getAssetTypeDistribution(c *gin.Context) ([]map[string
 
 	cursor, err := api.db.Collection("asset").Aggregate(c, pipeline)
 	if err != nil {
-		return nil, err
+		return nil, pkgerrors.NewInternalError("Failed to aggregate asset types")
 	}
 
 	var results []map[string]interface{}
 	if err = cursor.All(c, &results); err != nil {
-		return nil, err
+		return nil, pkgerrors.NewInternalError("Failed to decode asset type results")
 	}
 
 	return results, nil
@@ -181,12 +182,12 @@ func (api *StatisticsAPI) getVulnerabilityLevelDistribution(c *gin.Context) ([]m
 
 	cursor, err := api.db.Collection("vulnerability").Aggregate(c, pipeline)
 	if err != nil {
-		return nil, err
+		return nil, pkgerrors.NewInternalError("Failed to aggregate vulnerability levels")
 	}
 
 	var results []map[string]interface{}
 	if err = cursor.All(c, &results); err != nil {
-		return nil, err
+		return nil, pkgerrors.NewInternalError("Failed to decode vulnerability level results")
 	}
 
 	return results, nil
@@ -222,7 +223,7 @@ func (api *StatisticsAPI) getTaskExecutionTrend(c *gin.Context) (map[string]inte
 			"status": "已完成",
 		})
 		if err != nil {
-			return nil, err
+			return nil, pkgerrors.NewInternalError("Failed to count completed tasks for trend")
 		}
 		completed = append(completed, completedCount)
 
@@ -237,7 +238,7 @@ func (api *StatisticsAPI) getTaskExecutionTrend(c *gin.Context) (map[string]inte
 			},
 		})
 		if err != nil {
-			return nil, err
+			return nil, pkgerrors.NewInternalError("Failed to count in-progress tasks for trend")
 		}
 		inProgress = append(inProgress, inProgressCount)
 
@@ -250,7 +251,7 @@ func (api *StatisticsAPI) getTaskExecutionTrend(c *gin.Context) (map[string]inte
 			"status": "失败",
 		})
 		if err != nil {
-			return nil, err
+			return nil, pkgerrors.NewInternalError("Failed to count failed tasks for trend")
 		}
 		failed = append(failed, failedCount)
 	}
@@ -268,12 +269,12 @@ func (api *StatisticsAPI) getRecentVulnerabilities(c *gin.Context) ([]map[string
 	opts := options.Find().SetSort(bson.M{"createTime": -1}).SetLimit(5)
 	cursor, err := api.db.Collection("vulnerability").Find(c, bson.M{}, opts)
 	if err != nil {
-		return nil, err
+		return nil, pkgerrors.NewInternalError("Failed to find recent vulnerabilities")
 	}
 
 	var vulns []map[string]interface{}
 	if err = cursor.All(c, &vulns); err != nil {
-		return nil, err
+		return nil, pkgerrors.NewInternalError("Failed to decode recent vulnerabilities")
 	}
 
 	// 处理结果
@@ -295,12 +296,12 @@ func (api *StatisticsAPI) getRecentTasks(c *gin.Context) ([]map[string]interface
 	opts := options.Find().SetSort(bson.M{"createTime": -1}).SetLimit(5)
 	cursor, err := api.db.Collection("task").Find(c, bson.M{}, opts)
 	if err != nil {
-		return nil, err
+		return nil, pkgerrors.NewInternalError("Failed to find recent tasks")
 	}
 
 	var tasks []map[string]interface{}
 	if err = cursor.All(c, &tasks); err != nil {
-		return nil, err
+		return nil, pkgerrors.NewInternalError("Failed to decode recent tasks")
 	}
 
 	// 处理结果
@@ -335,40 +336,34 @@ func formatTime(t interface{}) string {
 
 // AssetRelationship 获取资产关系图数据
 func (api *StatisticsAPI) AssetRelationship(c *gin.Context) {
-	var req struct {
-		ProjectID string `json:"projectId"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "无效的请求参数",
-		})
-		return
+	projectId := c.Query("projectId")
+	if projectId == "" {
+		// 兼容 POST 方式
+		var req struct {
+			ProjectID string `json:"projectId"`
+		}
+		_ = c.ShouldBindJSON(&req)
+		projectId = req.ProjectID
 	}
 
 	// 查询条件
 	filter := bson.M{}
-	if req.ProjectID != "" {
-		filter["projectId"] = req.ProjectID
+	if projectId != "" {
+		filter["projectId"] = projectId
 	}
 
 	// 查询资产
 	cursor, err := api.db.Collection("asset").Find(c, filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取资产数据失败",
-		})
+		logger.Error("Failed to find assets for relationship", map[string]interface{}{"error": err})
+		utils.HandleError(c, pkgerrors.NewInternalError("获取资产数据失败"))
 		return
 	}
 
 	var assets []map[string]interface{}
 	if err = cursor.All(c, &assets); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "处理资产数据失败",
-		})
+		logger.Error("Failed to decode assets for relationship", map[string]interface{}{"error": err})
+		utils.HandleError(c, pkgerrors.NewInternalError("处理资产数据失败"))
 		return
 	}
 
@@ -378,18 +373,18 @@ func (api *StatisticsAPI) AssetRelationship(c *gin.Context) {
 	nodeMap := make(map[string]bool)
 
 	// 添加项目节点
-	if req.ProjectID != "" {
+	if projectId != "" {
 		var project map[string]interface{}
-		err = api.db.Collection("project").FindOne(c, bson.M{"_id": req.ProjectID}).Decode(&project)
+		err = api.db.Collection("project").FindOne(c, bson.M{"_id": projectId}).Decode(&project)
 		if err == nil && project != nil {
 			projectNode := map[string]interface{}{
-				"id":         req.ProjectID,
+				"id":         projectId,
 				"name":       project["name"],
 				"category":   "project",
 				"symbolSize": 50,
 			}
 			nodes = append(nodes, projectNode)
-			nodeMap[req.ProjectID] = true
+			nodeMap[projectId] = true
 		}
 	}
 
@@ -408,9 +403,9 @@ func (api *StatisticsAPI) AssetRelationship(c *gin.Context) {
 		}
 
 		// 添加与项目的关系
-		if req.ProjectID != "" {
+		if projectId != "" {
 			links = append(links, map[string]interface{}{
-				"source": req.ProjectID,
+				"source": projectId,
 				"target": assetID,
 			})
 		}
@@ -459,10 +454,8 @@ func (api *StatisticsAPI) VulnerabilityAnalysis(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "无效的请求参数",
-		})
+		logger.Error("Invalid request parameters for vulnerability analysis", map[string]interface{}{"error": err})
+		utils.HandleError(c, pkgerrors.NewBadRequestError("无效的请求参数"))
 		return
 	}
 
@@ -476,19 +469,15 @@ func (api *StatisticsAPI) VulnerabilityAnalysis(c *gin.Context) {
 	if req.StartTime != "" && req.EndTime != "" {
 		startTime, err := time.Parse("2006-01-02", req.StartTime)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"code":    400,
-				"message": "无效的开始时间格式",
-			})
+			logger.Error("Invalid start time format for vulnerability analysis", map[string]interface{}{"error": err})
+			utils.HandleError(c, pkgerrors.NewBadRequestError("无效的开始时间格式"))
 			return
 		}
 
 		endTime, err := time.Parse("2006-01-02", req.EndTime)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"code":    400,
-				"message": "无效的结束时间格式",
-			})
+			logger.Error("Invalid end time format for vulnerability analysis", map[string]interface{}{"error": err})
+			utils.HandleError(c, pkgerrors.NewBadRequestError("无效的结束时间格式"))
 			return
 		}
 		endTime = endTime.Add(24 * time.Hour)
@@ -523,19 +512,15 @@ func (api *StatisticsAPI) VulnerabilityAnalysis(c *gin.Context) {
 
 	levelCursor, err := api.db.Collection("vulnerability").Aggregate(c, levelPipeline)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取漏洞等级统计失败",
-		})
+		logger.Error("Failed to aggregate vulnerability level stats", map[string]interface{}{"error": err})
+		utils.HandleError(c, pkgerrors.NewInternalError("获取漏洞等级统计失败"))
 		return
 	}
 
 	var levelStats []map[string]interface{}
 	if err = levelCursor.All(c, &levelStats); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "处理漏洞等级统计失败",
-		})
+		logger.Error("Failed to decode vulnerability level stats", map[string]interface{}{"error": err})
+		utils.HandleError(c, pkgerrors.NewInternalError("处理漏洞等级统计失败"))
 		return
 	}
 
@@ -563,19 +548,15 @@ func (api *StatisticsAPI) VulnerabilityAnalysis(c *gin.Context) {
 
 	typeCursor, err := api.db.Collection("vulnerability").Aggregate(c, typePipeline)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取漏洞类型统计失败",
-		})
+		logger.Error("Failed to aggregate vulnerability type stats", map[string]interface{}{"error": err})
+		utils.HandleError(c, pkgerrors.NewInternalError("获取漏洞类型统计失败"))
 		return
 	}
 
 	var typeStats []map[string]interface{}
 	if err = typeCursor.All(c, &typeStats); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "处理漏洞类型统计失败",
-		})
+		logger.Error("Failed to decode vulnerability type stats", map[string]interface{}{"error": err})
+		utils.HandleError(c, pkgerrors.NewInternalError("处理漏洞类型统计失败"))
 		return
 	}
 
@@ -584,10 +565,8 @@ func (api *StatisticsAPI) VulnerabilityAnalysis(c *gin.Context) {
 	if req.StartTime != "" && req.EndTime != "" {
 		trendStats, err = api.getVulnerabilityTrend(c, filter)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取漏洞趋势统计失败",
-			})
+			logger.Error("Failed to aggregate vulnerability trend stats", map[string]interface{}{"error": err})
+			utils.HandleError(c, pkgerrors.NewInternalError("获取漏洞趋势统计失败"))
 			return
 		}
 	}
@@ -645,7 +624,7 @@ func (api *StatisticsAPI) getVulnerabilityTrend(c *gin.Context, filter bson.M) (
 
 		count, err := api.db.Collection("vulnerability").CountDocuments(c, dayFilter)
 		if err != nil {
-			return nil, err
+			return nil, pkgerrors.NewInternalError("Failed to count vulnerabilities for trend")
 		}
 		counts = append(counts, count)
 	}
@@ -658,61 +637,7 @@ func (api *StatisticsAPI) getVulnerabilityTrend(c *gin.Context, filter bson.M) (
 
 // RegisterRoutes 注册统计API路由
 func (api *StatisticsAPI) RegisterRoutes(router *gin.RouterGroup) {
-	router.POST("/dashboard/stats", api.DashboardStats)
-	router.POST("/asset/relationship", api.AssetRelationship)
-	router.POST("/vulnerability/analysis", api.VulnerabilityAnalysis)
-}
-
-// StatisticsHandler 统计处理器
-type StatisticsHandler struct {
-	DB *mongo.Database
-}
-
-// NewStatisticsHandler 创建统计处理器
-func NewStatisticsHandler(db *mongo.Database) *StatisticsHandler {
-	return &StatisticsHandler{
-		DB: db,
-	}
-}
-
-// RegisterRoutes 注册路由
-func (h *StatisticsHandler) RegisterRoutes(router *gin.RouterGroup) {
-	statsGroup := router.Group("/statistics")
-	{
-		statsGroup.GET("/overview", h.GetOverviewStatistics)
-		statsGroup.GET("/projects/:id", h.GetProjectStatistics)
-		statsGroup.GET("/vulnerabilities", h.GetVulnerabilityStatistics)
-		statsGroup.GET("/assets", h.GetAssetStatistics)
-		statsGroup.GET("/tasks", h.GetTaskStatistics)
-	}
-}
-
-// GetOverviewStatistics 获取概览统计
-func (h *StatisticsHandler) GetOverviewStatistics(c *gin.Context) {
-	// TODO: 实现获取概览统计
-	c.JSON(200, gin.H{"message": "功能待实现"})
-}
-
-// GetProjectStatistics 获取项目统计
-func (h *StatisticsHandler) GetProjectStatistics(c *gin.Context) {
-	// TODO: 实现获取项目统计
-	c.JSON(200, gin.H{"message": "功能待实现"})
-}
-
-// GetVulnerabilityStatistics 获取漏洞统计
-func (h *StatisticsHandler) GetVulnerabilityStatistics(c *gin.Context) {
-	// TODO: 实现获取漏洞统计
-	c.JSON(200, gin.H{"message": "功能待实现"})
-}
-
-// GetAssetStatistics 获取资产统计
-func (h *StatisticsHandler) GetAssetStatistics(c *gin.Context) {
-	// TODO: 实现获取资产统计
-	c.JSON(200, gin.H{"message": "功能待实现"})
-}
-
-// GetTaskStatistics 获取任务统计
-func (h *StatisticsHandler) GetTaskStatistics(c *gin.Context) {
-	// TODO: 实现获取任务统计
-	c.JSON(200, gin.H{"message": "功能待实现"})
+	router.GET("/dashboard/stats", api.DashboardStats)
+	router.GET("/asset/relationship", api.AssetRelationship)
+	router.GET("/vulnerability/analysis", api.VulnerabilityAnalysis)
 }

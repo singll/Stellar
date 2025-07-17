@@ -24,45 +24,324 @@ func NewProjectHandler(db *mongo.Database) *ProjectHandler {
 
 // RegisterRoutes 注册路由
 func (h *ProjectHandler) RegisterRoutes(router *gin.RouterGroup) {
-	projectGroup := router.Group("/projects")
-	{
-		projectGroup.GET("", h.GetProjects)
-		projectGroup.GET("/all", h.GetAllProjects)
-		projectGroup.GET("/:id", h.GetProjectContent)
-		projectGroup.POST("", h.AddProject)
-		projectGroup.PUT("/:id", h.UpdateProject)
-		projectGroup.DELETE("/:id", h.DeleteProject)
-	}
+	router.GET("", h.GetProjects)
+	router.GET("/all", h.GetAllProjects)
+	router.GET("/:id", h.GetProjectContent)
+	router.POST("", h.AddProject)
+	router.PUT("/:id", h.UpdateProject)
+	router.DELETE("/:id", h.DeleteProject)
 }
 
 // GetProjects 获取项目列表
 func (h *ProjectHandler) GetProjects(c *gin.Context) {
-	GetProjects(c)
+	var req struct {
+		Search    string `form:"search"`
+		PageIndex int    `form:"pageIndex"`
+		PageSize  int    `form:"pageSize"`
+	}
+
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的请求参数",
+		})
+		return
+	}
+
+	if req.PageIndex <= 0 {
+		req.PageIndex = 1
+	}
+	if req.PageSize <= 0 {
+		req.PageSize = 10
+	}
+
+	// 直接使用 handler 的 h.DB
+	db := h.DB
+
+	resultList, tagNum, err := models.GetProjects(db, req.Search, req.PageIndex, req.PageSize)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "获取项目列表失败",
+		})
+		return
+	}
+
+	go models.UpdateProjectAssetCount(db)
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"data": gin.H{
+			"result": resultList,
+			"tag":    tagNum,
+		},
+	})
 }
 
-// GetAllProjects 获取所有项目
+// GetAllProjects 获取所有项目（用于下拉列表）
 func (h *ProjectHandler) GetAllProjects(c *gin.Context) {
-	GetAllProjects(c)
+	db := h.DB
+	pipeline := []bson.M{
+		{
+			"$group": bson.M{
+				"_id": "$tag",
+				"children": bson.M{
+					"$push": bson.M{
+						"value": bson.M{"$toString": "$_id"},
+						"label": "$name",
+					},
+				},
+			},
+		},
+		{
+			"$project": bson.M{
+				"_id":      0,
+				"label":    "$_id",
+				"value":    "",
+				"children": 1,
+			},
+		},
+	}
+
+	cursor, err := db.Collection("project").Aggregate(c, pipeline)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "获取项目列表失败",
+		})
+		return
+	}
+
+	var result []bson.M
+	if err = cursor.All(c, &result); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "处理项目列表失败",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"data": gin.H{
+			"list": result,
+		},
+	})
 }
 
-// GetProjectContent 获取项目内容
+// GetProjectContent 获取项目详情
 func (h *ProjectHandler) GetProjectContent(c *gin.Context) {
-	GetProjectContent(c)
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "项目ID不能为空",
+		})
+		return
+	}
+	db := h.DB
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的ID格式",
+		})
+		return
+	}
+	var project bson.M
+	err = db.Collection("project").FindOne(c, bson.M{"_id": objID}).Decode(&project)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"code":    404,
+			"message": "项目不存在",
+		})
+		return
+	}
+	var targetData bson.M
+	err = db.Collection("ProjectTargetData").FindOne(c, bson.M{"id": id}).Decode(&targetData)
+	if err != nil {
+		targetData = bson.M{"target": ""} // 允许目标数据缺失
+	}
+	result := gin.H{
+		"name":           project["name"],
+		"tag":            project["tag"],
+		"target":         targetData["target"],
+		"node":           project["node"],
+		"logo":           project["logo"],
+		"scheduledTasks": project["scheduledTasks"],
+		"hour":           project["hour"],
+		"allNode":        project["allNode"],
+		"duplicates":     project["duplicates"],
+		"template":       project["template"],
+		"ignore":         project["ignore"],
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"data": result,
+	})
 }
 
 // AddProject 添加项目
 func (h *ProjectHandler) AddProject(c *gin.Context) {
-	AddProject(c)
+	var req ProjectRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的请求参数",
+		})
+		return
+	}
+
+	if req.Name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "项目名称不能为空",
+		})
+		return
+	}
+
+	db := h.DB
+	project := &models.Project{
+		Name:       req.Name,
+		Tag:        req.Tag,
+		Logo:       req.Logo,
+		Node:       req.Node,
+		AllNode:    req.AllNode,
+		Duplicates: req.Duplicates,
+		Template:   req.Template,
+		Ignore:     req.Ignore,
+		Hour:       req.Hour,
+	}
+
+	projectID, err := models.CreateProject(db, project, req.Target)
+	if err != nil {
+		if err == models.ErrNameExists {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"code":    400,
+				"message": "项目名称已存在",
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    500,
+				"message": "创建项目失败: " + err.Error(),
+			})
+		}
+		return
+	}
+
+	// TODO: 定时任务和立即运行逻辑
+	go database.RefreshConfig("all", "project", projectID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "项目添加成功",
+		"data": gin.H{
+			"id": projectID,
+		},
+	})
 }
 
 // UpdateProject 更新项目
 func (h *ProjectHandler) UpdateProject(c *gin.Context) {
-	UpdateProject(c)
+	var req ProjectRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的请求参数",
+		})
+		return
+	}
+
+	if req.ID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "项目ID不能为空",
+		})
+		return
+	}
+
+	db := h.DB
+	updateData := bson.M{
+		"name":       req.Name,
+		"tag":        req.Tag,
+		"logo":       req.Logo,
+		"node":       req.Node,
+		"allNode":    req.AllNode,
+		"duplicates": req.Duplicates,
+		"template":   req.Template,
+		"ignore":     req.Ignore,
+		"hour":       req.Hour,
+	}
+
+	err := models.UpdateProject(db, req.ID, updateData)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "更新项目失败: " + err.Error(),
+		})
+		return
+	}
+
+	_, err = db.Collection("ProjectTargetData").UpdateOne(
+		c,
+		bson.M{"id": req.ID},
+		bson.M{"$set": bson.M{"target": req.Target}},
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "更新项目目标数据失败",
+		})
+		return
+	}
+
+	go database.RefreshConfig("all", "project", req.ID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "项目更新成功",
+	})
 }
 
 // DeleteProject 删除项目
 func (h *ProjectHandler) DeleteProject(c *gin.Context) {
-	DeleteProject(c)
+	var req struct {
+		IDs  []string `json:"ids"`
+		DelA bool     `json:"delA"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的请求参数",
+		})
+		return
+	}
+
+	if len(req.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "项目ID不能为空",
+		})
+		return
+	}
+
+	db := h.DB
+	err := models.DeleteProject(db, req.IDs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "删除项目失败: " + err.Error(),
+		})
+		return
+	}
+
+	// TODO: 删除关联资产和定时任务
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "项目删除成功",
+	})
 }
 
 // ProjectRequest 项目请求结构

@@ -5,11 +5,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/StellarServer/internal/models"
+	"github.com/StellarServer/internal/pkg/logger"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -79,7 +79,7 @@ func NewNodeManager(db *mongo.Database, redisClient *redis.Client, config NodeMa
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	// 创建节点仓库
 	nodeRepo := models.NewNodeRepository(db)
 
@@ -326,12 +326,12 @@ func (m *NodeManager) GetNode(nodeID string) (*models.Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// 添加到内存中
 		m.nodesMutex.Lock()
 		m.nodes[nodeID] = dbNode
 		m.nodesMutex.Unlock()
-		
+
 		return dbNode, nil
 	}
 
@@ -425,7 +425,7 @@ func (m *NodeManager) loadNodes() error {
 		Page:     1,
 		PageSize: 1000, // 加载所有节点
 	}
-	
+
 	nodes, _, err := m.nodeRepo.List(context.Background(), params)
 	if err != nil {
 		return err
@@ -434,7 +434,7 @@ func (m *NodeManager) loadNodes() error {
 	// 清空当前节点
 	m.nodesMutex.Lock()
 	m.nodes = make(map[string]*models.Node)
-	
+
 	// 加载节点到内存
 	for _, node := range nodes {
 		m.nodes[node.ID.Hex()] = node
@@ -551,7 +551,7 @@ func (m *NodeManager) eventHandler() {
 // handleRegisterEvent 处理节点注册事件
 func (m *NodeManager) handleRegisterEvent(event NodeEvent) {
 	// 可以在这里添加额外的处理逻辑，如通知其他系统
-	fmt.Printf("节点注册: %s\n", event.NodeID)
+	logger.Info("节点注册", map[string]interface{}{"node_id": event.NodeID})
 }
 
 // handleHeartbeatEvent 处理节点心跳事件
@@ -561,25 +561,25 @@ func (m *NodeManager) handleHeartbeatEvent(event NodeEvent) {
 
 // handleOfflineEvent 处理节点离线事件
 func (m *NodeManager) handleOfflineEvent(event NodeEvent) {
-	fmt.Printf("节点离线: %s\n", event.NodeID)
+	logger.Error("节点离线", map[string]interface{}{"node_id": event.NodeID})
 	// 可以在这里添加额外的处理逻辑，如通知管理员
 }
 
 // handleOnlineEvent 处理节点上线事件
 func (m *NodeManager) handleOnlineEvent(event NodeEvent) {
-	fmt.Printf("节点上线: %s\n", event.NodeID)
+	logger.Info("节点上线", map[string]interface{}{"node_id": event.NodeID})
 	// 可以在这里添加额外的处理逻辑，如重新分配任务
 }
 
 // handleRemovedEvent 处理节点移除事件
 func (m *NodeManager) handleRemovedEvent(event NodeEvent) {
-	fmt.Printf("节点移除: %s\n", event.NodeID)
+	logger.Info("节点移除", map[string]interface{}{"node_id": event.NodeID})
 	// 可以在这里添加额外的处理逻辑，如清理相关资源
 }
 
 // handleConfigUpdateEvent 处理节点配置更新事件
 func (m *NodeManager) handleConfigUpdateEvent(event NodeEvent) {
-	fmt.Printf("节点配置更新: %s\n", event.NodeID)
+	logger.Info("节点配置更新", map[string]interface{}{"node_id": event.NodeID})
 	// 可以在这里添加额外的处理逻辑，如通知节点更新配置
 }
 

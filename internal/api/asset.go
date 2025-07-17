@@ -36,22 +36,17 @@ func NewAssetHandler(db *mongo.Database) *AssetHandler {
 
 // RegisterRoutes 注册资产相关的路由
 func (h *AssetHandler) RegisterRoutes(router *gin.RouterGroup) {
-	assetGroup := router.Group("/assets")
-	// 统一应用JWT认证中间件
-	assetGroup.Use(AuthMiddleware())
-	{
-		assetGroup.POST("", h.CreateAsset)
-		assetGroup.GET("", h.ListAssets)
-		assetGroup.GET("/:id", h.GetAsset)
-		assetGroup.PUT("/:id", h.UpdateAsset)
-		assetGroup.DELETE("/:id", h.DeleteAsset)
-		assetGroup.POST("/batch", h.BatchCreateAssets)
-		assetGroup.DELETE("/batch", h.BatchDeleteAssets)
-		assetGroup.POST("/import", h.ImportAssets)
-		assetGroup.GET("/export", h.ExportAssets)
-		assetGroup.GET("/relations", h.GetAssetRelations)
-		assetGroup.POST("/relations", h.CreateAssetRelation)
-	}
+	router.POST("", h.CreateAsset)
+	router.GET("", h.ListAssets)
+	router.GET("/:id", h.GetAsset)
+	router.PUT("/:id", h.UpdateAsset)
+	router.DELETE("/:id", h.DeleteAsset)
+	router.POST("/batch", h.BatchCreateAssets)
+	router.DELETE("/batch", h.BatchDeleteAssets)
+	router.POST("/import", h.ImportAssets)
+	router.GET("/export", h.ExportAssets)
+	router.GET("/relations", h.GetAssetRelations)
+	router.POST("/relations", h.CreateAssetRelation)
 }
 
 // CreateAssetRequest 创建资产的请求
@@ -214,9 +209,9 @@ func (h *AssetHandler) CreateAsset(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"code": 201,
+		"code":    201,
 		"message": "资产创建成功",
-		"data": asset,
+		"data":    asset,
 	})
 }
 
@@ -645,7 +640,7 @@ func (h *AssetHandler) BatchCreateAssets(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"code": 201,
+		"code":    201,
 		"message": "批量创建资产成功",
 		"data": gin.H{
 			"insertedCount": len(insertedIDs),
@@ -711,7 +706,7 @@ func (h *AssetHandler) BatchDeleteAssets(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
+		"code":    200,
 		"message": "批量删除资产成功",
 		"data": gin.H{
 			"deletedCount": deletedCount,
@@ -1056,9 +1051,9 @@ func (h *AssetHandler) CreateAssetRelation(c *gin.Context) {
 	// 设置ID并返回
 	relation.ID = relationID
 	c.JSON(http.StatusCreated, gin.H{
-		"code": 201,
+		"code":    201,
 		"message": "资产关系创建成功",
-		"data": relation,
+		"data":    relation,
 	})
 }
 

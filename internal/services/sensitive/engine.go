@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/StellarServer/internal/pkg/logger"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -20,7 +21,7 @@ import (
 // ScanURL 扫描URL
 func (e *DetectionEngine) ScanURL(url string) (*DetectionResult, error) {
 	startTime := time.Now()
-	
+
 	result := &DetectionResult{
 		ID:        primitive.NewObjectID(),
 		URL:       url,
@@ -50,7 +51,7 @@ func (e *DetectionEngine) ScanURL(url string) (*DetectionResult, error) {
 
 	// 保存结果
 	if err := e.saveResult(result); err != nil {
-		fmt.Printf("保存检测结果失败: %v", err)
+		logger.Error("保存检测结果失败", map[string]interface{}{"error": err})
 	}
 
 	return result, nil
@@ -74,7 +75,7 @@ func (e *DetectionEngine) fetchContent(url string) (string, http.Header, int, er
 
 	// 限制读取大小
 	limitedReader := io.LimitReader(resp.Body, int64(e.config.MaxContentSize))
-	
+
 	contentBytes, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return "", nil, resp.StatusCode, err
@@ -98,7 +99,7 @@ func (e *DetectionEngine) detectSensitiveInfo(content string) []*SensitiveMatch 
 	var matches []*SensitiveMatch
 
 	lines := strings.Split(content, "\n")
-	
+
 	for _, rule := range e.rules {
 		if !rule.Enabled {
 			continue
@@ -141,7 +142,7 @@ func (e *DetectionEngine) findRegexMatches(rule *DetectionRule, content string, 
 	var matches []*SensitiveMatch
 
 	allMatches := rule.Regex.FindAllStringSubmatchIndex(content, -1)
-	
+
 	for _, matchIndex := range allMatches {
 		if len(matchIndex) < 2 {
 			continue
@@ -153,7 +154,7 @@ func (e *DetectionEngine) findRegexMatches(rule *DetectionRule, content string, 
 
 		// 计算行号和列号
 		position := e.calculatePosition(content, start)
-		
+
 		// 提取上下文
 		context := e.extractContext(lines, position.Line, e.config.ContextLines)
 
@@ -189,10 +190,10 @@ func (e *DetectionEngine) findKeywordMatches(rule *DetectionRule, content string
 	var matches []*SensitiveMatch
 
 	lowerContent := strings.ToLower(content)
-	
+
 	for _, keyword := range rule.Keywords {
 		lowerKeyword := strings.ToLower(keyword)
-		
+
 		// 查找所有关键词出现位置
 		start := 0
 		for {
@@ -200,10 +201,10 @@ func (e *DetectionEngine) findKeywordMatches(rule *DetectionRule, content string
 			if index == -1 {
 				break
 			}
-			
+
 			actualStart := start + index
 			actualEnd := actualStart + len(keyword)
-			
+
 			// 检查单词边界
 			if !e.isWordBoundary(content, actualStart, actualEnd) {
 				start = actualStart + 1
@@ -243,7 +244,7 @@ func (e *DetectionEngine) findKeywordMatches(rule *DetectionRule, content string
 func (e *DetectionEngine) calculatePosition(content string, start int) MatchPosition {
 	beforeMatch := content[:start]
 	lines := strings.Split(beforeMatch, "\n")
-	
+
 	line := len(lines)
 	column := 1
 	if line > 0 {
@@ -320,21 +321,21 @@ func (e *DetectionEngine) maskSensitiveData(data, category string) string {
 			return strings.Repeat("*", len(data))
 		}
 		return data[:4] + strings.Repeat("*", len(data)-8) + data[len(data)-4:]
-	
+
 	case "financial":
 		// 信用卡号显示前4位和后4位
 		if len(data) >= 8 {
 			return data[:4] + strings.Repeat("*", len(data)-8) + data[len(data)-4:]
 		}
 		return strings.Repeat("*", len(data))
-	
+
 	case "pii":
 		// PII数据显示前2位和后2位
 		if len(data) >= 4 {
 			return data[:2] + strings.Repeat("*", len(data)-4) + data[len(data)-2:]
 		}
 		return strings.Repeat("*", len(data))
-	
+
 	default:
 		return data
 	}
@@ -344,20 +345,20 @@ func (e *DetectionEngine) maskSensitiveData(data, category string) string {
 func (e *DetectionEngine) isWordBoundary(content string, start, end int) bool {
 	if start > 0 {
 		prevChar := content[start-1]
-		if (prevChar >= 'a' && prevChar <= 'z') || 
-		   (prevChar >= 'A' && prevChar <= 'Z') || 
-		   (prevChar >= '0' && prevChar <= '9') || 
-		   prevChar == '_' {
+		if (prevChar >= 'a' && prevChar <= 'z') ||
+			(prevChar >= 'A' && prevChar <= 'Z') ||
+			(prevChar >= '0' && prevChar <= '9') ||
+			prevChar == '_' {
 			return false
 		}
 	}
 
 	if end < len(content) {
 		nextChar := content[end]
-		if (nextChar >= 'a' && nextChar <= 'z') || 
-		   (nextChar >= 'A' && nextChar <= 'Z') || 
-		   (nextChar >= '0' && nextChar <= '9') || 
-		   nextChar == '_' {
+		if (nextChar >= 'a' && nextChar <= 'z') ||
+			(nextChar >= 'A' && nextChar <= 'Z') ||
+			(nextChar >= '0' && nextChar <= '9') ||
+			nextChar == '_' {
 			return false
 		}
 	}
@@ -383,7 +384,7 @@ func (e *DetectionEngine) isCategoryEnabled(category string) bool {
 func (e *DetectionEngine) isSeverityEnabled(severity SeverityLevel) bool {
 	configSeverityWeight := e.getSeverityWeight(SeverityLevel(e.config.Severity))
 	ruleSeverityWeight := e.getSeverityWeight(severity)
-	
+
 	return ruleSeverityWeight >= configSeverityWeight
 }
 
@@ -473,10 +474,10 @@ func (e *DetectionEngine) calculateRiskScore(matches []*SensitiveMatch) float64 
 	for _, match := range matches {
 		// 基础分数按严重级别
 		baseScore := float64(e.getSeverityWeight(match.Severity)) * 20.0
-		
+
 		// 置信度调整
 		confidenceAdjustment := match.Confidence
-		
+
 		// 类别权重
 		categoryWeight := 1.0
 		switch match.Category {
@@ -506,7 +507,7 @@ func (e *DetectionEngine) calculateRiskScore(matches []*SensitiveMatch) float64 
 // saveResult 保存结果
 func (e *DetectionEngine) saveResult(result *DetectionResult) error {
 	collection := e.db.Collection("sensitive_results")
-	
+
 	_, err := collection.InsertOne(context.Background(), result)
 	if err != nil {
 		return fmt.Errorf("保存检测结果失败: %v", err)
@@ -518,7 +519,7 @@ func (e *DetectionEngine) saveResult(result *DetectionResult) error {
 // ScanContent 扫描内容
 func (e *DetectionEngine) ScanContent(content string, source string) (*DetectionResult, error) {
 	startTime := time.Now()
-	
+
 	result := &DetectionResult{
 		ID:          primitive.NewObjectID(),
 		URL:         source,
@@ -612,7 +613,7 @@ func (e *DetectionEngine) DeleteRule(ruleID string) error {
 // LoadConfig 加载配置
 func (e *DetectionEngine) LoadConfig(config *DetectionConfig) {
 	e.config = config
-	
+
 	// 更新HTTP客户端
 	e.client.Timeout = config.Timeout
 }
@@ -635,7 +636,7 @@ func (e *DetectionEngine) ImportRules(data []byte) error {
 
 	for _, rule := range rules {
 		if err := e.addRule(rule); err != nil {
-			fmt.Printf("导入规则失败 %s: %v", rule.ID, err)
+			logger.Error("导入规则失败", map[string]interface{}{"rule_id": rule.ID, "error": err})
 		}
 	}
 
@@ -684,7 +685,7 @@ func (e *DetectionEngine) ScanDirectory(dirPath string, recursive bool) ([]*Dete
 		// 扫描文件
 		result, err := e.ScanFile(path)
 		if err != nil {
-			fmt.Printf("扫描文件失败 %s: %v\n", path, err)
+			logger.Error("扫描文件失败", map[string]interface{}{"path": path, "error": err})
 			return nil
 		}
 
@@ -717,7 +718,7 @@ func (e *DetectionEngine) isTextFile(filePath string) bool {
 // GetResults 获取检测结果
 func (e *DetectionEngine) GetResults(filter bson.M, limit int64) ([]*DetectionResult, error) {
 	collection := e.db.Collection("sensitive_results")
-	
+
 	cursor, err := collection.Find(context.Background(), filter)
 	if err != nil {
 		return nil, err
@@ -735,7 +736,7 @@ func (e *DetectionEngine) GetResults(filter bson.M, limit int64) ([]*DetectionRe
 // GetResultByID 根据ID获取检测结果
 func (e *DetectionEngine) GetResultByID(id primitive.ObjectID) (*DetectionResult, error) {
 	collection := e.db.Collection("sensitive_results")
-	
+
 	var result DetectionResult
 	err := collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(&result)
 	if err != nil {
@@ -748,7 +749,7 @@ func (e *DetectionEngine) GetResultByID(id primitive.ObjectID) (*DetectionResult
 // DeleteResult 删除检测结果
 func (e *DetectionEngine) DeleteResult(id primitive.ObjectID) error {
 	collection := e.db.Collection("sensitive_results")
-	
+
 	_, err := collection.DeleteOne(context.Background(), bson.M{"_id": id})
 	return err
 }

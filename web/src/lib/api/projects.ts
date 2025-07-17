@@ -24,7 +24,7 @@ export class ProjectAPI {
 			pageIndex: params?.page || 1,
 			pageSize: params?.limit || 20
 		};
-		const response = await api.get('/projects/projects', { params: query });
+		const response = await api.get('/projects', { params: query });
 		return response.data;
 	}
 
@@ -34,7 +34,7 @@ export class ProjectAPI {
 	 * @returns 项目详情
 	 */
 	static async getProject(id: string): Promise<ProjectResponse> {
-		const response = await api.get(`/projects/projects/${id}`);
+		const response = await api.get(`/projects/${id}`);
 		return response.data;
 	}
 
@@ -43,9 +43,9 @@ export class ProjectAPI {
 	 * @param project 项目创建数据
 	 * @returns 创建的项目
 	 */
-	static async createProject(project: CreateProjectRequest): Promise<ProjectResponse> {
-		const response = await api.post('/projects/projects', project);
-		return response.data;
+	static async createProject(project: CreateProjectRequest): Promise<{ id: string }> {
+		const response = await api.post('/projects', project);
+		return response.data.data;
 	}
 
 	/**
@@ -73,7 +73,7 @@ export class ProjectAPI {
 	 */
 	static async getProjectStats(): Promise<ProjectStats> {
 		// 使用正确的统计API路径
-		const response = await api.post('/statistics/dashboard/stats', {});
+		const response = await api.get('/statistics/dashboard/stats');
 		return response.data.data;
 	}
 

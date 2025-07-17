@@ -1,17 +1,6 @@
 import api from './axios-config';
 
-// 创建专门用于任务API的axios实例，因为任务API在 /api 而不是 /api/v1
-const taskApiClient = api.create({
-	baseURL: '/api',
-	timeout: 30000,
-	headers: {
-		'Content-Type': 'application/json'
-	}
-});
-
-// 使用相同的拦截器
-taskApiClient.interceptors.request = api.interceptors.request;
-taskApiClient.interceptors.response = api.interceptors.response;
+// 移除 taskApiClient，全部使用 api 实例
 import type {
 	Task,
 	TaskResult,
@@ -58,7 +47,7 @@ export const taskApi = {
 	 * 创建任务
 	 */
 	createTask: async (data: CreateTaskRequest): Promise<TaskResponse> => {
-		const response = await taskApiClient.post<TaskResponse>('/tasks', data);
+		const response = await api.post<TaskResponse>('/tasks', data);
 		return response.data;
 	},
 
@@ -72,7 +61,7 @@ export const taskApi = {
 			page: params?.page || 1,
 			pageSize: params?.pageSize || 20
 		};
-		const response = await taskApiClient.get<TaskListResponse>('/tasks', { params: queryParams });
+		const response = await api.get<TaskListResponse>('/tasks', { params: queryParams });
 		return response.data;
 	},
 
@@ -80,7 +69,7 @@ export const taskApi = {
 	 * 获取任务详情
 	 */
 	getTask: async (taskId: string): Promise<TaskResponse> => {
-		const response = await taskApiClient.get<TaskResponse>(`/tasks/${taskId}`);
+		const response = await api.get<TaskResponse>(`/tasks/${taskId}`);
 		return response.data;
 	},
 
@@ -88,7 +77,7 @@ export const taskApi = {
 	 * 更新任务
 	 */
 	updateTask: async (taskId: string, data: UpdateTaskRequest): Promise<TaskResponse> => {
-		const response = await taskApiClient.put<TaskResponse>(`/tasks/${taskId}`, data);
+		const response = await api.put<TaskResponse>(`/tasks/${taskId}`, data);
 		return response.data;
 	},
 
@@ -96,7 +85,7 @@ export const taskApi = {
 	 * 删除任务
 	 */
 	deleteTask: async (taskId: string): Promise<APIResponse<void>> => {
-		const response = await taskApiClient.delete<APIResponse<void>>(`/tasks/${taskId}`);
+		const response = await api.delete<APIResponse<void>>(`/tasks/${taskId}`);
 		return response.data;
 	},
 
@@ -301,7 +290,7 @@ export const taskApi = {
 	 */
 	getTaskStats: async (projectId?: string): Promise<TaskStatsResponse> => {
 		const params = projectId ? { projectId } : undefined;
-		const response = await taskApiClient.get<TaskStatsResponse>('/tasks/stats', { params });
+		const response = await api.get<TaskStatsResponse>('/tasks/stats', { params });
 		return response.data;
 	},
 

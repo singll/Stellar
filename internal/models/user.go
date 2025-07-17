@@ -9,6 +9,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
+
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
+	"github.com/StellarServer/internal/pkg/logger"
 )
 
 // UserMongo 用户模型 (MongoDB版本，向后兼容)
@@ -60,7 +63,11 @@ func GetUserByUsername(db *mongo.Database, username string) (*UserMongo, error) 
 	var user UserMongo
 	err := db.Collection("user").FindOne(context.Background(), bson.M{"username": username}).Decode(&user)
 	if err != nil {
-		return nil, err
+		logger.Error("GetUserByUsername failed", map[string]interface{}{"username": username, "error": err})
+		if err == mongo.ErrNoDocuments {
+			return nil, pkgerrors.NewNotFoundError("user not found")
+		}
+		return nil, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeInternalError, "GetUserByUsername failed", 500, err)
 	}
 	return &user, nil
 }
@@ -70,7 +77,11 @@ func GetUserByEmail(db *mongo.Database, email string) (*UserMongo, error) {
 	var user UserMongo
 	err := db.Collection("user").FindOne(context.Background(), bson.M{"email": email}).Decode(&user)
 	if err != nil {
-		return nil, err
+		logger.Error("GetUserByEmail failed", map[string]interface{}{"email": email, "error": err})
+		if err == mongo.ErrNoDocuments {
+			return nil, pkgerrors.NewNotFoundError("user not found")
+		}
+		return nil, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeInternalError, "GetUserByEmail failed", 500, err)
 	}
 	return &user, nil
 }
@@ -81,13 +92,15 @@ func ValidateUser(db *mongo.Database, identifier, password string) (*UserMongo, 
 	filter := bson.M{"$or": []bson.M{{"username": identifier}, {"email": identifier}}}
 	err := db.Collection("user").FindOne(context.Background(), filter).Decode(&user)
 	if err != nil {
+		logger.Error("ValidateUser failed", map[string]interface{}{"identifier": identifier, "error": err})
 		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("用户名/邮箱或密码错误")
+			return nil, pkgerrors.NewInvalidCredentialsError()
 		}
-		return nil, err
+		return nil, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeInternalError, "ValidateUser failed", 500, err)
 	}
 	if bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(password)) != nil {
-		return nil, fmt.Errorf("用户名/邮箱或密码错误")
+		logger.Warn("ValidateUser password mismatch", map[string]interface{}{"identifier": identifier})
+		return nil, pkgerrors.NewInvalidCredentialsError()
 	}
 	// 更新最后登录时间
 	_, err = db.Collection("user").UpdateOne(
@@ -96,7 +109,8 @@ func ValidateUser(db *mongo.Database, identifier, password string) (*UserMongo, 
 		bson.M{"$set": bson.M{"lastLogin": time.Now()}},
 	)
 	if err != nil {
-		return nil, err
+		logger.Error("Update lastLogin failed", map[string]interface{}{"userID": user.ID.Hex(), "error": err})
+		return nil, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeInternalError, "Update lastLogin failed", 500, err)
 	}
 	return &user, nil
 }

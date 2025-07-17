@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/StellarServer/internal/config"
+	"github.com/StellarServer/internal/pkg/logger"
 	"github.com/StellarServer/internal/utils"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -124,21 +125,9 @@ func CreateDatabase() error {
 	if !dbExists {
 		// 生成随机密码
 		password := config.GenerateRandomString(8)
-		fmt.Println("\n" + strings.Repeat("=", 50))
-		fmt.Println("✨✨✨ 重要提示: 请查看以下用户名/密码 ✨✨✨")
-		fmt.Println(strings.Repeat("=", 50))
-		fmt.Printf("🔑 用户名/密码: StellarServer/%s\n", password)
-		fmt.Println(strings.Repeat("=", 50))
-		fmt.Println("✅ 请确保正确复制用户名/密码!\n")
-		fmt.Println("✅ 初始密码已存储在PASSWORD文件中\n")
+		logger.Info("项目初始化中", nil)
+		utils.PrintProgressBar(1, 16, "install")
 
-		// 保存密码到文件
-		err = utils.WriteToFile("PASSWORD", password)
-		if err != nil {
-			return err
-		}
-
-		totalSteps := 16
 		// 创建用户集合并插入管理员用户
 		collection := db.Collection("user")
 		passwordHash := fmt.Sprintf("%x", md5.Sum([]byte(password)))
@@ -150,8 +139,8 @@ func CreateDatabase() error {
 			return err
 		}
 
-		log.Println("项目初始化中")
-		utils.PrintProgressBar(1, totalSteps, "install")
+		logger.Info("项目初始化中", nil)
+		utils.PrintProgressBar(2, 16, "install")
 
 		// 创建配置集合
 		collection = db.Collection("config")
@@ -173,7 +162,7 @@ func CreateDatabase() error {
 			return err
 		}
 
-		utils.PrintProgressBar(2, totalSteps, "install")
+		utils.PrintProgressBar(2, 16, "install")
 
 		// 创建subfinder配置
 		_, err = collection.InsertOne(context.Background(), bson.M{
@@ -185,7 +174,7 @@ func CreateDatabase() error {
 			return err
 		}
 
-		utils.PrintProgressBar(3, totalSteps, "install")
+		utils.PrintProgressBar(3, 16, "install")
 
 		// 创建rad配置
 		_, err = collection.InsertOne(context.Background(), bson.M{
@@ -197,7 +186,7 @@ func CreateDatabase() error {
 			return err
 		}
 
-		utils.PrintProgressBar(4, totalSteps, "install")
+		utils.PrintProgressBar(4, 16, "install")
 
 		// 创建通知配置
 		_, err = collection.InsertOne(context.Background(), bson.M{
@@ -215,7 +204,7 @@ func CreateDatabase() error {
 			return err
 		}
 
-		utils.PrintProgressBar(5, totalSteps, "install")
+		utils.PrintProgressBar(5, 16, "install")
 
 		// 更新目录扫描默认字典
 		content := GetDirDict()
@@ -240,7 +229,7 @@ func CreateDatabase() error {
 			return err
 		}
 
-		utils.PrintProgressBar(6, totalSteps, "install")
+		utils.PrintProgressBar(6, 16, "install")
 
 		// 更新子域名默认字典
 		content = GetDomainDict()
@@ -259,7 +248,7 @@ func CreateDatabase() error {
 			return err
 		}
 
-		utils.PrintProgressBar(7, totalSteps, "install")
+		utils.PrintProgressBar(7, 16, "install")
 
 		// 插入敏感信息规则
 		sensitiveData := GetSensitiveRules()
@@ -270,7 +259,7 @@ func CreateDatabase() error {
 			}
 		}
 
-		utils.PrintProgressBar(8, totalSteps, "install")
+		utils.PrintProgressBar(8, 16, "install")
 
 		// 创建定时任务
 		_, err = db.Collection("ScheduledTasks").InsertOne(context.Background(), bson.M{
@@ -286,7 +275,7 @@ func CreateDatabase() error {
 			return err
 		}
 
-		utils.PrintProgressBar(9, totalSteps, "install")
+		utils.PrintProgressBar(9, 16, "install")
 
 		// 创建通知API集合
 		err = db.CreateCollection(context.Background(), "notification")
@@ -294,7 +283,7 @@ func CreateDatabase() error {
 			return err
 		}
 
-		utils.PrintProgressBar(10, totalSteps, "install")
+		utils.PrintProgressBar(10, 16, "install")
 
 		// 默认端口
 		_, err = db.Collection("PortDict").InsertMany(context.Background(), GetPortDict())
@@ -302,7 +291,7 @@ func CreateDatabase() error {
 			return err
 		}
 
-		utils.PrintProgressBar(11, totalSteps, "install")
+		utils.PrintProgressBar(11, 16, "install")
 
 		// POC导入
 		pocData := GetPocList()
@@ -311,8 +300,8 @@ func CreateDatabase() error {
 			return err
 		}
 
-		utils.PrintProgressBar(12, totalSteps, "install")
-		utils.PrintProgressBar(13, totalSteps, "install")
+		utils.PrintProgressBar(12, 16, "install")
+		utils.PrintProgressBar(13, 16, "install")
 
 		// 指纹导入
 		fingerprint := GetFingerprint()
@@ -321,7 +310,7 @@ func CreateDatabase() error {
 			return err
 		}
 
-		utils.PrintProgressBar(14, totalSteps, "install")
+		utils.PrintProgressBar(14, 16, "install")
 
 		// 创建默认插件
 		_, err = db.Collection("plugins").InsertMany(context.Background(), GetDefaultPlugins())
@@ -329,7 +318,7 @@ func CreateDatabase() error {
 			return err
 		}
 
-		utils.PrintProgressBar(15, totalSteps, "install")
+		utils.PrintProgressBar(15, 16, "install")
 
 		// 创建默认扫描模板
 		_, err = db.Collection("ScanTemplates").InsertOne(context.Background(), GetDefaultScanTemplate())
@@ -337,7 +326,7 @@ func CreateDatabase() error {
 			return err
 		}
 
-		utils.PrintProgressBar(16, totalSteps, "install")
+		utils.PrintProgressBar(16, 16, "install")
 
 		// 创建索引
 		// 页面监控URL不重复
@@ -440,7 +429,7 @@ func CreateDatabase() error {
 			return err
 		}
 
-		log.Println("项目初始化成功")
+		logger.Info("项目初始化成功", nil)
 	} else {
 		// 如果数据库已存在，读取时区配置
 		var result struct {

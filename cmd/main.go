@@ -13,10 +13,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/StellarServer/internal/api"
+	"github.com/StellarServer/internal/api/router"
+	"github.com/StellarServer/internal/app"
 	"github.com/StellarServer/internal/config"
-	"github.com/StellarServer/internal/database"
 	"github.com/StellarServer/internal/models"
+	"github.com/StellarServer/internal/pkg/logger"
 	"github.com/StellarServer/internal/plugin"
 	"github.com/StellarServer/internal/services/assetdiscovery"
 	"github.com/StellarServer/internal/services/nodemanager"
@@ -25,8 +26,8 @@ import (
 	"github.com/StellarServer/internal/services/sensitive"
 	"github.com/StellarServer/internal/services/subdomain"
 	"github.com/StellarServer/internal/services/taskmanager"
-	"github.com/StellarServer/internal/services/vulnscan"
 	"github.com/StellarServer/internal/services/vulndb"
+	"github.com/StellarServer/internal/services/vulnscan"
 	"github.com/StellarServer/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -50,6 +51,7 @@ var (
 	enableMonitor  = flag.Bool("monitor", true, "启用性能监控")
 	showRoutes     = flag.Bool("show-routes", true, "启动时显示所有路由")
 	saveRoutesFile = flag.String("save-routes", "", "保存路由信息到指定文件")
+	env            = flag.String("env", "", "运行环境: development, production, test")
 )
 
 func banner() {
@@ -61,7 +63,7 @@ func banner() {
   ____) | ||  __/ | | (_| | |     ____) |  __/ |   \ V /  __/ |
  |_____/ \__\___|_|_|\__,_|_|    |_____/ \___|_|    \_/ \___|_|
 
- StellarServer - 安全资产管理平台
+ StellarServer - 安全资产管理平台 (重构版)
  版本: ` + VERSION + `
 	`)
 }
@@ -74,34 +76,38 @@ func main() {
 
 	banner()
 
-	fmt.Println("初始化日志系统...")
-	// 初始化日志系统
-	logConfig := utils.DefaultLogConfig()
-	switch *logLevel {
-	case "debug":
-		logConfig.Level = utils.DebugLevel
-	case "info":
-		logConfig.Level = utils.InfoLevel
-	case "warn":
-		logConfig.Level = utils.WarnLevel
-	case "error":
-		logConfig.Level = utils.ErrorLevel
-	default:
-		logConfig.Level = utils.InfoLevel
+	// 获取环境
+	environment := *env
+	if environment == "" {
+		environment = os.Getenv("APP_ENV")
+		if environment == "" {
+			environment = "development"
+		}
 	}
 
-	if err := utils.InitGlobalLogger(logConfig); err != nil {
+	// 初始化日志系统
+	fmt.Println("初始化日志系统...")
+	logConfig := logger.Config{
+		Level:  *logLevel,
+		Format: "console",
+		Output: "stdout",
+	}
+
+	if err := logger.Init(logConfig); err != nil {
 		fmt.Printf("初始化日志系统失败: %v\n", err)
 		log.Fatalf("初始化日志系统失败: %v", err)
 	}
 
-	utils.Info("StellarServer启动中", "version", VERSION)
+	logger.Info("StellarServer启动中", map[string]interface{}{
+		"version":     VERSION,
+		"environment": environment,
+	})
 
-	// 初始化性能监控
+	// 初始化性能监控（保持向后兼容）
 	if *enableMonitor {
 		utils.InitGlobalMonitor(10*time.Second, 100)
 		defer utils.StopGlobalMonitor()
-		utils.Info("性能监控已启用")
+		logger.Info("性能监控已启用", nil)
 		fmt.Println("性能监控已启用")
 
 		// 定期记录性能指标
@@ -114,61 +120,80 @@ func main() {
 		}()
 	}
 
-	// 加载配置
-	fmt.Println("正在加载配置文件:", *configFile)
-	cfg, err := config.LoadConfig(*configFile)
-	if err != nil {
-		fmt.Printf("加载配置失败: %v\n", err)
-		utils.Fatal("加载配置失败", err)
+	// 创建配置管理器
+	configManager := config.NewManager(environment)
+
+	// 根据命令行参数加载配置
+	var err error
+	if *configFile != "" && *configFile != "config.yaml" {
+		// 如果指定了具体的配置文件，直接加载
+		err = configManager.LoadFile(*configFile)
+
+		if err != nil {
+			logger.Fatal("无法加载指定的配置文件", map[string]interface{}{
+				"file":  *configFile,
+				"error": err,
+			})
+		}
+		logger.Info("配置加载成功", map[string]interface{}{
+			"file": *configFile,
+			"env":  environment,
+		})
+		fmt.Printf("配置加载成功: %s\n", *configFile)
+	} else {
+		// 尝试从不同路径加载配置
+		configPaths := []string{"./configs", "."}
+		var configLoaded bool
+
+		for _, path := range configPaths {
+			err := configManager.Load(path)
+
+			if err == nil {
+				configLoaded = true
+				logger.Info("配置加载成功", map[string]interface{}{
+					"path": path,
+					"env":  environment,
+				})
+				fmt.Printf("配置加载成功: %s\n", path)
+				break
+			}
+		}
+
+		if !configLoaded {
+			logger.Fatal("无法加载配置文件", map[string]interface{}{
+				"paths":       configPaths,
+				"config_file": *configFile,
+			})
+		}
 	}
 
+	cfg := configManager.Get()
+
+	// 初始化JWT配置（保持向后兼容）
 	utils.InitJWTConfig(cfg.Auth.JWTSecret, cfg.Auth.TokenExpiry)
 
-	utils.Info("配置加载成功", "config", *configFile)
-	fmt.Println("配置加载成功")
-
-	// 连接数据库
-	fmt.Println("正在连接MongoDB...")
-	utils.Info("正在连接MongoDB...")
-	mongoClient, err := database.ConnectMongoDB(cfg.MongoDB)
+	// 初始化应用程序
+	fmt.Println("正在初始化应用程序...")
+	application, err := app.NewApplication(cfg)
 	if err != nil {
-		fmt.Printf("连接MongoDB失败: %v\n", err)
-		utils.Fatal("连接MongoDB失败", err)
+		logger.Fatal("应用程序初始化失败", map[string]interface{}{
+			"error": err,
+		})
 	}
-	defer func() {
-		if err := mongoClient.Disconnect(context.Background()); err != nil {
-			utils.Error("断开MongoDB连接失败", err)
-		}
-	}()
-	utils.Info("MongoDB连接成功")
-	fmt.Println("MongoDB连接成功")
+	defer application.Shutdown()
 
-	// 连接Redis
-	fmt.Println("正在连接Redis...")
-	utils.Info("正在连接Redis...")
-	redisClient, err := database.ConnectRedis(cfg.Redis)
-	if err != nil {
-		fmt.Printf("连接Redis失败: %v\n", err)
-		utils.Fatal("连接Redis失败", err)
-	}
-	defer func() {
-		if err := redisClient.Close(); err != nil {
-			utils.Error("关闭Redis连接失败", err)
-		}
-	}()
-	utils.Info("Redis连接成功")
-	fmt.Println("Redis连接成功")
+	logger.Info("应用程序初始化成功", nil)
+	fmt.Println("应用程序初始化成功")
 
-	// 初始化数据库
-	db := mongoClient.Database(cfg.MongoDB.Database)
-	utils.Info("数据库初始化成功", "database", cfg.MongoDB.Database)
-	fmt.Println("数据库初始化成功:", cfg.MongoDB.Database)
+	// 初始化业务服务
+	fmt.Println("正在初始化业务服务...")
 
-	// 初始化服务
-	fmt.Println("正在初始化服务...")
+	// 获取数据库连接
+	mongoDB := application.DB.MongoDB.GetDatabase()
+	redisClient := application.DB.Redis.GetClient()
+
 	// 子域名枚举服务
 	subdomainResolver := subdomain.NewResolver()
-	// 转换配置
 	subdomainEnumConfig := models.SubdomainEnumConfig{
 		Methods:          cfg.Subdomain.Methods,
 		DictionaryPath:   cfg.Subdomain.DictionaryPath,
@@ -181,41 +206,29 @@ func main() {
 		RecursiveSearch:  cfg.Subdomain.RecursiveSearch,
 		SaveToDB:         true,
 	}
-	_ = subdomain.NewEnumerator(db, subdomainResolver, subdomainEnumConfig)
-	utils.Info("子域名枚举服务初始化成功")
+	_ = subdomain.NewEnumerator(mongoDB, subdomainResolver, subdomainEnumConfig)
+	logger.Info("子域名枚举服务初始化成功", nil)
 	fmt.Println("子域名枚举服务初始化成功")
 
 	// 端口扫描服务
-	// portScanConfig := models.PortScanConfig{
-	// 	Ports:        cfg.PortScan.Ports,
-	// 	Concurrency:  cfg.PortScan.Concurrency,
-	// 	Timeout:      cfg.PortScan.Timeout,
-	// 	RetryCount:   cfg.PortScan.RetryCount,
-	// 	RateLimit:    cfg.PortScan.RateLimit,
-	// 	ScanType:     cfg.PortScan.ScanType,
-	// 	ExcludeHosts: cfg.PortScan.ExcludeIPs,
-	// }
-	// portScanner := portscan.NewScanner(portScanConfig)
-	// portScanManager := portscan.NewManager(db, portScanner)
-	portScanResultHandler := portscan.NewMongoResultHandler(db)
-	portScanTaskManager := portscan.NewTaskManager(db, portScanResultHandler)
-	// portScanHandler := portscan.NewHandler(db, portScanManager) // This handler is not used
-	utils.Info("端口扫描服务初始化成功")
+	portScanResultHandler := portscan.NewMongoResultHandler(mongoDB)
+	portScanTaskManager := portscan.NewTaskManager(mongoDB, portScanResultHandler)
+	logger.Info("端口扫描服务初始化成功", nil)
 	fmt.Println("端口扫描服务初始化成功")
 
 	// 漏洞扫描服务
-	vulnHandler := vulnscan.NewVulnHandler(db)
-	utils.Info("漏洞扫描服务初始化成功")
+	vulnHandler := vulnscan.NewVulnHandler(mongoDB)
+	logger.Info("漏洞扫描服务初始化成功", nil)
 	fmt.Println("漏洞扫描服务初始化成功")
 
 	// 插件服务
 	vulnRegistry := vulnscan.NewRegistry()
 	pluginRegistry := plugin.NewRegistry()
-	pluginStore := plugin.NewMongoMetadataStore(db, "plugin_metadata")
+	pluginStore := plugin.NewMongoMetadataStore(mongoDB, "plugin_metadata")
 	pluginManager := plugin.NewManager(pluginRegistry, pluginStore)
 
 	// 漏洞扫描引擎和注册表
-	vulnEngine := vulnscan.NewEngine(vulnRegistry, db, vulnHandler)
+	vulnEngine := vulnscan.NewEngine(vulnRegistry, mongoDB, vulnHandler)
 
 	// 漏洞数据库服务
 	vulndbConfig := vulndb.Config{
@@ -235,29 +248,31 @@ func main() {
 			BatchSize: 50,
 		},
 	}
-	vulndbService := vulndb.NewService(db, vulndbConfig) // 暂时保留，可能被其他地方引用
-	_ = vulndb.NewScheduler(vulndbService, vulndbConfig) // vulndbScheduler暂时未使用
-	_ = vulndbService                                     // 暂时标记为未使用
+	vulndbService := vulndb.NewService(mongoDB, vulndbConfig)
+	_ = vulndb.NewScheduler(vulndbService, vulndbConfig)
+	_ = vulndbService // 暂时标记为未使用
 
 	// 资产发现服务
 	redisResultHandler := assetdiscovery.NewRedisResultHandler(redisClient)
-	discoveryService := assetdiscovery.NewDiscoveryService(db, redisResultHandler)
-	discoveryHandler := assetdiscovery.NewHandler(db, discoveryService)
-	utils.Info("资产发现服务初始化成功")
+	discoveryService := assetdiscovery.NewDiscoveryService(mongoDB, redisResultHandler)
+	_ = assetdiscovery.NewHandler(mongoDB, discoveryService) // 保留变量但标记为未使用，将来可能用于依赖注入
+	logger.Info("资产发现服务初始化成功", nil)
 	fmt.Println("资产发现服务初始化成功")
 
 	// 页面监控服务
-	monitoringService := pagemonitoring.NewPageMonitoringService(db, redisClient)
+	monitoringService := pagemonitoring.NewPageMonitoringService(mongoDB, redisClient)
 	if err := monitoringService.Start(); err != nil {
-		utils.Fatal("启动页面监控服务失败", err)
+		logger.Fatal("启动页面监控服务失败", map[string]interface{}{
+			"error": err,
+		})
 	}
 	defer monitoringService.Stop()
-	utils.Info("页面监控服务启动成功")
+	logger.Info("页面监控服务启动成功", nil)
 	fmt.Println("页面监控服务启动成功")
 
 	// 敏感信息检测服务
-	sensitiveService := sensitive.NewService(db)
-	utils.Info("敏感信息检测服务初始化成功")
+	_ = sensitive.NewService(mongoDB) // 保留变量但标记为未使用，将来可能用于依赖注入
+	logger.Info("敏感信息检测服务初始化成功", nil)
 	fmt.Println("敏感信息检测服务初始化成功")
 
 	// 节点管理服务
@@ -267,12 +282,14 @@ func main() {
 		EnableAutoRemove:  cfg.Node.EnableAutoRemove,
 		AutoRemoveAfter:   cfg.Node.AutoRemoveAfter,
 	}
-	nodeManager := nodemanager.NewNodeManager(db, redisClient, nodeManagerConfig)
+	nodeManager := nodemanager.NewNodeManager(mongoDB, redisClient, nodeManagerConfig)
 	if err := nodeManager.Start(); err != nil {
-		utils.Fatal("启动节点管理服务失败", err)
+		logger.Fatal("启动节点管理服务失败", map[string]interface{}{
+			"error": err,
+		})
 	}
 	defer nodeManager.Stop()
-	utils.Info("节点管理服务启动成功")
+	logger.Info("节点管理服务启动成功", nil)
 	fmt.Println("节点管理服务启动成功")
 
 	// 任务管理服务
@@ -283,13 +300,18 @@ func main() {
 		MaxRetries:         cfg.Task.MaxRetries,
 		RetryInterval:      cfg.Task.RetryInterval,
 	}
-	taskManager := taskmanager.NewTaskManager(db, redisClient, nodeManager, taskManagerConfig)
+	taskManager := taskmanager.NewTaskManager(mongoDB, redisClient, nodeManager, taskManagerConfig)
 	if err := taskManager.Start(); err != nil {
-		utils.Fatal("启动任务管理服务失败", err)
+		logger.Fatal("启动任务管理服务失败", map[string]interface{}{
+			"error": err,
+		})
 	}
 	defer taskManager.Stop()
-	utils.Info("任务管理服务启动成功")
+	logger.Info("任务管理服务启动成功", nil)
 	fmt.Println("任务管理服务启动成功")
+
+	logger.Info("所有业务服务初始化完成", nil)
+	fmt.Println("所有业务服务初始化完成")
 
 	// 设置Gin模式
 	switch cfg.Server.Mode {
@@ -300,64 +322,85 @@ func main() {
 	case "test":
 		gin.SetMode(gin.TestMode)
 	default:
-		gin.SetMode(gin.ReleaseMode)
+		if configManager.IsProduction() {
+			gin.SetMode(gin.ReleaseMode)
+		} else {
+			gin.SetMode(gin.DebugMode)
+		}
 	}
-	utils.Info("Gin模式设置", "mode", gin.Mode())
+
+	logger.Info("Gin模式设置", map[string]interface{}{
+		"mode": gin.Mode(),
+	})
 	fmt.Println("Gin模式设置为:", gin.Mode())
 
-	// 初始化Gin引擎
-	router := gin.Default()
-	utils.Info("Gin引擎初始化成功")
-	fmt.Println("Gin引擎初始化成功")
+	// 自动迁移数据库模型
+	if application.DB.GORM != nil {
+		fmt.Println("正在进行数据库迁移...")
+		err = application.DB.AutoMigrate(
+			&models.UserSQL{},
+			// 添加其他模型...
+		)
+		if err != nil {
+			logger.Error("数据库迁移失败", map[string]interface{}{
+				"error": err,
+			})
+		} else {
+			logger.Info("数据库迁移完成", nil)
+			fmt.Println("数据库迁移完成")
+		}
+	}
 
-	// 注册API路由
-	sensitiveHandler := api.NewSensitiveHandler(sensitiveService)
-	// vulndbHandler := api.NewVulnDatabaseHandler(vulndbService, vulndbScheduler) // 暂时注释，未在routes中使用
-	discoveryHandlerForAPI := api.NewDiscoveryHandler(db, discoveryHandler)
-	
+	// 使用统一优雅的路由注册系统
+	fmt.Println("正在注册路由...")
+
 	// 创建插件市场实例 (临时占位符)
 	marketplaceConfig := plugin.MarketplaceConfig{
 		// TODO: 配置市场参数
 	}
 	pluginMarketplace := plugin.NewMarketplace(marketplaceConfig)
-	
-	api.RegisterAPIRoutes(
-		router,
-		db,
-		redisClient,
-		cfg,
-		nodeManager,
-		taskManager,
-		vulnEngine,
-		vulnHandler,
-		vulnRegistry,
-		portScanTaskManager,
-		pluginManager,
-		pluginStore,
-		pluginMarketplace,
-		monitoringService,
-		discoveryHandlerForAPI,
-		sensitiveHandler,
-	)
-	utils.Info("API路由注册成功")
-	fmt.Println("API路由注册成功")
 
-	// 注册WebSocket路由
-	router.GET("/ws", handleWebSocket)
-	utils.Info("WebSocket路由注册成功", "path", "/ws")
-	fmt.Println("WebSocket路由注册成功: /ws")
+	// 创建应用依赖容器
+	deps := &router.AppDependencies{
+		DB:                  application.DB,
+		MongoDB:             mongoDB,
+		RedisClient:         redisClient,
+		Config:              cfg,
+		NodeManager:         nodeManager,
+		TaskManager:         taskManager,
+		VulnEngine:          vulnEngine,
+		VulnHandler:         vulnHandler,
+		VulnRegistry:        vulnRegistry,
+		PortScanTaskManager: portScanTaskManager,
+		PluginManager:       pluginManager,
+		PluginStore:         pluginStore,
+		PluginMarketplace:   pluginMarketplace,
+		MonitoringService:   monitoringService,
+	}
+
+	// 创建Gin引擎并设置所有路由
+	ginRouter := gin.New()
+	routeManager := router.SetupAllRoutes(ginRouter, deps)
+
+	logger.Info("统一路由系统注册成功", nil)
+	fmt.Println("统一路由系统注册成功")
 
 	// 显示所有路由
 	if *showRoutes {
-		printAllRoutes(router)
+		printAllRoutes(ginRouter)
 	}
 
 	// 保存路由到文件
 	if *saveRoutesFile != "" {
-		if err := saveRoutesToFile(router, *saveRoutesFile); err != nil {
-			utils.Error("保存路由到文件失败", err)
+		if err := saveRoutesToFile(ginRouter, *saveRoutesFile); err != nil {
+			logger.Error("保存路由到文件失败", map[string]interface{}{
+				"error": err,
+				"file":  *saveRoutesFile,
+			})
 		} else {
-			utils.Info("路由信息已保存", "file", *saveRoutesFile)
+			logger.Info("路由信息已保存", map[string]interface{}{
+				"file": *saveRoutesFile,
+			})
 		}
 	}
 
@@ -365,17 +408,25 @@ func main() {
 	serverAddress := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	server := &http.Server{
 		Addr:         serverAddress,
-		Handler:      router,
+		Handler:      ginRouter,
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
 	}
 
+	// 避免未使用变量警告
+	_ = routeManager
+
 	// 启动服务器
 	go func() {
-		utils.Info("服务器正在启动", "address", serverAddress)
+		logger.Info("服务器正在启动", map[string]interface{}{
+			"address":     serverAddress,
+			"environment": environment,
+		})
 		fmt.Println("服务器正在启动，监听地址:", serverAddress)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			utils.Fatal("启动服务器失败", err)
+			logger.Fatal("启动服务器失败", map[string]interface{}{
+				"error": err,
+			})
 		}
 	}()
 
@@ -383,49 +434,69 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	utils.Info("收到关闭信号，服务器正在关闭...")
+
+	logger.Info("收到关闭信号，服务器正在关闭...", nil)
 	fmt.Println("收到关闭信号，服务器正在关闭...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
 	if err := server.Shutdown(ctx); err != nil {
-		utils.Fatal("服务器关闭失败", err)
+		logger.Fatal("服务器关闭失败", map[string]interface{}{
+			"error": err,
+		})
 	}
-	utils.Info("服务器已成功关闭")
+
+	logger.Info("服务器已成功关闭", nil)
 	fmt.Println("服务器已成功关闭")
 }
 
 func handleWebSocket(c *gin.Context) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("WebSocket升级失败: %v", err)
+		logger.Error("WebSocket升级失败", map[string]interface{}{
+			"error": err,
+		})
 		return
 	}
 	defer conn.Close()
-	log.Println("WebSocket连接已建立")
+
+	logger.Info("WebSocket连接已建立", map[string]interface{}{
+		"remote_addr": c.Request.RemoteAddr,
+	})
 
 	// 简单地回显所有收到的消息
 	for {
 		messageType, p, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("读取WebSocket消息失败: %v", err)
+			logger.Error("读取WebSocket消息失败", map[string]interface{}{
+				"error": err,
+			})
 			break
 		}
 
-		log.Printf("收到消息: %s", p)
+		logger.Debug("收到WebSocket消息", map[string]interface{}{
+			"message": string(p),
+		})
+
 		if err := conn.WriteMessage(messageType, p); err != nil {
-			log.Printf("发送WebSocket消息失败: %v", err)
+			logger.Error("发送WebSocket消息失败", map[string]interface{}{
+				"error": err,
+			})
 			break
 		}
 	}
-	log.Println("WebSocket连接已关闭")
+
+	logger.Info("WebSocket连接已关闭", nil)
 }
 
 func printAllRoutes(engine *gin.Engine) {
 	content, err := getRoutesContent(engine)
 	if err != nil {
 		fmt.Printf("获取路由信息失败: %v\n", err)
-		utils.Error("获取路由信息失败", err)
+		logger.Error("获取路由信息失败", map[string]interface{}{
+			"error": err,
+		})
 		return
 	}
 	fmt.Println(content)

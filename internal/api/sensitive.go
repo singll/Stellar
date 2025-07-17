@@ -25,20 +25,17 @@ func NewSensitiveHandler(service *sensitive.Service) *SensitiveHandler {
 
 // RegisterRoutes 注册路由
 func (h *SensitiveHandler) RegisterRoutes(router *gin.RouterGroup) {
-	sensitiveRoutes := router.Group("/sensitive")
-	{
-		sensitiveRoutes.POST("/scan", h.ScanForSensitiveInfo)
-		sensitiveRoutes.GET("/list", h.ListSensitiveInfo)
-		sensitiveRoutes.GET("/:id", h.GetSensitiveInfo)
-		sensitiveRoutes.PUT("/:id/status", h.UpdateSensitiveInfoStatus)
-		sensitiveRoutes.DELETE("/:id", h.DeleteSensitiveInfo)
-		sensitiveRoutes.GET("/rules", h.ListSensitiveRules)
-		sensitiveRoutes.POST("/rules", h.CreateSensitiveRule)
-		sensitiveRoutes.PUT("/rules/:id", h.UpdateSensitiveRule)
-		sensitiveRoutes.DELETE("/rules/:id", h.DeleteSensitiveRule)
-		sensitiveRoutes.POST("/:id/report", h.GenerateReport)
-		sensitiveRoutes.GET("/:id/report/:format", h.DownloadReport)
-	}
+	router.POST("/scan", h.ScanForSensitiveInfo)
+	router.GET("/list", h.ListSensitiveInfo)
+	router.GET("/:id", h.GetSensitiveInfo)
+	router.PUT("/:id/status", h.UpdateSensitiveInfoStatus)
+	router.DELETE("/:id", h.DeleteSensitiveInfo)
+	router.GET("/rules", h.ListSensitiveRules)
+	router.POST("/rules", h.CreateSensitiveRule)
+	router.PUT("/rules/:id", h.UpdateSensitiveRule)
+	router.DELETE("/rules/:id", h.DeleteSensitiveRule)
+	router.POST("/:id/report", h.GenerateReport)
+	router.GET("/:id/report/:format", h.DownloadReport)
 }
 
 // ScanRequest 扫描请求
@@ -109,9 +106,9 @@ func (h *SensitiveHandler) ListSensitiveInfo(c *gin.Context) {
 
 	// TODO: 获取敏感信息列表（待实现）
 	// results, total, err := h.service.ListSensitiveInfo(objID, page, limit)
-	_ = objID  // 避免未使用变量警告
-	_ = page   // 避免未使用变量警告
-	_ = limit  // 避免未使用变量警告
+	_ = objID // 避免未使用变量警告
+	_ = page  // 避免未使用变量警告
+	_ = limit // 避免未使用变量警告
 	var results []interface{}
 	total := int64(0)
 	err = fmt.Errorf("ListSensitiveInfo method not implemented yet")
@@ -200,7 +197,7 @@ func (h *SensitiveHandler) DeleteSensitiveInfo(c *gin.Context) {
 
 	// TODO: 删除敏感信息（待实现）
 	_ = objID // 避免未使用变量警告
-	
+
 	c.JSON(http.StatusNotImplemented, gin.H{
 		"error": "敏感信息删除功能尚未实现",
 	})
@@ -358,7 +355,7 @@ func (h *SensitiveHandler) GenerateReport(c *gin.Context) {
 	// })
 	_ = result // 避免未使用变量警告
 	_ = req    // 避免未使用变量警告
-	
+
 	err = fmt.Errorf("GenerateReport method not implemented yet")
 	if err != nil {
 		c.JSON(http.StatusNotImplemented, gin.H{
@@ -412,7 +409,7 @@ func (h *SensitiveHandler) DownloadReport(c *gin.Context) {
 	_ = result       // 避免未使用变量警告
 	_ = format       // 避免未使用变量警告
 	_ = reportParams // 避免未使用变量警告
-	
+
 	err = fmt.Errorf("GenerateReport method not implemented yet")
 	if err != nil {
 		c.JSON(http.StatusNotImplemented, gin.H{

@@ -22,7 +22,7 @@ type DB struct {
 
 // DatabaseConfig holds database configuration
 type DatabaseConfig struct {
-	Type     string `yaml:"type" json:"type"`         // mysql, postgres, sqlite, mongodb
+	Type     string `yaml:"type" json:"type"` // mysql, postgres, sqlite, mongodb
 	Host     string `yaml:"host" json:"host"`
 	Port     int    `yaml:"port" json:"port"`
 	Database string `yaml:"database" json:"database"`
@@ -48,9 +48,11 @@ func NewDB(cfg *config.Config) (*DB, error) {
 			SSLMode:  cfg.Database.SSLMode,
 			Path:     cfg.Database.Path,
 		})
+
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize GORM: %w", err)
 		}
+
 		db.GORM = gormDB
 	}
 
@@ -60,6 +62,7 @@ func NewDB(cfg *config.Config) (*DB, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize MongoDB: %w", err)
 		}
+
 		db.MongoDB = mongoManager
 	}
 
@@ -69,6 +72,7 @@ func NewDB(cfg *config.Config) (*DB, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize Redis: %w", err)
 		}
+
 		db.Redis = redisManager
 	}
 

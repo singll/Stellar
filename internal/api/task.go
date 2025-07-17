@@ -30,14 +30,11 @@ func NewTaskHandler(taskManager *taskmanager.TaskManager) *TaskHandler {
 
 // RegisterRoutes 注册路由
 func (h *TaskHandler) RegisterRoutes(router *gin.RouterGroup) {
-	taskGroup := router.Group("/tasks")
-	{
-		taskGroup.POST("", h.SubmitTask)
-		taskGroup.GET("", h.ListTasks)
-		taskGroup.GET("/:id", h.GetTask)
-		taskGroup.DELETE("/:id", h.CancelTask)
-		taskGroup.GET("/:id/result", h.GetTaskResult)
-	}
+	router.POST("", h.SubmitTask)
+	router.GET("", h.ListTasks)
+	router.GET("/:id", h.GetTask)
+	router.DELETE("/:id", h.CancelTask)
+	router.GET("/:id/result", h.GetTaskResult)
 }
 
 // SubmitTask 提交任务
@@ -422,14 +419,14 @@ func (api *TaskAPI) GetTaskResult(c *gin.Context) {
 
 	// 转换为响应格式
 	resp := gin.H{
-		"id":          result.ID.Hex(),
-		"taskId":      result.TaskID.Hex(),
-		"status":      result.Status,
-		"data":        result.Data,
-		"summary":     result.Summary,
-		"createdAt":   result.CreatedAt,
-		"endTime":     result.EndTime,
-		"updatedAt":   result.UpdatedAt,
+		"id":        result.ID.Hex(),
+		"taskId":    result.TaskID.Hex(),
+		"status":    result.Status,
+		"data":      result.Data,
+		"summary":   result.Summary,
+		"createdAt": result.CreatedAt,
+		"endTime":   result.EndTime,
+		"updatedAt": result.UpdatedAt,
 	}
 
 	c.JSON(http.StatusOK, resp)
@@ -640,7 +637,7 @@ func (api *TaskAPI) RetryTask(c *gin.Context) {
 // 获取子域名枚举结果
 func (api *TaskAPI) getSubdomainResults(taskID primitive.ObjectID, page, limit int) ([]interface{}, int64, error) {
 	collection := api.db.Collection("subdomain_results")
-	
+
 	// 构建查询条件
 	filter := bson.M{"task_id": taskID}
 
@@ -677,7 +674,7 @@ func (api *TaskAPI) getSubdomainResults(taskID primitive.ObjectID, page, limit i
 // 获取端口扫描结果
 func (api *TaskAPI) getPortScanResults(taskID primitive.ObjectID, page, limit int) ([]interface{}, int64, error) {
 	collection := api.db.Collection("port_scan_results")
-	
+
 	// 构建查询条件
 	filter := bson.M{"task_id": taskID}
 
@@ -714,7 +711,7 @@ func (api *TaskAPI) getPortScanResults(taskID primitive.ObjectID, page, limit in
 // 获取漏洞扫描结果
 func (api *TaskAPI) getVulnScanResults(taskID primitive.ObjectID, page, limit int) ([]interface{}, int64, error) {
 	collection := api.db.Collection("vulnerability_results")
-	
+
 	// 构建查询条件
 	filter := bson.M{"task_id": taskID}
 
@@ -821,8 +818,8 @@ func (api *TaskAPI) exportJSON(c *gin.Context, results []interface{}, filename s
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 
 	c.JSON(http.StatusOK, gin.H{
-		"results":    results,
-		"total":      len(results),
+		"results":     results,
+		"total":       len(results),
 		"exported_at": time.Now().Format("2006-01-02 15:04:05"),
 	})
 }

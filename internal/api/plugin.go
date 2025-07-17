@@ -26,19 +26,16 @@ func NewPluginHandler(manager *plugin.Manager, store plugin.MetadataStore) *Plug
 
 // RegisterRoutes 注册插件相关的路由
 func (h *PluginHandler) RegisterRoutes(router *gin.RouterGroup) {
-	pluginRoutes := router.Group("/plugins")
-	{
-		pluginRoutes.GET("", h.ListPlugins)
-		pluginRoutes.GET("/:id", h.GetPlugin)
-		pluginRoutes.POST("", h.InstallPlugin)
-		pluginRoutes.DELETE("/:id", h.UninstallPlugin)
-		pluginRoutes.PUT("/:id/enable", h.EnablePlugin)
-		pluginRoutes.PUT("/:id/disable", h.DisablePlugin)
-		pluginRoutes.PUT("/:id/config", h.UpdatePluginConfig)
-		pluginRoutes.GET("/market", h.ListMarketPlugins)
-		pluginRoutes.GET("/types", h.ListPluginTypes)
-		pluginRoutes.GET("/categories", h.ListPluginCategories)
-	}
+	router.GET("", h.ListPlugins)
+	router.GET("/:id", h.GetPlugin)
+	router.POST("", h.InstallPlugin)
+	router.DELETE("/:id", h.UninstallPlugin)
+	router.PUT("/:id/enable", h.EnablePlugin)
+	router.PUT("/:id/disable", h.DisablePlugin)
+	router.PUT("/:id/config", h.UpdatePluginConfig)
+	router.GET("/market", h.ListMarketPlugins)
+	router.GET("/types", h.ListPluginTypes)
+	router.GET("/categories", h.ListPluginCategories)
 }
 
 // ListPlugins 列出所有已安装的插件

@@ -1,8 +1,9 @@
 package router
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/StellarServer/internal/api" // 新增
 	"github.com/StellarServer/internal/api/middleware"
+	"github.com/gin-gonic/gin"
 )
 
 // RouteManager 统一路由管理器
@@ -16,7 +17,7 @@ type RouteManager struct {
 func NewRouteManager(engine *gin.Engine) *RouteManager {
 	// 创建API v1组
 	apiV1 := engine.Group("/api/v1")
-	
+
 	return &RouteManager{
 		engine:   engine,
 		apiGroup: apiV1,
@@ -36,12 +37,12 @@ func (rm *RouteManager) ApplyGlobalMiddleware() {
 func (rm *RouteManager) RegisterGroup(name string, path string, handlers ...RouteHandler) *gin.RouterGroup {
 	group := rm.apiGroup.Group(path)
 	rm.groups[name] = group
-	
+
 	// 注册所有处理器到该组
 	for _, handler := range handlers {
 		handler.RegisterRoutes(group)
 	}
-	
+
 	return group
 }
 
@@ -67,14 +68,14 @@ func (rm *RouteManager) GetGroup(name string) *gin.RouterGroup {
 // RegisterAuthRoutes 注册需要认证的路由组
 func (rm *RouteManager) RegisterAuthGroup(name string, path string, handlers ...RouteHandler) *gin.RouterGroup {
 	group := rm.apiGroup.Group(path)
-	group.Use(middleware.AuthMiddleware()) // 应用认证中间件
+	group.Use(api.AuthMiddleware()) // 统一用唯一正确的认证中间件
 	rm.groups[name] = group
-	
+
 	// 注册所有处理器到该组
 	for _, handler := range handlers {
 		handler.RegisterRoutes(group)
 	}
-	
+
 	return group
 }
 
@@ -82,12 +83,12 @@ func (rm *RouteManager) RegisterAuthGroup(name string, path string, handlers ...
 func (rm *RouteManager) RegisterPublicGroup(name string, path string, handlers ...RouteHandler) *gin.RouterGroup {
 	group := rm.apiGroup.Group(path)
 	rm.groups[name] = group
-	
+
 	// 注册所有处理器到该组
 	for _, handler := range handlers {
 		handler.RegisterRoutes(group)
 	}
-	
+
 	return group
 }
 

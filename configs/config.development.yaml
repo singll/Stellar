@@ -7,7 +7,7 @@ server:
 
 # 新的统一数据库配置
 database:
-  type: "sqlite"
+  type: "mongodb"
   path: "./stellar.db"
 
 # MongoDB配置（向后兼容，留空以跳过）

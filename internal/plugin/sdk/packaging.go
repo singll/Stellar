@@ -11,52 +11,53 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"time"
+
+	"github.com/StellarServer/internal/pkg/logger"
 )
 
 // PackageBuilder 插件包构建器
 type PackageBuilder struct {
-	workDir    string
-	outputDir  string
-	tempDir    string
-	config     *PackageConfig
+	workDir   string
+	outputDir string
+	tempDir   string
+	config    *PackageConfig
 }
 
 // PackageConfig 打包配置
 type PackageConfig struct {
 	// 基本信息
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Version     string   `json:"version"`
-	Description string   `json:"description"`
-	Author      string   `json:"author"`
-	License     string   `json:"license"`
-	Homepage    string   `json:"homepage"`
-	Repository  string   `json:"repository"`
-	
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Description string `json:"description"`
+	Author      string `json:"author"`
+	License     string `json:"license"`
+	Homepage    string `json:"homepage"`
+	Repository  string `json:"repository"`
+
 	// 文件配置
-	MainFile    string   `json:"main_file"`
+	MainFile     string   `json:"main_file"`
 	IncludeFiles []string `json:"include_files"`
 	ExcludeFiles []string `json:"exclude_files"`
-	
+
 	// 依赖配置
 	Dependencies []Dependency `json:"dependencies"`
-	
+
 	// 元数据
-	Category    string   `json:"category"`
-	Tags        []string `json:"tags"`
-	Language    string   `json:"language"`
-	MinVersion  string   `json:"min_version"`
-	MaxVersion  string   `json:"max_version"`
-	Platforms   []string `json:"platforms"`
-	
+	Category   string   `json:"category"`
+	Tags       []string `json:"tags"`
+	Language   string   `json:"language"`
+	MinVersion string   `json:"min_version"`
+	MaxVersion string   `json:"max_version"`
+	Platforms  []string `json:"platforms"`
+
 	// 签名配置
-	SigningKey  string   `json:"signing_key,omitempty"`
-	
+	SigningKey string `json:"signing_key,omitempty"`
+
 	// 验证配置
-	RunTests    bool     `json:"run_tests"`
-	TestCommand string   `json:"test_command"`
+	RunTests    bool   `json:"run_tests"`
+	TestCommand string `json:"test_command"`
 }
 
 // Dependency 依赖信息
@@ -69,37 +70,37 @@ type Dependency struct {
 // PackageMetadata 包元数据
 type PackageMetadata struct {
 	// 基本信息
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Version     string    `json:"version"`
-	Description string    `json:"description"`
-	Author      string    `json:"author"`
-	License     string    `json:"license"`
-	Homepage    string    `json:"homepage"`
-	Repository  string    `json:"repository"`
-	
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Description string `json:"description"`
+	Author      string `json:"author"`
+	License     string `json:"license"`
+	Homepage    string `json:"homepage"`
+	Repository  string `json:"repository"`
+
 	// 包信息
-	FileSize    int64     `json:"file_size"`
-	FileCount   int       `json:"file_count"`
-	Checksum    string    `json:"checksum"`
-	SHA256      string    `json:"sha256"`
-	CreatedAt   time.Time `json:"created_at"`
-	
+	FileSize  int64     `json:"file_size"`
+	FileCount int       `json:"file_count"`
+	Checksum  string    `json:"checksum"`
+	SHA256    string    `json:"sha256"`
+	CreatedAt time.Time `json:"created_at"`
+
 	// 内容信息
 	MainFile     string       `json:"main_file"`
 	Files        []FileInfo   `json:"files"`
 	Dependencies []Dependency `json:"dependencies"`
-	
+
 	// 分类信息
-	Category    string   `json:"category"`
-	Tags        []string `json:"tags"`
-	Language    string   `json:"language"`
-	
+	Category string   `json:"category"`
+	Tags     []string `json:"tags"`
+	Language string   `json:"language"`
+
 	// 兼容性
 	MinVersion string   `json:"min_version"`
 	MaxVersion string   `json:"max_version"`
 	Platforms  []string `json:"platforms"`
-	
+
 	// 签名信息
 	Signature string `json:"signature,omitempty"`
 }
@@ -225,33 +226,33 @@ func (b *PackageBuilder) validateConfig() error {
 // runTests 运行测试
 func (b *PackageBuilder) runTests() error {
 	// 这里简化实现，实际应该执行测试命令
-	fmt.Println("运行插件测试...")
-	
+	logger.Info("运行插件测试...")
+
 	if b.config.TestCommand != "" {
 		// 执行自定义测试命令
-		fmt.Printf("执行测试命令: %s\n", b.config.TestCommand)
+		logger.Info("执行测试命令: %s", b.config.TestCommand)
 	} else {
 		// 基于语言的默认测试
 		switch b.config.Language {
 		case "python":
-			fmt.Println("运行Python测试")
+			logger.Info("运行Python测试")
 		case "javascript":
-			fmt.Println("运行JavaScript测试")
+			logger.Info("运行JavaScript测试")
 		case "go":
-			fmt.Println("运行Go测试")
+			logger.Info("运行Go测试")
 		}
 	}
-	
+
 	return nil
 }
 
 // collectFiles 收集要打包的文件
 func (b *PackageBuilder) collectFiles() ([]string, error) {
 	var files []string
-	
+
 	// 添加主文件
 	files = append(files, b.config.MainFile)
-	
+
 	// 添加显式包含的文件
 	for _, includePattern := range b.config.IncludeFiles {
 		matches, err := b.findFiles(includePattern)
@@ -260,7 +261,7 @@ func (b *PackageBuilder) collectFiles() ([]string, error) {
 		}
 		files = append(files, matches...)
 	}
-	
+
 	// 如果没有指定包含文件，使用默认规则
 	if len(b.config.IncludeFiles) == 0 {
 		defaultFiles, err := b.getDefaultFiles()
@@ -269,10 +270,10 @@ func (b *PackageBuilder) collectFiles() ([]string, error) {
 		}
 		files = append(files, defaultFiles...)
 	}
-	
+
 	// 过滤排除的文件
 	filteredFiles := b.filterExcludedFiles(files)
-	
+
 	// 去重
 	fileSet := make(map[string]bool)
 	var uniqueFiles []string
@@ -282,50 +283,50 @@ func (b *PackageBuilder) collectFiles() ([]string, error) {
 			uniqueFiles = append(uniqueFiles, file)
 		}
 	}
-	
+
 	return uniqueFiles, nil
 }
 
 // findFiles 查找匹配模式的文件
 func (b *PackageBuilder) findFiles(pattern string) ([]string, error) {
 	var matches []string
-	
+
 	err := filepath.WalkDir(b.workDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		
+
 		// 获取相对路径
 		relPath, err := filepath.Rel(b.workDir, path)
 		if err != nil {
 			return err
 		}
-		
+
 		// 跳过目录
 		if d.IsDir() {
 			return nil
 		}
-		
+
 		// 检查是否匹配模式
 		matched, err := filepath.Match(pattern, relPath)
 		if err != nil {
 			return err
 		}
-		
+
 		if matched {
 			matches = append(matches, relPath)
 		}
-		
+
 		return nil
 	})
-	
+
 	return matches, err
 }
 
 // getDefaultFiles 获取默认要包含的文件
 func (b *PackageBuilder) getDefaultFiles() ([]string, error) {
 	var files []string
-	
+
 	// 根据语言添加默认文件
 	switch b.config.Language {
 	case "python":
@@ -361,7 +362,7 @@ func (b *PackageBuilder) getDefaultFiles() ([]string, error) {
 			}
 		}
 	}
-	
+
 	return files, nil
 }
 
@@ -370,7 +371,7 @@ func (b *PackageBuilder) filterExcludedFiles(files []string) []string {
 	if len(b.config.ExcludeFiles) == 0 {
 		return files
 	}
-	
+
 	var filtered []string
 	for _, file := range files {
 		excluded := false
@@ -385,63 +386,63 @@ func (b *PackageBuilder) filterExcludedFiles(files []string) []string {
 			filtered = append(filtered, file)
 		}
 	}
-	
+
 	return filtered
 }
 
 // generateMetadata 生成包元数据
 func (b *PackageBuilder) generateMetadata(files []string) (*PackageMetadata, error) {
 	metadata := &PackageMetadata{
-		ID:          b.config.ID,
-		Name:        b.config.Name,
-		Version:     b.config.Version,
-		Description: b.config.Description,
-		Author:      b.config.Author,
-		License:     b.config.License,
-		Homepage:    b.config.Homepage,
-		Repository:  b.config.Repository,
-		MainFile:    b.config.MainFile,
+		ID:           b.config.ID,
+		Name:         b.config.Name,
+		Version:      b.config.Version,
+		Description:  b.config.Description,
+		Author:       b.config.Author,
+		License:      b.config.License,
+		Homepage:     b.config.Homepage,
+		Repository:   b.config.Repository,
+		MainFile:     b.config.MainFile,
 		Dependencies: b.config.Dependencies,
-		Category:    b.config.Category,
-		Tags:        b.config.Tags,
-		Language:    b.config.Language,
-		MinVersion:  b.config.MinVersion,
-		MaxVersion:  b.config.MaxVersion,
-		Platforms:   b.config.Platforms,
-		CreatedAt:   time.Now(),
+		Category:     b.config.Category,
+		Tags:         b.config.Tags,
+		Language:     b.config.Language,
+		MinVersion:   b.config.MinVersion,
+		MaxVersion:   b.config.MaxVersion,
+		Platforms:    b.config.Platforms,
+		CreatedAt:    time.Now(),
 	}
-	
+
 	// 计算文件信息
 	var totalSize int64
 	var fileInfos []FileInfo
-	
+
 	for _, file := range files {
 		filePath := filepath.Join(b.workDir, file)
 		stat, err := os.Stat(filePath)
 		if err != nil {
 			return nil, fmt.Errorf("获取文件信息失败 %s: %v", file, err)
 		}
-		
+
 		// 计算文件校验和
 		checksum, err := b.calculateFileChecksum(filePath)
 		if err != nil {
 			return nil, fmt.Errorf("计算文件校验和失败 %s: %v", file, err)
 		}
-		
+
 		fileInfo := FileInfo{
 			Name:     file,
 			Size:     stat.Size(),
 			Checksum: checksum,
 		}
-		
+
 		fileInfos = append(fileInfos, fileInfo)
 		totalSize += stat.Size()
 	}
-	
+
 	metadata.Files = fileInfos
 	metadata.FileSize = totalSize
 	metadata.FileCount = len(files)
-	
+
 	return metadata, nil
 }
 
@@ -452,12 +453,12 @@ func (b *PackageBuilder) calculateFileChecksum(filePath string) (string, error) 
 		return "", err
 	}
 	defer file.Close()
-	
+
 	hash := md5.New()
 	if _, err := io.Copy(hash, file); err != nil {
 		return "", err
 	}
-	
+
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
@@ -466,86 +467,86 @@ func (b *PackageBuilder) createPackage(files []string, metadata *PackageMetadata
 	// 创建包文件名
 	packageName := fmt.Sprintf("%s_%s.zip", b.config.ID, b.config.Version)
 	packagePath := filepath.Join(b.outputDir, packageName)
-	
+
 	// 创建输出目录
 	if err := os.MkdirAll(b.outputDir, 0755); err != nil {
 		return "", err
 	}
-	
+
 	// 创建ZIP文件
 	zipFile, err := os.Create(packagePath)
 	if err != nil {
 		return "", err
 	}
 	defer zipFile.Close()
-	
+
 	zipWriter := zip.NewWriter(zipFile)
 	defer zipWriter.Close()
-	
+
 	// 添加元数据文件
 	metadataData, err := json.MarshalIndent(metadata, "", "  ")
 	if err != nil {
 		return "", err
 	}
-	
+
 	metadataWriter, err := zipWriter.Create("metadata.json")
 	if err != nil {
 		return "", err
 	}
-	
+
 	if _, err := metadataWriter.Write(metadataData); err != nil {
 		return "", err
 	}
-	
+
 	// 添加所有文件
 	for _, file := range files {
 		if err := b.addFileToZip(zipWriter, file); err != nil {
 			return "", fmt.Errorf("添加文件到包失败 %s: %v", file, err)
 		}
 	}
-	
+
 	// 计算包的校验和
 	zipWriter.Close()
 	zipFile.Close()
-	
+
 	checksum, err := b.calculateFileChecksum(packagePath)
 	if err != nil {
 		return "", fmt.Errorf("计算包校验和失败: %v", err)
 	}
-	
+
 	sha256sum, err := b.calculateFileSHA256(packagePath)
 	if err != nil {
 		return "", fmt.Errorf("计算包SHA256失败: %v", err)
 	}
-	
+
 	// 更新元数据文件中的校验和
 	metadata.Checksum = checksum
 	metadata.SHA256 = sha256sum
-	
+
 	// 重新打开包文件，更新元数据
 	if err := b.updateMetadataInPackage(packagePath, metadata); err != nil {
 		return "", fmt.Errorf("更新包元数据失败: %v", err)
 	}
-	
+
 	return packagePath, nil
 }
 
 // addFileToZip 添加文件到ZIP
 func (b *PackageBuilder) addFileToZip(zipWriter *zip.Writer, relativePath string) error {
 	filePath := filepath.Join(b.workDir, relativePath)
-	
+
 	file, err := os.Open(filePath)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
-	
+
 	// 创建ZIP文件条目
 	writer, err := zipWriter.Create(relativePath)
 	if err != nil {
 		return err
 	}
-	
+
 	// 复制文件内容
 	_, err = io.Copy(writer, file)
 	return err
@@ -558,12 +559,12 @@ func (b *PackageBuilder) calculateFileSHA256(filePath string) (string, error) {
 		return "", err
 	}
 	defer file.Close()
-	
+
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
 		return "", err
 	}
-	
+
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
@@ -571,14 +572,14 @@ func (b *PackageBuilder) calculateFileSHA256(filePath string) (string, error) {
 func (b *PackageBuilder) updateMetadataInPackage(packagePath string, metadata *PackageMetadata) error {
 	// 这里简化实现，实际应该重新打包或者使用更高级的ZIP操作
 	// 由于Go的archive/zip包不支持就地修改，我们需要重新创建包
-	
+
 	// 读取现有的ZIP文件
 	reader, err := zip.OpenReader(packagePath)
 	if err != nil {
 		return err
 	}
 	defer reader.Close()
-	
+
 	// 创建临时文件
 	tempPath := packagePath + ".tmp"
 	tempFile, err := os.Create(tempPath)
@@ -586,40 +587,40 @@ func (b *PackageBuilder) updateMetadataInPackage(packagePath string, metadata *P
 		return err
 	}
 	defer tempFile.Close()
-	
+
 	zipWriter := zip.NewWriter(tempFile)
 	defer zipWriter.Close()
-	
+
 	// 复制除metadata.json之外的所有文件
 	for _, file := range reader.File {
 		if file.Name == "metadata.json" {
 			continue
 		}
-		
+
 		if err := b.copyZipFile(zipWriter, file); err != nil {
 			return err
 		}
 	}
-	
+
 	// 添加更新的元数据
 	metadataData, err := json.MarshalIndent(metadata, "", "  ")
 	if err != nil {
 		return err
 	}
-	
+
 	metadataWriter, err := zipWriter.Create("metadata.json")
 	if err != nil {
 		return err
 	}
-	
+
 	if _, err := metadataWriter.Write(metadataData); err != nil {
 		return err
 	}
-	
+
 	zipWriter.Close()
 	tempFile.Close()
 	reader.Close()
-	
+
 	// 替换原文件
 	return os.Rename(tempPath, packagePath)
 }
@@ -631,12 +632,12 @@ func (b *PackageBuilder) copyZipFile(zipWriter *zip.Writer, file *zip.File) erro
 		return err
 	}
 	defer reader.Close()
-	
+
 	writer, err := zipWriter.Create(file.Name)
 	if err != nil {
 		return err
 	}
-	
+
 	_, err = io.Copy(writer, reader)
 	return err
 }
@@ -644,34 +645,34 @@ func (b *PackageBuilder) copyZipFile(zipWriter *zip.Writer, file *zip.File) erro
 // signPackage 签名包
 func (b *PackageBuilder) signPackage(packagePath string) error {
 	// 这里简化实现，实际应该使用真正的数字签名
-	fmt.Printf("使用密钥 %s 签名包: %s\n", b.config.SigningKey, packagePath)
-	
+	logger.Info("使用密钥 %s 签名包: %s", b.config.SigningKey, packagePath)
+
 	// 生成签名文件
 	signaturePath := packagePath + ".sig"
 	signature := fmt.Sprintf("SIGNATURE_%s_%s", b.config.ID, b.config.Version)
-	
+
 	return os.WriteFile(signaturePath, []byte(signature), 0644)
 }
 
 // Publish 发布插件包
 func (b *PackageBuilder) Publish(packagePath string, registryURL string) error {
 	// 这里简化实现，实际应该实现完整的发布流程
-	fmt.Printf("发布包 %s 到仓库 %s\n", packagePath, registryURL)
-	
+	logger.Info("发布包 %s 到仓库 %s", packagePath, registryURL)
+
 	// 读取包元数据
 	metadata, err := b.extractMetadata(packagePath)
 	if err != nil {
 		return fmt.Errorf("提取包元数据失败: %v", err)
 	}
-	
+
 	// 验证包
 	if err := b.validatePackage(packagePath, metadata); err != nil {
 		return fmt.Errorf("包验证失败: %v", err)
 	}
-	
+
 	// 上传到仓库
-	fmt.Printf("上传包: %s v%s\n", metadata.Name, metadata.Version)
-	
+	logger.Info("上传包: %s v%s", metadata.Name, metadata.Version)
+
 	return nil
 }
 
@@ -682,7 +683,7 @@ func (b *PackageBuilder) extractMetadata(packagePath string) (*PackageMetadata, 
 		return nil, err
 	}
 	defer reader.Close()
-	
+
 	// 查找元数据文件
 	for _, file := range reader.File {
 		if file.Name == "metadata.json" {
@@ -691,21 +692,21 @@ func (b *PackageBuilder) extractMetadata(packagePath string) (*PackageMetadata, 
 				return nil, err
 			}
 			defer rc.Close()
-			
+
 			data, err := io.ReadAll(rc)
 			if err != nil {
 				return nil, err
 			}
-			
+
 			var metadata PackageMetadata
 			if err := json.Unmarshal(data, &metadata); err != nil {
 				return nil, err
 			}
-			
+
 			return &metadata, nil
 		}
 	}
-	
+
 	return nil, fmt.Errorf("包中未找到元数据文件")
 }
 
@@ -716,36 +717,36 @@ func (b *PackageBuilder) validatePackage(packagePath string, metadata *PackageMe
 	if err != nil {
 		return err
 	}
-	
+
 	// 检查包大小限制（100MB）
 	if stat.Size() > 100*1024*1024 {
 		return fmt.Errorf("包大小超过限制: %d bytes", stat.Size())
 	}
-	
+
 	// 验证必需文件
 	reader, err := zip.OpenReader(packagePath)
 	if err != nil {
 		return err
 	}
 	defer reader.Close()
-	
+
 	requiredFiles := map[string]bool{
-		"metadata.json":     false,
-		metadata.MainFile:   false,
+		"metadata.json":   false,
+		metadata.MainFile: false,
 	}
-	
+
 	for _, file := range reader.File {
 		if _, exists := requiredFiles[file.Name]; exists {
 			requiredFiles[file.Name] = true
 		}
 	}
-	
+
 	for file, found := range requiredFiles {
 		if !found {
 			return fmt.Errorf("包中缺少必需文件: %s", file)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -756,7 +757,7 @@ func (b *PackageBuilder) CreateDefaultConfig(pluginDir string) (*PackageConfig, 
 	if err != nil {
 		return nil, err
 	}
-	
+
 	config := &PackageConfig{
 		ID:          filepath.Base(pluginDir),
 		Name:        filepath.Base(pluginDir),
@@ -771,7 +772,7 @@ func (b *PackageBuilder) CreateDefaultConfig(pluginDir string) (*PackageConfig, 
 		Platforms:   []string{"linux", "windows", "macos"},
 		RunTests:    false,
 	}
-	
+
 	return config, nil
 }
 
@@ -780,7 +781,7 @@ func (b *PackageBuilder) detectMainFile(pluginDir string) (string, string, error
 	// 常见的主文件名模式
 	patterns := map[string]string{
 		"main.py":   "python",
-		"main.js":   "javascript", 
+		"main.js":   "javascript",
 		"main.go":   "go",
 		"plugin.py": "python",
 		"plugin.js": "javascript",
@@ -788,7 +789,7 @@ func (b *PackageBuilder) detectMainFile(pluginDir string) (string, string, error
 		"*.yaml":    "yaml",
 		"*.yml":     "yaml",
 	}
-	
+
 	for pattern, language := range patterns {
 		matches, err := filepath.Glob(filepath.Join(pluginDir, pattern))
 		if err == nil && len(matches) > 0 {
@@ -796,6 +797,6 @@ func (b *PackageBuilder) detectMainFile(pluginDir string) (string, string, error
 			return relPath, language, nil
 		}
 	}
-	
+
 	return "", "", fmt.Errorf("未找到主文件")
 }

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/StellarServer/internal/models"
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
+	"github.com/StellarServer/internal/pkg/logger"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/time/rate"
@@ -166,7 +168,8 @@ func (e *Engine) CreateTask(task *models.VulnScanTask) (string, error) {
 	// 保存任务到数据库
 	_, err := e.db.Collection("vuln_scan_tasks").InsertOne(context.Background(), task)
 	if err != nil {
-		return "", err
+		logger.Error("CreateTask failed", map[string]interface{}{"task": task, "error": err})
+		return "", pkgerrors.NewAppErrorWithCause(pkgerrors.CodeInternalError, "CreateTask failed", 500, err)
 	}
 
 	return task.ID.Hex(), nil

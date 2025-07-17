@@ -21,7 +21,7 @@ export const assetApi = {
 			page: params?.page || 1,
 			pageSize: params?.pageSize || 20
 		};
-		const response = await api.get<APIResponse<AssetListResult>>('/assets/assets', {
+		const response = await api.get<APIResponse<AssetListResult>>('/assets', {
 			params: queryParams
 		});
 		return response.data;
@@ -29,7 +29,7 @@ export const assetApi = {
 
 	// 获取单个资产
 	getAssetById: async (id: string, type: string): Promise<APIResponse<Asset>> => {
-		const response = await api.get<APIResponse<Asset>>(`/assets/assets/${id}`, {
+		const response = await api.get<APIResponse<Asset>>(`/assets/${id}`, {
 			params: { type }
 		});
 		return response.data;
@@ -37,19 +37,19 @@ export const assetApi = {
 
 	// 创建资产
 	createAsset: async (data: CreateAssetRequest): Promise<APIResponse<Asset>> => {
-		const response = await api.post<APIResponse<Asset>>('/assets/assets', data);
+		const response = await api.post<APIResponse<Asset>>('/assets', data);
 		return response.data;
 	},
 
 	// 更新资产
 	updateAsset: async (id: string, data: UpdateAssetRequest): Promise<APIResponse<void>> => {
-		const response = await api.put<APIResponse<void>>(`/assets/assets/${id}`, data);
+		const response = await api.put<APIResponse<void>>(`/assets/${id}`, data);
 		return response.data;
 	},
 
 	// 删除资产
 	deleteAsset: async (id: string, type: string): Promise<APIResponse<void>> => {
-		const response = await api.delete<APIResponse<void>>(`/assets/assets/${id}`, {
+		const response = await api.delete<APIResponse<void>>(`/assets/${id}`, {
 			params: { type }
 		});
 		return response.data;
@@ -153,14 +153,14 @@ export const assetApi = {
 	// 获取资产统计
 	getAssetStats: async (projectId?: string): Promise<APIResponse<Record<string, number>>> => {
 		// 使用正确的统计API路径
-		const requestData: Record<string, string> = {};
+		const params: Record<string, string> = {};
 		if (projectId) {
-			requestData.projectId = projectId;
+			params.projectId = projectId;
 		}
 
-		const response = await api.post<APIResponse<Record<string, number>>>(
+		const response = await api.get<APIResponse<Record<string, number>>>(
 			'/statistics/asset/relationship',
-			requestData
+			{ params }
 		);
 		return response.data;
 	}

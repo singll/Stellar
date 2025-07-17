@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/StellarServer/internal/models"
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
+	"github.com/StellarServer/internal/pkg/logger"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -379,16 +381,19 @@ func (m *TaskManager) GetTask(taskID string) (*models.PortScanTask, error) {
 	// 从数据库获取任务
 	objID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
-		return nil, fmt.Errorf("无效的任务ID: %v", err)
+		logger.Error("GetTask invalid taskID", map[string]interface{}{"taskID": taskID, "error": err})
+		return nil, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的任务ID", 400, err)
 	}
 
 	var task models.PortScanTask
 	err = m.db.Collection("port_scan_tasks").FindOne(context.Background(), bson.M{"_id": objID}).Decode(&task)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, nil // 任务不存在
+			logger.Warn("GetTask not found", map[string]interface{}{"taskID": taskID})
+			return nil, pkgerrors.NewNotFoundError("任务不存在")
 		}
-		return nil, fmt.Errorf("获取任务失败: %v", err)
+		logger.Error("GetTask failed", map[string]interface{}{"taskID": taskID, "error": err})
+		return nil, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeInternalError, "获取任务失败", 500, err)
 	}
 
 	return &task, nil

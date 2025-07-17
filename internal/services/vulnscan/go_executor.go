@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	
+
 	"go/parser"
 	"go/token"
 	"os"
@@ -34,21 +34,21 @@ func NewGoPOCExecutor() *GoPOCExecutor {
 	executor := &GoPOCExecutor{
 		name:           "go",
 		supportedTypes: []string{"go", "golang"},
-		maxScriptSize:  2 * 1024 * 1024, // 2MB
-		timeout:        60 * time.Second,  // Go编译需要更长时间
+		maxScriptSize:  2 * 1024 * 1024,  // 2MB
+		timeout:        60 * time.Second, // Go编译需要更长时间
 		buildCache:     make(map[string]string),
 	}
-	
+
 	// 查找Go编译器
 	executor.goPath = executor.findGoPath()
-	
+
 	// 创建临时目录
 	tempDir, err := os.MkdirTemp("", "stellar_go_poc_*")
 	if err != nil {
 		tempDir = "/tmp"
 	}
 	executor.tempDir = tempDir
-	
+
 	return executor
 }
 
@@ -63,7 +63,7 @@ func (e *GoPOCExecutor) findGoPath() string {
 // Execute 执行Go POC
 func (e *GoPOCExecutor) Execute(ctx context.Context, poc *models.POC, target POCTarget) (*models.POCResult, error) {
 	startTime := time.Now()
-	
+
 	result := &models.POCResult{
 		ID:            primitive.NewObjectID(),
 		POCID:         poc.ID,
@@ -73,18 +73,18 @@ func (e *GoPOCExecutor) Execute(ctx context.Context, poc *models.POC, target POC
 		ExecutionTime: 0,
 		Params:        make(map[string]string),
 	}
-	
+
 	// 验证脚本大小
 	if int64(len(poc.Script)) > e.maxScriptSize {
 		result.Error = fmt.Sprintf("Go脚本过大，超过限制 %d 字节", e.maxScriptSize)
 		return result, nil
 	}
-	
+
 	// 检查缓存
 	scriptHash := fmt.Sprintf("%x", []byte(poc.Script))
 	var binaryPath string
 	var err error
-	
+
 	if cachedBinary, exists := e.buildCache[scriptHash]; exists {
 		if _, err := os.Stat(cachedBinary); err == nil {
 			binaryPath = cachedBinary
@@ -92,7 +92,7 @@ func (e *GoPOCExecutor) Execute(ctx context.Context, poc *models.POC, target POC
 			delete(e.buildCache, scriptHash)
 		}
 	}
-	
+
 	// 编译Go程序
 	if binaryPath == "" {
 		binaryPath, err = e.compileGoScript(poc.Script, target, scriptHash)
@@ -102,15 +102,15 @@ func (e *GoPOCExecutor) Execute(ctx context.Context, poc *models.POC, target POC
 		}
 		e.buildCache[scriptHash] = binaryPath
 	}
-	
+
 	// 设置执行上下文
 	execCtx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()
-	
+
 	// 执行编译后的程序
 	cmd := exec.CommandContext(execCtx, binaryPath)
 	cmd.Dir = e.tempDir
-	
+
 	// 设置环境变量
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("TARGET_URL=%s", target.URL),
@@ -119,17 +119,17 @@ func (e *GoPOCExecutor) Execute(ctx context.Context, poc *models.POC, target POC
 		fmt.Sprintf("TARGET_SCHEME=%s", target.Scheme),
 		fmt.Sprintf("TARGET_PATH=%s", target.Path),
 	)
-	
+
 	// 添加自定义参数
 	for key, value := range target.Extra {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("CUSTOM_%s=%s", strings.ToUpper(key), value))
 		result.Params[key] = value
 	}
-	
+
 	// 执行程序
 	output, err := cmd.CombinedOutput()
 	result.ExecutionTime = time.Since(startTime).Milliseconds()
-	
+
 	if err != nil {
 		if execCtx.Err() == context.DeadlineExceeded {
 			result.Error = "Go程序执行超时"
@@ -139,14 +139,14 @@ func (e *GoPOCExecutor) Execute(ctx context.Context, poc *models.POC, target POC
 		result.Output = string(output)
 		return result, nil
 	}
-	
+
 	// 解析输出结果
 	if err := e.parseOutput(string(output), result); err != nil {
 		result.Error = fmt.Sprintf("解析程序输出失败: %v", err)
 		result.Output = string(output)
 		return result, nil
 	}
-	
+
 	return result, nil
 }
 
@@ -157,7 +157,7 @@ func (e *GoPOCExecutor) compileGoScript(script string, target POCTarget, hash st
 	if err := os.MkdirAll(projectDir, 0755); err != nil {
 		return "", err
 	}
-	
+
 	// 创建go.mod文件
 	goModContent := `module stellar-poc
 
@@ -171,29 +171,29 @@ require (
 	if err := os.WriteFile(goModPath, []byte(goModContent), 0644); err != nil {
 		return "", err
 	}
-	
+
 	// 构建完整的Go程序
 	fullScript := e.buildGoScript(script, target)
-	
+
 	// 创建main.go文件
 	mainGoPath := filepath.Join(projectDir, "main.go")
 	if err := os.WriteFile(mainGoPath, []byte(fullScript), 0644); err != nil {
 		return "", err
 	}
-	
+
 	// 编译程序
 	binaryPath := filepath.Join(projectDir, "poc")
 	buildCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	
+
 	cmd := exec.CommandContext(buildCtx, e.goPath, "build", "-o", binaryPath, ".")
 	cmd.Dir = projectDir
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
-	
+
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("编译失败: %v\n%s", err, string(output))
 	}
-	
+
 	return binaryPath, nil
 }
 
@@ -437,13 +437,13 @@ func main() {
 		}
 		
 		// 输出结果
-		fmt.Println("STELLAR_RESULT_START")
+		logger.Info("STELLAR_RESULT_START")
 		if jsonData, err := json.MarshalIndent(result, "", "  "); err == nil {
-			fmt.Println(string(jsonData))
+			logger.Info(string(jsonData))
 		} else {
-			fmt.Printf(` + "`{\"success\":false,\"error\":\"JSON序列化失败: %v\"}`" + `, err)
+			logger.Error("JSON序列化失败", map[string]interface{}{"error": err})
 		}
-		fmt.Println("STELLAR_RESULT_END")
+		logger.Info("STELLAR_RESULT_END")
 	}()
 	
 	// 用户POC代码开始
@@ -451,7 +451,7 @@ func main() {
 	// 用户POC代码结束
 }
 `
-	
+
 	// 缩进用户脚本
 	lines := strings.Split(userScript, "\n")
 	indentedLines := make([]string, len(lines))
@@ -463,7 +463,7 @@ func main() {
 		}
 	}
 	indentedScript := strings.Join(indentedLines, "\n")
-	
+
 	return fmt.Sprintf(template, indentedScript)
 }
 
@@ -472,21 +472,21 @@ func (e *GoPOCExecutor) parseOutput(output string, result *models.POCResult) err
 	// 查找结果标记
 	startMarker := "STELLAR_RESULT_START"
 	endMarker := "STELLAR_RESULT_END"
-	
+
 	startIdx := strings.Index(output, startMarker)
 	endIdx := strings.Index(output, endMarker)
-	
+
 	if startIdx == -1 || endIdx == -1 {
 		// 没有找到标记，尝试从输出中提取有用信息
 		result.Output = output
-		
+
 		// 简单启发式检查是否发现漏洞
 		lowerOutput := strings.ToLower(output)
 		vulnerableKeywords := []string{
 			"vulnerable", "exploit", "success", "found", "detected",
 			"漏洞", "成功", "发现", "检测到", "存在",
 		}
-		
+
 		for _, keyword := range vulnerableKeywords {
 			if strings.Contains(lowerOutput, keyword) {
 				result.Success = true
@@ -494,45 +494,45 @@ func (e *GoPOCExecutor) parseOutput(output string, result *models.POCResult) err
 				break
 			}
 		}
-		
+
 		return nil
 	}
-	
+
 	// 提取JSON结果
-	jsonStr := output[startIdx+len(startMarker):endIdx]
+	jsonStr := output[startIdx+len(startMarker) : endIdx]
 	jsonStr = strings.TrimSpace(jsonStr)
-	
+
 	var scriptResult map[string]interface{}
 	if err := json.Unmarshal([]byte(jsonStr), &scriptResult); err != nil {
 		return fmt.Errorf("解析JSON结果失败: %v", err)
 	}
-	
+
 	// 解析结果字段
 	if success, ok := scriptResult["success"].(bool); ok {
 		result.Success = success
 	}
-	
+
 	if payload, ok := scriptResult["payload"].(string); ok {
 		result.Payload = payload
 	}
-	
+
 	if request, ok := scriptResult["request"].(string); ok {
 		result.Request = request
 	}
-	
+
 	if response, ok := scriptResult["response"].(string); ok {
 		result.Response = response
 	}
-	
+
 	if output, ok := scriptResult["output"].(string); ok {
 		result.Output = output
 	}
-	
+
 	if error, ok := scriptResult["error"].(string); ok && error != "" {
 		result.Error = error
 		result.Success = false
 	}
-	
+
 	return nil
 }
 
@@ -547,12 +547,12 @@ func (e *GoPOCExecutor) Validate(poc *models.POC) error {
 	if int64(len(poc.Script)) > e.maxScriptSize {
 		return fmt.Errorf("Go脚本过大，超过限制 %d 字节", e.maxScriptSize)
 	}
-	
+
 	// 检查脚本内容
 	if strings.TrimSpace(poc.Script) == "" {
 		return fmt.Errorf("Go脚本内容不能为空")
 	}
-	
+
 	// 检查危险函数调用
 	dangerousPatterns := []string{
 		`os\.Remove`,
@@ -567,18 +567,18 @@ func (e *GoPOCExecutor) Validate(poc *models.POC) error {
 		`syscall\.`,
 		`unsafe\.`,
 	}
-	
+
 	for _, pattern := range dangerousPatterns {
 		if matched, _ := regexp.MatchString(pattern, poc.Script); matched {
 			return fmt.Errorf("Go脚本包含潜在危险的函数调用: %s", pattern)
 		}
 	}
-	
+
 	// Go语法检查
 	if err := e.goSyntaxCheck(poc.Script); err != nil {
 		return fmt.Errorf("Go脚本语法错误: %v", err)
 	}
-	
+
 	return nil
 }
 
@@ -595,14 +595,14 @@ import (
 func main() {
 ` + script + `
 }`
-	
+
 	// 使用Go的AST解析器检查语法
 	fset := token.NewFileSet()
 	_, err := parser.ParseFile(fset, "poc.go", fullScript, parser.ParseComments)
 	if err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 

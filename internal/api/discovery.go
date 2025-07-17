@@ -22,15 +22,12 @@ func NewDiscoveryHandler(db *mongo.Database, handler *assetdiscovery.Handler) *D
 
 // RegisterRoutes 注册路由
 func (h *DiscoveryHandler) RegisterRoutes(router *gin.RouterGroup) {
-	discoveryGroup := router.Group("/discovery")
-	{
-		discoveryGroup.POST("/tasks", h.CreateDiscoveryTask)
-		discoveryGroup.GET("/tasks", h.ListDiscoveryTasks)
-		discoveryGroup.GET("/tasks/:id", h.GetDiscoveryTask)
-		discoveryGroup.DELETE("/tasks/:id", h.DeleteDiscoveryTask)
-		discoveryGroup.GET("/results", h.ListDiscoveryResults)
-		discoveryGroup.GET("/results/:id", h.GetDiscoveryResult)
-	}
+	router.POST("/tasks", h.CreateDiscoveryTask)
+	router.GET("/tasks", h.ListDiscoveryTasks)
+	router.GET("/tasks/:id", h.GetDiscoveryTask)
+	router.DELETE("/tasks/:id", h.DeleteDiscoveryTask)
+	router.GET("/results", h.ListDiscoveryResults)
+	router.GET("/results/:id", h.GetDiscoveryResult)
 }
 
 // CreateDiscoveryTask 创建资产发现任务

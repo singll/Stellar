@@ -27,51 +27,35 @@ func NewNodeHandler(nodeManager *nodemanager.NodeManager, nodeRepo models.NodeRe
 
 // RegisterRoutes 注册路由
 func (h *NodeHandler) RegisterRoutes(router *gin.RouterGroup) {
-	nodeGroup := router.Group("/nodes")
-	{
-		// 节点管理
-		nodeGroup.GET("", h.GetNodes)
-		nodeGroup.POST("", h.CreateNode)
-		nodeGroup.GET("/:id", h.GetNode)
-		nodeGroup.PUT("/:id", h.UpdateNode)
-		nodeGroup.DELETE("/:id", h.DeleteNode)
+	router.GET("", h.GetNodes)
+	router.POST("", h.CreateNode)
+	router.GET("/:id", h.GetNode)
+	router.PUT("/:id", h.UpdateNode)
+	router.DELETE("/:id", h.DeleteNode)
 
-		// 节点状态
-		nodeGroup.PUT("/:id/status", h.UpdateNodeStatus)
-		nodeGroup.POST("/:id/heartbeat", h.NodeHeartbeat)
-		nodeGroup.GET("/:id/health", h.GetNodeHealth)
+	router.PUT("/:id/status", h.UpdateNodeStatus)
+	router.POST("/:id/heartbeat", h.NodeHeartbeat)
+	router.GET("/:id/health", h.GetNodeHealth)
 
-		// 节点配置
-		nodeGroup.PUT("/:id/config", h.UpdateNodeConfig)
-		nodeGroup.GET("/:id/config", h.GetNodeConfig)
+	router.PUT("/:id/config", h.UpdateNodeConfig)
+	router.GET("/:id/config", h.GetNodeConfig)
 
-		// 节点任务
-		nodeGroup.GET("/:id/tasks", h.GetNodeTasks)
-		nodeGroup.GET("/:id/task-stats", h.GetNodeTaskStats)
+	router.GET("/:id/tasks", h.GetNodeTasks)
+	router.GET("/:id/task-stats", h.GetNodeTaskStats)
 
-		// 节点注册和认证
-		nodeGroup.POST("/register", h.RegisterNode)
-		nodeGroup.POST("/unregister/:id", h.UnregisterNode)
+	router.POST("/register", h.RegisterNode)
+	router.POST("/unregister/:id", h.UnregisterNode)
 
-		// 查询接口
-		nodeGroup.GET("/status/:status", h.GetNodesByStatus)
-		nodeGroup.GET("/role/:role", h.GetNodesByRole)
-		nodeGroup.GET("/tags/:tag", h.GetNodesByTag)
+	router.GET("/status/:status", h.GetNodesByStatus)
+	router.GET("/role/:role", h.GetNodesByRole)
+	router.GET("/tags/:tag", h.GetNodesByTag)
 
-		// 统计接口
-		nodeGroup.GET("/stats", h.GetNodeStats)
-
-		// 批量操作
-		nodeGroup.POST("/batch", h.BatchOperation)
-
-		// 监控接口
-		nodeGroup.GET("/monitor", h.GetNodeMonitor)
-		nodeGroup.GET("/events", h.GetNodeEvents)
-
-		// 管理操作
-		nodeGroup.POST("/maintenance/:id", h.SetMaintenanceMode)
-		nodeGroup.POST("/cleanup", h.CleanupOfflineNodes)
-	}
+	router.GET("/stats", h.GetNodeStats)
+	router.POST("/batch", h.BatchOperation)
+	router.GET("/monitor", h.GetNodeMonitor)
+	router.GET("/events", h.GetNodeEvents)
+	router.POST("/maintenance/:id", h.SetMaintenanceMode)
+	router.POST("/cleanup", h.CleanupOfflineNodes)
 }
 
 // GetNodes 获取节点列表
@@ -161,7 +145,7 @@ func (h *NodeHandler) CreateNode(c *gin.Context) {
 // GetNode 获取节点详情
 func (h *NodeHandler) GetNode(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	node, err := h.NodeRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -182,7 +166,7 @@ func (h *NodeHandler) GetNode(c *gin.Context) {
 // UpdateNode 更新节点信息
 func (h *NodeHandler) UpdateNode(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	// 获取原节点信息
 	node, err := h.NodeRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
@@ -196,11 +180,11 @@ func (h *NodeHandler) UpdateNode(c *gin.Context) {
 
 	// 绑定更新数据
 	var updateReq struct {
-		Name   string              `json:"name,omitempty"`
-		Role   string              `json:"role,omitempty"`
-		Status string              `json:"status,omitempty"`
-		Tags   []string            `json:"tags,omitempty"`
-		Config *models.NodeConfig  `json:"config,omitempty"`
+		Name   string             `json:"name,omitempty"`
+		Role   string             `json:"role,omitempty"`
+		Status string             `json:"status,omitempty"`
+		Tags   []string           `json:"tags,omitempty"`
+		Config *models.NodeConfig `json:"config,omitempty"`
 	}
 
 	if err := c.ShouldBindJSON(&updateReq); err != nil {
@@ -249,7 +233,7 @@ func (h *NodeHandler) UpdateNode(c *gin.Context) {
 // DeleteNode 删除节点
 func (h *NodeHandler) DeleteNode(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	err := h.NodeManager.RemoveNode(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -269,7 +253,7 @@ func (h *NodeHandler) DeleteNode(c *gin.Context) {
 // UpdateNodeStatus 更新节点状态
 func (h *NodeHandler) UpdateNodeStatus(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	var req struct {
 		Status string `json:"status" binding:"required"`
 	}
@@ -301,7 +285,7 @@ func (h *NodeHandler) UpdateNodeStatus(c *gin.Context) {
 // NodeHeartbeat 节点心跳
 func (h *NodeHandler) NodeHeartbeat(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	var heartbeat models.NodeHeartbeat
 	if err := c.ShouldBindJSON(&heartbeat); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -330,7 +314,7 @@ func (h *NodeHandler) NodeHeartbeat(c *gin.Context) {
 // GetNodeHealth 获取节点健康状态
 func (h *NodeHandler) GetNodeHealth(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	node, err := h.NodeRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -354,7 +338,7 @@ func (h *NodeHandler) GetNodeHealth(c *gin.Context) {
 // UpdateNodeConfig 更新节点配置
 func (h *NodeHandler) UpdateNodeConfig(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	var config models.NodeConfig
 	if err := c.ShouldBindJSON(&config); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -383,7 +367,7 @@ func (h *NodeHandler) UpdateNodeConfig(c *gin.Context) {
 // GetNodeConfig 获取节点配置
 func (h *NodeHandler) GetNodeConfig(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	node, err := h.NodeRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -405,7 +389,7 @@ func (h *NodeHandler) GetNodeConfig(c *gin.Context) {
 func (h *NodeHandler) GetNodeTasks(c *gin.Context) {
 	// TODO: 实现获取节点任务逻辑
 	// 这里需要与任务管理器集成
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"code":    200,
 		"message": "获取节点任务成功",
@@ -416,7 +400,7 @@ func (h *NodeHandler) GetNodeTasks(c *gin.Context) {
 // GetNodeTaskStats 获取节点任务统计
 func (h *NodeHandler) GetNodeTaskStats(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	stats, err := h.NodeRepo.GetNodeTaskStats(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -466,7 +450,7 @@ func (h *NodeHandler) RegisterNode(c *gin.Context) {
 // UnregisterNode 节点注销
 func (h *NodeHandler) UnregisterNode(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	if err := h.NodeManager.RemoveNode(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
@@ -485,7 +469,7 @@ func (h *NodeHandler) UnregisterNode(c *gin.Context) {
 // GetNodesByStatus 按状态获取节点
 func (h *NodeHandler) GetNodesByStatus(c *gin.Context) {
 	status := c.Param("status")
-	
+
 	nodes, err := h.NodeRepo.GetByStatus(c.Request.Context(), status)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -509,7 +493,7 @@ func (h *NodeHandler) GetNodesByStatus(c *gin.Context) {
 // GetNodesByRole 按角色获取节点
 func (h *NodeHandler) GetNodesByRole(c *gin.Context) {
 	role := c.Param("role")
-	
+
 	nodes, err := h.NodeRepo.GetByRole(c.Request.Context(), role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -533,7 +517,7 @@ func (h *NodeHandler) GetNodesByRole(c *gin.Context) {
 // GetNodesByTag 按标签获取节点
 func (h *NodeHandler) GetNodesByTag(c *gin.Context) {
 	tag := c.Param("tag")
-	
+
 	nodes, err := h.NodeRepo.GetByTags(c.Request.Context(), []string{tag})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -576,9 +560,9 @@ func (h *NodeHandler) GetNodeStats(c *gin.Context) {
 // BatchOperation 批量操作
 func (h *NodeHandler) BatchOperation(c *gin.Context) {
 	var req struct {
-		Action string   `json:"action" binding:"required"`
-		NodeIds []string `json:"nodeIds" binding:"required"`
-		Data   interface{} `json:"data,omitempty"`
+		Action  string      `json:"action" binding:"required"`
+		NodeIds []string    `json:"nodeIds" binding:"required"`
+		Data    interface{} `json:"data,omitempty"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -657,7 +641,7 @@ func (h *NodeHandler) GetNodeEvents(c *gin.Context) {
 // SetMaintenanceMode 设置维护模式
 func (h *NodeHandler) SetMaintenanceMode(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	var req struct {
 		Maintenance bool   `json:"maintenance"`
 		Reason      string `json:"reason,omitempty"`
@@ -730,12 +714,12 @@ func (h *NodeHandler) CleanupOfflineNodes(c *gin.Context) {
 // calculateNodeHealth 计算节点健康状态
 func calculateNodeHealth(node *models.Node) map[string]interface{} {
 	health := map[string]interface{}{
-		"nodeId":       node.ID.Hex(),
-		"name":         node.Name,
-		"status":       node.Status,
-		"healthy":      node.Status == models.NodeStatusOnline,
-		"lastSeen":     node.LastHeartbeatTime,
-		"uptime":       node.StatusInfo.UptimeSeconds,
+		"nodeId":   node.ID.Hex(),
+		"name":     node.Name,
+		"status":   node.Status,
+		"healthy":  node.Status == models.NodeStatusOnline,
+		"lastSeen": node.LastHeartbeatTime,
+		"uptime":   node.StatusInfo.UptimeSeconds,
 	}
 
 	// 计算健康评分

@@ -20,7 +20,7 @@ func NewManager(env string) *Manager {
 	if env == "" {
 		env = getEnv("APP_ENV", "development")
 	}
-	
+
 	return &Manager{
 		env: env,
 	}
@@ -241,16 +241,13 @@ func (m *Manager) validateConfig(config *Config) error {
 
 	// 验证数据库配置
 	validDBTypes := []string{"mysql", "postgres", "sqlite", "mongodb"}
+
 	if !contains(validDBTypes, config.Database.Type) {
 		return fmt.Errorf("invalid database type: %s", config.Database.Type)
 	}
 
 	if config.Database.Type == "sqlite" && config.Database.Path == "" {
 		return fmt.Errorf("sqlite database path is required")
-	}
-
-	if config.Database.Type != "sqlite" && config.Database.Host == "" {
-		return fmt.Errorf("database host is required for %s", config.Database.Type)
 	}
 
 	// 验证认证配置

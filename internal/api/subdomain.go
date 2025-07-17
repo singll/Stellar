@@ -3,7 +3,6 @@ package api
 import (
 	"bufio"
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/StellarServer/internal/models"
+	"github.com/StellarServer/internal/pkg/logger"
 	"github.com/StellarServer/internal/services/subdomain"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -32,18 +32,16 @@ func NewSubdomainHandler(db *mongo.Database) *SubdomainHandler {
 
 // RegisterRoutes 注册子域名枚举相关的路由
 func (h *SubdomainHandler) RegisterRoutes(router *gin.RouterGroup) {
-	subdomainGroup := router.Group("/subdomains")
-	{
-		subdomainGroup.POST("/tasks", h.CreateEnumTask)
-		subdomainGroup.GET("/tasks", h.ListEnumTasks)
-		subdomainGroup.GET("/tasks/:id", h.GetEnumTask)
-		subdomainGroup.DELETE("/tasks/:id", h.DeleteEnumTask)
-		subdomainGroup.GET("/results", h.ListEnumResults)
-		subdomainGroup.GET("/results/:id", h.GetEnumResult)
-		subdomainGroup.POST("/dictionaries", h.UploadDictionary)
-		subdomainGroup.GET("/dictionaries", h.ListDictionaries)
-		subdomainGroup.DELETE("/dictionaries/:id", h.DeleteDictionary)
-	}
+	// 无需 router.Use(AuthMiddleware())，统一由路由分组控制
+	router.POST("/tasks", h.CreateEnumTask)
+	router.GET("/tasks", h.ListEnumTasks)
+	router.GET("/tasks/:id", h.GetEnumTask)
+	router.DELETE("/tasks/:id", h.DeleteEnumTask)
+	router.GET("/results", h.ListEnumResults)
+	router.GET("/results/:id", h.GetEnumResult)
+	router.POST("/dictionaries", h.UploadDictionary)
+	router.GET("/dictionaries", h.ListDictionaries)
+	router.DELETE("/dictionaries/:id", h.DeleteDictionary)
 }
 
 // CreateEnumTaskRequest 创建子域名枚举任务的请求
@@ -495,7 +493,7 @@ func (h *SubdomainHandler) runEnumTask(task models.SubdomainEnumTask) {
 		update,
 	)
 	if err != nil {
-		log.Printf("Failed to update task status: %v", err)
+		logger.Error("Failed to update task status", map[string]interface{}{"error": err})
 		return
 	}
 
@@ -541,7 +539,7 @@ func (h *SubdomainHandler) runEnumTask(task models.SubdomainEnumTask) {
 			result.ID = primitive.NewObjectID()
 			_, err := h.DB.Collection("subdomain_results").InsertOne(context.Background(), result)
 			if err != nil {
-				log.Printf("Failed to save result: %v", err)
+				logger.Error("Failed to save result", map[string]interface{}{"error": err})
 				continue
 			}
 
@@ -584,7 +582,7 @@ func (h *SubdomainHandler) runEnumTask(task models.SubdomainEnumTask) {
 				// 保存资产
 				_, err := h.DB.Collection(models.AssetCollection(models.AssetTypeSubdomain)).InsertOne(context.Background(), asset)
 				if err != nil {
-					log.Printf("Failed to save asset: %v", err)
+					logger.Error("Failed to save asset", map[string]interface{}{"error": err})
 				} else {
 					// 更新结果中的资产ID
 					update := bson.M{

@@ -201,7 +201,7 @@ export class NodeAPI {
 	 * @returns 节点统计信息
 	 */
 	async getNodeStats(): Promise<NodeStats> {
-		const response = await api.get('/nodes/nodes/stats');
+		const response = await api.get('/nodes/stats');
 		return response.data.data;
 	}
 
