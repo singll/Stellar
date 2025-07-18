@@ -7,20 +7,23 @@ server:
 
 # 新的统一数据库配置
 database:
-  type: "sqlite"  # 开发环境使用SQLite
+  type: "mongodb"
   path: "./stellar.db"
 
-# MongoDB配置（向后兼容）
+# MongoDB配置（向后兼容，留空以跳过）
 mongodb:
   uri: "mongodb://192.168.7.216:27017"
   database: "stellarserver_dev"
+  user: "admin"
+  password: "admin"
   maxPoolSize: 100
   minPoolSize: 10
   maxIdleTimeMS: 30000
 
+# Redis配置（留空以跳过）
 redis:
   addr: "192.168.7.128:6379"
-  password: ""
+  password: "redis"
   db: 0
   poolSize: 10
   minIdleConns: 5
@@ -33,22 +36,21 @@ auth:
 subdomain:
   methods:
     - "subfinder"
-    - "amass"
   dictionaryPath: "./dicts/subdomain_dict.txt"
-  concurrency: 50
+  concurrency: 10
   timeout: 10
   retryCount: 3
   rateLimit: 100
   resolverServers:
     - "8.8.8.8:53"
-    - "114.114.114.114:53"
+    - "1.1.1.1:53"
   verifySubdomains: true
   checkTakeover: false
   recursiveSearch: false
 
 portscan:
-  ports: "1-1000,3000-4000,8000-9000"
-  concurrency: 100
+  ports: "80,443,8080,8443"
+  concurrency: 50
   timeout: 5
   retryCount: 3
   rateLimit: 1000
@@ -57,12 +59,12 @@ portscan:
 
 vulnscan:
   timeout: 30
-  maxConcurrency: 50
+  maxConcurrency: 10
   pluginPath: "./plugins"
 
 discovery:
   timeout: 30
-  maxConcurrency: 50
+  maxConcurrency: 10
   scanInterval: 24
 
 node:
@@ -73,12 +75,12 @@ node:
   masterNodeName: "master-node"
 
 task:
-  maxConcurrentTasks: 10
+  maxConcurrentTasks: 5
   taskTimeout: 3600
   enableRetry: true
   maxRetries: 3
   retryInterval: 300
-  queueCapacity: 1000
+  queueCapacity: 100
 
 logs:
   totalLogs: 1000

@@ -18,7 +18,7 @@ type Manager struct {
 // NewManager 创建配置管理器
 func NewManager(env string) *Manager {
 	if env == "" {
-		env = getEnv("APP_ENV", "development")
+		env = getEnv("APP_ENV", "dev")
 	}
 
 	return &Manager{
@@ -114,12 +114,12 @@ func (m *Manager) GetEnv() string {
 
 // IsDevelopment 是否为开发环境
 func (m *Manager) IsDevelopment() bool {
-	return m.env == "development" || m.env == "dev"
+	return m.env == "dev" || m.env == "development" 
 }
 
 // IsProduction 是否为生产环境
 func (m *Manager) IsProduction() bool {
-	return m.env == "production" || m.env == "prod"
+	return m.env == "prod" || m.env == "production"
 }
 
 // IsTest 是否为测试环境
