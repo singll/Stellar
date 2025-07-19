@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
+	"github.com/StellarServer/internal/pkg/logger"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -61,33 +63,33 @@ type NodeQueryParams struct {
 
 // NodeStats 节点统计信息
 type NodeStats struct {
-	Total            int                    `json:"total"`
-	Online           int                    `json:"online"`
-	Offline          int                    `json:"offline"`
-	Disabled         int                    `json:"disabled"`
-	Maintaining      int                    `json:"maintaining"`
-	ByRole           map[string]int         `json:"byRole"`
-	ByStatus         map[string]int         `json:"byStatus"`
-	TotalTasks       int                    `json:"totalTasks"`
-	RunningTasks     int                    `json:"runningTasks"`
-	QueuedTasks      int                    `json:"queuedTasks"`
-	AvgCpuUsage      float64                `json:"avgCpuUsage"`
-	AvgMemoryUsage   float64                `json:"avgMemoryUsage"`
-	ResourceUsage    NodeResourceUsageStats `json:"resourceUsage"`
-	LastUpdateTime   time.Time              `json:"lastUpdateTime"`
+	Total          int                    `json:"total"`
+	Online         int                    `json:"online"`
+	Offline        int                    `json:"offline"`
+	Disabled       int                    `json:"disabled"`
+	Maintaining    int                    `json:"maintaining"`
+	ByRole         map[string]int         `json:"byRole"`
+	ByStatus       map[string]int         `json:"byStatus"`
+	TotalTasks     int                    `json:"totalTasks"`
+	RunningTasks   int                    `json:"runningTasks"`
+	QueuedTasks    int                    `json:"queuedTasks"`
+	AvgCpuUsage    float64                `json:"avgCpuUsage"`
+	AvgMemoryUsage float64                `json:"avgMemoryUsage"`
+	ResourceUsage  NodeResourceUsageStats `json:"resourceUsage"`
+	LastUpdateTime time.Time              `json:"lastUpdateTime"`
 }
 
 // NodeResourceUsageStats 节点资源使用统计
 type NodeResourceUsageStats struct {
-	TotalMemory    int64   `json:"totalMemory"`    // 总内存 (MB)
-	UsedMemory     int64   `json:"usedMemory"`     // 已用内存 (MB)
-	TotalDisk      int64   `json:"totalDisk"`      // 总磁盘 (MB)
-	UsedDisk       int64   `json:"usedDisk"`       // 已用磁盘 (MB)
-	AvgNetworkIn   int64   `json:"avgNetworkIn"`   // 平均网络入流量 (KB/s)
-	AvgNetworkOut  int64   `json:"avgNetworkOut"`  // 平均网络出流量 (KB/s)
-	HighCpuNodes   int     `json:"highCpuNodes"`   // 高CPU使用率节点数
-	HighMemNodes   int     `json:"highMemNodes"`   // 高内存使用率节点数
-	OverloadedNodes int    `json:"overloadedNodes"` // 过载节点数
+	TotalMemory     int64 `json:"totalMemory"`     // 总内存 (MB)
+	UsedMemory      int64 `json:"usedMemory"`      // 已用内存 (MB)
+	TotalDisk       int64 `json:"totalDisk"`       // 总磁盘 (MB)
+	UsedDisk        int64 `json:"usedDisk"`        // 已用磁盘 (MB)
+	AvgNetworkIn    int64 `json:"avgNetworkIn"`    // 平均网络入流量 (KB/s)
+	AvgNetworkOut   int64 `json:"avgNetworkOut"`   // 平均网络出流量 (KB/s)
+	HighCpuNodes    int   `json:"highCpuNodes"`    // 高CPU使用率节点数
+	HighMemNodes    int   `json:"highMemNodes"`    // 高内存使用率节点数
+	OverloadedNodes int   `json:"overloadedNodes"` // 过载节点数
 }
 
 // nodeRepository 节点仓库实现
@@ -109,7 +111,7 @@ func (r *nodeRepository) Create(ctx context.Context, node *Node) error {
 	if node.ID.IsZero() {
 		node.ID = primitive.NewObjectID()
 	}
-	
+
 	now := time.Now()
 	if node.RegisteredAt.IsZero() {
 		node.RegisteredAt = now
@@ -119,23 +121,29 @@ func (r *nodeRepository) Create(ctx context.Context, node *Node) error {
 	}
 
 	_, err := r.collection.InsertOne(ctx, node)
-	return err
+	if err != nil {
+		logger.Error("Create node failed", map[string]interface{}{"nodeName": node.Name, "error": err})
+		return pkgerrors.WrapDatabaseError(err, "创建节点")
+	}
+	return nil
 }
 
 // GetByID 根据ID获取节点
 func (r *nodeRepository) GetByID(ctx context.Context, id string) (*Node, error) {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return nil, fmt.Errorf("无效的节点ID: %w", err)
+		logger.Error("GetByID invalid nodeID", map[string]interface{}{"nodeID": id, "error": err})
+		return nil, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的节点ID", 400, err)
 	}
 
 	var node Node
 	err = r.collection.FindOne(ctx, bson.M{"_id": objID}).Decode(&node)
 	if err != nil {
+		logger.Error("GetByID find node failed", map[string]interface{}{"nodeID": id, "error": err})
 		if err == mongo.ErrNoDocuments {
-			return nil, errors.New("节点不存在")
+			return nil, pkgerrors.NewNotFoundError("节点不存在")
 		}
-		return nil, err
+		return nil, pkgerrors.WrapDatabaseError(err, "查询节点")
 	}
 
 	return &node, nil
@@ -146,10 +154,11 @@ func (r *nodeRepository) GetByName(ctx context.Context, name string) (*Node, err
 	var node Node
 	err := r.collection.FindOne(ctx, bson.M{"name": name}).Decode(&node)
 	if err != nil {
+		logger.Error("GetByName find node failed", map[string]interface{}{"nodeName": name, "error": err})
 		if err == mongo.ErrNoDocuments {
-			return nil, errors.New("节点不存在")
+			return nil, pkgerrors.NewNotFoundError("节点不存在")
 		}
-		return nil, err
+		return nil, pkgerrors.WrapDatabaseError(err, "根据名称查询节点")
 	}
 
 	return &node, nil
@@ -310,7 +319,7 @@ func (r *nodeRepository) GetByRole(ctx context.Context, role string) ([]*Node, e
 // GetByTags 根据标签获取节点
 func (r *nodeRepository) GetByTags(ctx context.Context, tags []string) ([]*Node, error) {
 	filter := bson.M{"tags": bson.M{"$in": tags}}
-	
+
 	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
@@ -434,7 +443,7 @@ func (r *nodeRepository) GetStats(ctx context.Context) (*NodeStats, error) {
 	pipeline := []bson.M{
 		{
 			"$group": bson.M{
-				"_id": nil,
+				"_id":   nil,
 				"total": bson.M{"$sum": 1},
 				"online": bson.M{
 					"$sum": bson.M{
@@ -472,10 +481,10 @@ func (r *nodeRepository) GetStats(ctx context.Context) (*NodeStats, error) {
 						},
 					},
 				},
-				"totalTasks":    bson.M{"$sum": "$nodeStatus.runningTasks"},
-				"runningTasks":  bson.M{"$sum": "$nodeStatus.runningTasks"},
-				"queuedTasks":   bson.M{"$sum": "$nodeStatus.queuedTasks"},
-				"avgCpuUsage":   bson.M{"$avg": "$nodeStatus.cpuUsage"},
+				"totalTasks":     bson.M{"$sum": "$nodeStatus.runningTasks"},
+				"runningTasks":   bson.M{"$sum": "$nodeStatus.runningTasks"},
+				"queuedTasks":    bson.M{"$sum": "$nodeStatus.queuedTasks"},
+				"avgCpuUsage":    bson.M{"$avg": "$nodeStatus.cpuUsage"},
 				"avgMemoryUsage": bson.M{"$avg": "$nodeStatus.memoryUsage"},
 			},
 		},
@@ -488,15 +497,15 @@ func (r *nodeRepository) GetStats(ctx context.Context) (*NodeStats, error) {
 	defer cursor.Close(ctx)
 
 	var result struct {
-		Total         int     `bson:"total"`
-		Online        int     `bson:"online"`
-		Offline       int     `bson:"offline"`
-		Disabled      int     `bson:"disabled"`
-		Maintaining   int     `bson:"maintaining"`
-		TotalTasks    int     `bson:"totalTasks"`
-		RunningTasks  int     `bson:"runningTasks"`
-		QueuedTasks   int     `bson:"queuedTasks"`
-		AvgCpuUsage   float64 `bson:"avgCpuUsage"`
+		Total          int     `bson:"total"`
+		Online         int     `bson:"online"`
+		Offline        int     `bson:"offline"`
+		Disabled       int     `bson:"disabled"`
+		Maintaining    int     `bson:"maintaining"`
+		TotalTasks     int     `bson:"totalTasks"`
+		RunningTasks   int     `bson:"runningTasks"`
+		QueuedTasks    int     `bson:"queuedTasks"`
+		AvgCpuUsage    float64 `bson:"avgCpuUsage"`
 		AvgMemoryUsage float64 `bson:"avgMemoryUsage"`
 	}
 
@@ -672,7 +681,7 @@ func (r *nodeRepository) BatchDelete(ctx context.Context, ids []string) error {
 func (r *nodeRepository) CleanupOfflineNodes(ctx context.Context, timeout time.Duration) (int64, error) {
 	cutoff := time.Now().Add(-timeout)
 	filter := bson.M{
-		"status": NodeStatusOffline,
+		"status":            NodeStatusOffline,
 		"lastHeartbeatTime": bson.M{"$lt": cutoff},
 	}
 

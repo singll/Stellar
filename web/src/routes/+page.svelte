@@ -17,6 +17,7 @@
 	// 检查是否已登录
 	$effect(() => {
 		if ($auth.isAuthenticated) {
+			// 如果已登录，直接跳转到dashboard
 			goto('/dashboard');
 		}
 	});

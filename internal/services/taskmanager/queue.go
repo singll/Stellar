@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/StellarServer/internal/models"
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
+	"github.com/StellarServer/internal/pkg/logger"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -61,7 +63,8 @@ func (qm *QueueManager) CreateQueue(name string, queueType string, priority int,
 
 	// 检查队列是否已存在
 	if _, exists := qm.queues[name]; exists {
-		return nil, errors.New("队列已存在")
+		logger.Warn("CreateQueue queue already exists", map[string]interface{}{"queueName": name})
+		return nil, pkgerrors.NewConflictError("队列已存在")
 	}
 
 	// 创建队列
@@ -89,7 +92,8 @@ func (qm *QueueManager) CreateQueue(name string, queueType string, priority int,
 
 	_, err := qm.db.Collection("task_queues").InsertOne(qm.ctx, queueDoc)
 	if err != nil {
-		return nil, err
+		logger.Error("CreateQueue insert queue failed", map[string]interface{}{"queueName": name, "error": err})
+		return nil, pkgerrors.WrapDatabaseError(err, "创建任务队列")
 	}
 
 	// 添加到内存中
@@ -105,7 +109,8 @@ func (qm *QueueManager) GetQueue(name string) (*TaskQueue, error) {
 
 	queue, exists := qm.queues[name]
 	if !exists {
-		return nil, errors.New("队列不存在")
+		logger.Warn("GetQueue queue not found", map[string]interface{}{"queueName": name})
+		return nil, pkgerrors.NewNotFoundError("队列不存在")
 	}
 
 	return queue, nil
@@ -123,7 +128,8 @@ func (qm *QueueManager) EnqueueTask(queueName string, task *models.Task) error {
 
 	// 检查队列是否已满
 	if queue.MaxSize > 0 && queue.TaskCount >= queue.MaxSize {
-		return errors.New("队列已满")
+		logger.Warn("EnqueueTask queue is full", map[string]interface{}{"queueName": queueName, "maxSize": queue.MaxSize, "currentCount": queue.TaskCount})
+		return pkgerrors.NewRateLimitError("队列已满")
 	}
 
 	// 更新任务状态
@@ -143,7 +149,8 @@ func (qm *QueueManager) EnqueueTask(queueName string, task *models.Task) error {
 		},
 	)
 	if err != nil {
-		return err
+		logger.Error("EnqueueTask update queue failed", map[string]interface{}{"queueName": queueName, "taskID": task.ID.Hex(), "error": err})
+		return pkgerrors.WrapDatabaseError(err, "更新队列任务计数")
 	}
 
 	// 更新数据库中的任务状态
@@ -157,13 +164,15 @@ func (qm *QueueManager) EnqueueTask(queueName string, task *models.Task) error {
 		},
 	)
 	if err != nil {
-		return err
+		logger.Error("EnqueueTask update task status failed", map[string]interface{}{"taskID": task.ID.Hex(), "error": err})
+		return pkgerrors.WrapDatabaseError(err, "更新任务状态")
 	}
 
 	// 将任务ID添加到Redis队列
 	err = qm.redisClient.LPush(qm.ctx, "task_queue:"+queueName, task.ID.Hex()).Err()
 	if err != nil {
-		return err
+		logger.Error("EnqueueTask add to redis failed", map[string]interface{}{"queueName": queueName, "taskID": task.ID.Hex(), "error": err})
+		return pkgerrors.WrapError(err, pkgerrors.CodeRedisError, "添加任务到Redis队列", 500)
 	}
 
 	return nil
@@ -181,7 +190,8 @@ func (qm *QueueManager) DequeueTask(queueName string) (*models.Task, error) {
 
 	// 检查队列是否为空
 	if queue.TaskCount == 0 || len(queue.Tasks) == 0 {
-		return nil, errors.New("队列为空")
+		logger.Info("DequeueTask queue is empty", map[string]interface{}{"queueName": queueName})
+		return nil, pkgerrors.NewNotFoundError("队列为空")
 	}
 
 	// 获取第一个任务
@@ -199,13 +209,15 @@ func (qm *QueueManager) DequeueTask(queueName string) (*models.Task, error) {
 		},
 	)
 	if err != nil {
-		return nil, err
+		logger.Error("DequeueTask update queue failed", map[string]interface{}{"queueName": queueName, "taskID": task.ID.Hex(), "error": err})
+		return nil, pkgerrors.WrapDatabaseError(err, "更新队列任务计数")
 	}
 
 	// 从Redis队列中移除任务
 	err = qm.redisClient.LRem(qm.ctx, "task_queue:"+queueName, 1, task.ID.Hex()).Err()
 	if err != nil {
-		return nil, err
+		logger.Error("DequeueTask remove from redis failed", map[string]interface{}{"queueName": queueName, "taskID": task.ID.Hex(), "error": err})
+		return nil, pkgerrors.WrapError(err, pkgerrors.CodeRedisError, "从Redis队列移除任务", 500)
 	}
 
 	return task, nil

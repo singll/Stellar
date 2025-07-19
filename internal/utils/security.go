@@ -9,11 +9,12 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"regexp"
 	"strings"
 
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
+	"github.com/StellarServer/internal/pkg/logger"
 	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -52,7 +53,8 @@ func GenerateRandomBytes(length int) ([]byte, error) {
 	b := make([]byte, length)
 	_, err := rand.Read(b)
 	if err != nil {
-		return nil, err
+		logger.Error("GenerateRandomBytes failed", map[string]interface{}{"length": length, "error": err})
+		return nil, pkgerrors.WrapError(err, pkgerrors.CodeInternalError, "生成随机字节失败", 500)
 	}
 	return b, nil
 }
@@ -96,24 +98,28 @@ func SHA512(data string) string {
 // EncryptAES 使用AES加密数据
 func EncryptAES(data, key []byte) ([]byte, error) {
 	if len(key) != 16 && len(key) != 24 && len(key) != 32 {
-		return nil, ErrInvalidKey
+		logger.Error("EncryptAES invalid key length", map[string]interface{}{"keyLength": len(key)})
+		return nil, pkgerrors.NewAppError(pkgerrors.CodeValidationFailed, "无效的加密密钥长度", 400)
 	}
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, err
+		logger.Error("EncryptAES create cipher failed", map[string]interface{}{"error": err})
+		return nil, pkgerrors.WrapError(err, pkgerrors.CodeInternalError, "创建AES加密器失败", 500)
 	}
 
 	// 创建GCM模式
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, err
+		logger.Error("EncryptAES create GCM failed", map[string]interface{}{"error": err})
+		return nil, pkgerrors.WrapError(err, pkgerrors.CodeInternalError, "创建GCM模式失败", 500)
 	}
 
 	// 创建随机数
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, err
+		logger.Error("EncryptAES generate nonce failed", map[string]interface{}{"error": err})
+		return nil, pkgerrors.WrapError(err, pkgerrors.CodeInternalError, "生成随机数失败", 500)
 	}
 
 	// 加密数据
@@ -124,23 +130,27 @@ func EncryptAES(data, key []byte) ([]byte, error) {
 // DecryptAES 使用AES解密数据
 func DecryptAES(data, key []byte) ([]byte, error) {
 	if len(key) != 16 && len(key) != 24 && len(key) != 32 {
-		return nil, ErrInvalidKey
+		logger.Error("DecryptAES invalid key length", map[string]interface{}{"keyLength": len(key)})
+		return nil, pkgerrors.NewAppError(pkgerrors.CodeValidationFailed, "无效的加密密钥长度", 400)
 	}
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, err
+		logger.Error("DecryptAES create cipher failed", map[string]interface{}{"error": err})
+		return nil, pkgerrors.WrapError(err, pkgerrors.CodeInternalError, "创建AES解密器失败", 500)
 	}
 
 	// 创建GCM模式
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, err
+		logger.Error("DecryptAES create GCM failed", map[string]interface{}{"error": err})
+		return nil, pkgerrors.WrapError(err, pkgerrors.CodeInternalError, "创建GCM模式失败", 500)
 	}
 
 	// 检查数据长度
 	if len(data) < gcm.NonceSize() {
-		return nil, ErrInvalidData
+		logger.Error("DecryptAES data too short", map[string]interface{}{"dataLength": len(data), "nonceSize": gcm.NonceSize()})
+		return nil, pkgerrors.NewAppError(pkgerrors.CodeValidationFailed, "无效的加密数据", 400)
 	}
 
 	// 提取随机数
@@ -149,7 +159,8 @@ func DecryptAES(data, key []byte) ([]byte, error) {
 	// 解密数据
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return nil, err
+		logger.Error("DecryptAES decrypt failed", map[string]interface{}{"error": err})
+		return nil, pkgerrors.WrapError(err, pkgerrors.CodeValidationFailed, "解密数据失败", 400)
 	}
 
 	return plaintext, nil
@@ -161,7 +172,8 @@ func ValidateJWT(tokenString, secret string) (*JWTClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
 		// 验证签名方法
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("意外的签名方法: %v", token.Header["alg"])
+			logger.Error("ValidateJWT unexpected signing method", map[string]interface{}{"method": token.Header["alg"]})
+			return nil, pkgerrors.NewAppError(pkgerrors.CodeValidationFailed, "不支持的签名方法", 400)
 		}
 		return []byte(secret), nil
 	})
@@ -169,10 +181,12 @@ func ValidateJWT(tokenString, secret string) (*JWTClaims, error) {
 	if err != nil {
 		if ve, ok := err.(*jwt.ValidationError); ok {
 			if ve.Errors&jwt.ValidationErrorExpired != 0 {
-				return nil, ErrTokenExpired
+				logger.Warn("ValidateJWT token expired", map[string]interface{}{"token": tokenString})
+				return nil, pkgerrors.NewAppError(pkgerrors.CodeUnauthorized, "令牌已过期", 401)
 			}
 		}
-		return nil, ErrInvalidToken
+		logger.Error("ValidateJWT invalid token", map[string]interface{}{"error": err})
+		return nil, pkgerrors.NewAppError(pkgerrors.CodeUnauthorized, "无效的令牌", 401)
 	}
 
 	// 获取声明
@@ -180,7 +194,8 @@ func ValidateJWT(tokenString, secret string) (*JWTClaims, error) {
 		return claims, nil
 	}
 
-	return nil, ErrInvalidToken
+	logger.Error("ValidateJWT invalid claims", map[string]interface{}{"token": tokenString})
+	return nil, pkgerrors.NewAppError(pkgerrors.CodeUnauthorized, "无效的令牌", 401)
 }
 
 // SanitizeInput 清理输入，防止XSS和SQL注入

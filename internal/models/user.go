@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"crypto/md5"
 	"fmt"
 	"time"
 
@@ -31,14 +32,17 @@ func CreateUser(db *mongo.Database, username, email, password string, roles []st
 	var existingUser UserMongo
 	err := db.Collection("user").FindOne(context.Background(), bson.M{"$or": []bson.M{{"username": username}, {"email": email}}}).Decode(&existingUser)
 	if err == nil {
-		return nil, fmt.Errorf("用户名或邮箱已存在")
+		logger.Error("CreateUser user already exists", map[string]interface{}{"username": username, "email": email})
+		return nil, pkgerrors.NewAppError(pkgerrors.CodeConflict, "用户名或邮箱已存在", 409)
 	} else if err != mongo.ErrNoDocuments {
-		return nil, err
+		logger.Error("CreateUser check existing user failed", map[string]interface{}{"username": username, "email": email, "error": err})
+		return nil, pkgerrors.WrapDatabaseError(err, "检查用户是否存在")
 	}
 
 	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, fmt.Errorf("密码加密失败: %v", err)
+		logger.Error("CreateUser password hash failed", map[string]interface{}{"username": username, "error": err})
+		return nil, pkgerrors.WrapError(err, pkgerrors.CodeInternalError, "密码加密失败", 500)
 	}
 
 	user := &UserMongo{
@@ -52,7 +56,8 @@ func CreateUser(db *mongo.Database, username, email, password string, roles []st
 
 	result, err := db.Collection("user").InsertOne(context.Background(), user)
 	if err != nil {
-		return nil, err
+		logger.Error("CreateUser insert user failed", map[string]interface{}{"username": username, "error": err})
+		return nil, pkgerrors.WrapDatabaseError(err, "创建用户")
 	}
 	user.ID = result.InsertedID.(primitive.ObjectID)
 	return user, nil
@@ -86,7 +91,7 @@ func GetUserByEmail(db *mongo.Database, email string) (*UserMongo, error) {
 	return &user, nil
 }
 
-// ValidateUser 验证用户凭证（用户名或邮箱+密码）
+// ValidateUser 验证用户凭据
 func ValidateUser(db *mongo.Database, identifier, password string) (*UserMongo, error) {
 	var user UserMongo
 	filter := bson.M{"$or": []bson.M{{"username": identifier}, {"email": identifier}}}
@@ -98,10 +103,56 @@ func ValidateUser(db *mongo.Database, identifier, password string) (*UserMongo, 
 		}
 		return nil, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeInternalError, "ValidateUser failed", 500, err)
 	}
-	if bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(password)) != nil {
+
+	// 检查密码是否匹配
+	// 支持两种加密方式：MD5（向后兼容）和bcrypt（新用户）
+	passwordValid := false
+
+	// 首先尝试bcrypt验证（新用户）
+	if len(user.HashedPassword) > 0 {
+		if bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(password)) == nil {
+			passwordValid = true
+		}
+	}
+
+	// 如果bcrypt验证失败，尝试MD5验证（向后兼容）
+	if !passwordValid {
+		// 检查是否是MD5格式（32位十六进制）
+		if len(user.HashedPassword) == 32 {
+			// 计算输入密码的MD5
+			hashedInput := fmt.Sprintf("%x", md5.Sum([]byte(password)))
+			if hashedInput == user.HashedPassword {
+				passwordValid = true
+
+				// 如果是MD5密码，自动升级为bcrypt
+				go func() {
+					if newHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost); err == nil {
+						_, updateErr := db.Collection("user").UpdateOne(
+							context.Background(),
+							bson.M{"_id": user.ID},
+							bson.M{"$set": bson.M{"hashedPassword": string(newHash)}},
+						)
+						if updateErr != nil {
+							logger.Error("Failed to upgrade password to bcrypt", map[string]interface{}{
+								"userID": user.ID.Hex(),
+								"error":  updateErr,
+							})
+						} else {
+							logger.Info("Password upgraded to bcrypt", map[string]interface{}{
+								"userID": user.ID.Hex(),
+							})
+						}
+					}
+				}()
+			}
+		}
+	}
+
+	if !passwordValid {
 		logger.Warn("ValidateUser password mismatch", map[string]interface{}{"identifier": identifier})
 		return nil, pkgerrors.NewInvalidCredentialsError()
 	}
+
 	// 更新最后登录时间
 	_, err = db.Collection("user").UpdateOne(
 		context.Background(),
@@ -119,19 +170,26 @@ func ValidateUser(db *mongo.Database, identifier, password string) (*UserMongo, 
 func UpdatePassword(db *mongo.Database, username, oldPassword, newPassword string) error {
 	user, err := GetUserByUsername(db, username)
 	if err != nil {
-		return err
+		logger.Error("UpdatePassword get user failed", map[string]interface{}{"username": username, "error": err})
+		return pkgerrors.WrapError(err, pkgerrors.CodeNotFound, "用户不存在", 404)
 	}
 	if bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(oldPassword)) != nil {
-		return fmt.Errorf("原密码错误")
+		logger.Error("UpdatePassword old password incorrect", map[string]interface{}{"username": username})
+		return pkgerrors.NewAppError(pkgerrors.CodeValidationFailed, "原密码错误", 400)
 	}
 	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
-		return fmt.Errorf("新密码加密失败: %v", err)
+		logger.Error("UpdatePassword new password hash failed", map[string]interface{}{"username": username, "error": err})
+		return pkgerrors.WrapError(err, pkgerrors.CodeInternalError, "新密码加密失败", 500)
 	}
 	_, err = db.Collection("user").UpdateOne(
 		context.Background(),
 		bson.M{"username": username},
 		bson.M{"$set": bson.M{"hashedPassword": string(hashed)}},
 	)
-	return err
+	if err != nil {
+		logger.Error("UpdatePassword update password failed", map[string]interface{}{"username": username, "error": err})
+		return pkgerrors.WrapDatabaseError(err, "更新用户密码")
+	}
+	return nil
 }

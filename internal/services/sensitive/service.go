@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/StellarServer/internal/models"
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
+	"github.com/StellarServer/internal/pkg/logger"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -28,36 +30,36 @@ type ReportConfig struct {
 
 // Service 敏感信息检测服务
 type Service struct {
-	db                      *mongo.Database
-	detector                *Detector
-	engine                  *DetectionEngine
-	ruleManager            *RuleManager
-	reportGenerator        *ReportGenerator
-	falsePositiveManager   *FalsePositiveManager
+	db                   *mongo.Database
+	detector             *Detector
+	engine               *DetectionEngine
+	ruleManager          *RuleManager
+	reportGenerator      *ReportGenerator
+	falsePositiveManager *FalsePositiveManager
 }
 
 // NewService 创建敏感信息检测服务
 func NewService(db *mongo.Database) *Service {
 	// 创建检测引擎
 	engine := NewDetectionEngine(db)
-	
+
 	// 创建检测器
 	detector := NewDetector(db, engine.rules)
-	
+
 	// 创建其他组件
 	ruleManager := NewRuleManager(db, engine)
 	reportGenerator := NewReportGenerator(detector)
 	falsePositiveManager := NewFalsePositiveManager(db, engine)
-	
+
 	service := &Service{
-		db:                      db,
-		detector:                detector,
-		engine:                  engine,
-		ruleManager:            ruleManager,
-		reportGenerator:        reportGenerator,
-		falsePositiveManager:   falsePositiveManager,
+		db:                   db,
+		detector:             detector,
+		engine:               engine,
+		ruleManager:          ruleManager,
+		reportGenerator:      reportGenerator,
+		falsePositiveManager: falsePositiveManager,
 	}
-	
+
 	return service
 }
 
@@ -65,11 +67,18 @@ func NewService(db *mongo.Database) *Service {
 func (s *Service) StartDetection(ctx context.Context, req models.SensitiveDetectionRequest) (*models.SensitiveDetectionResult, error) {
 	// 验证请求
 	if err := s.validateRequest(req); err != nil {
-		return nil, fmt.Errorf("请求验证失败: %v", err)
+		logger.Error("StartDetection validation failed", map[string]interface{}{"request": req, "error": err})
+		return nil, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeValidationFailed, "请求验证失败", 400, err)
 	}
-	
+
 	// 使用检测器启动检测
-	return s.detector.Detect(ctx, req)
+	result, err := s.detector.Detect(ctx, req)
+	if err != nil {
+		logger.Error("StartDetection detect failed", map[string]interface{}{"request": req, "error": err})
+		return nil, pkgerrors.WrapError(err, pkgerrors.CodeScanError, "启动敏感信息检测失败", 500)
+	}
+
+	return result, nil
 }
 
 // ScanContent 扫描内容
@@ -196,31 +205,31 @@ func (s *Service) validateRequest(req models.SensitiveDetectionRequest) error {
 	if req.Name == "" {
 		return fmt.Errorf("检测名称不能为空")
 	}
-	
+
 	if len(req.Targets) == 0 {
 		return fmt.Errorf("检测目标不能为空")
 	}
-	
+
 	if req.Config.Concurrency <= 0 {
 		req.Config.Concurrency = 5 // 默认并发数
 	}
-	
+
 	if req.Config.Timeout <= 0 {
 		req.Config.Timeout = 30 // 默认超时时间30秒
 	}
-	
+
 	return nil
 }
 
 // GetEngineStatus 获取引擎状态
 func (s *Service) GetEngineStatus() map[string]interface{} {
 	return map[string]interface{}{
-		"rules_count":          len(s.engine.GetRules()),
-		"rulesets_count":       len(s.ruleManager.ListRuleSets()),
-		"whitelist_rules":      len(s.falsePositiveManager.whitelistRules),
-		"pending_reviews":      len(s.falsePositiveManager.reviewQueue),
-		"suggestions_count":    len(s.falsePositiveManager.GetSuggestions()),
-		"last_updated":         time.Now(),
+		"rules_count":       len(s.engine.GetRules()),
+		"rulesets_count":    len(s.ruleManager.ListRuleSets()),
+		"whitelist_rules":   len(s.falsePositiveManager.whitelistRules),
+		"pending_reviews":   len(s.falsePositiveManager.reviewQueue),
+		"suggestions_count": len(s.falsePositiveManager.GetSuggestions()),
+		"last_updated":      time.Now(),
 	}
 }
 
@@ -228,10 +237,10 @@ func (s *Service) GetEngineStatus() map[string]interface{} {
 func (s *Service) ReloadRules() error {
 	// 重新加载规则管理器中的规则
 	s.ruleManager.reloadRules()
-	
+
 	// 重新加载误报管理器中的白名单规则
 	s.falsePositiveManager.loadWhitelistRules()
-	
+
 	return nil
 }
 
@@ -245,9 +254,10 @@ func (s *Service) GetDetectionHistory(projectID primitive.ObjectID, days int) ([
 func (s *Service) GetDetectionStatistics(projectID primitive.ObjectID) (*DetectionStatistics, error) {
 	stats, err := s.detector.GetStatistics()
 	if err != nil {
-		return nil, err
+		logger.Error("GetDetectionStatistics failed", map[string]interface{}{"projectID": projectID.Hex(), "error": err})
+		return nil, pkgerrors.WrapError(err, pkgerrors.CodeDatabaseError, "获取检测统计失败", 500)
 	}
-	
+
 	// 转换为DetectionStatistics结构
 	return &DetectionStatistics{
 		TotalResults: stats["total_results"].(int64),
@@ -257,15 +267,15 @@ func (s *Service) GetDetectionStatistics(projectID primitive.ObjectID) (*Detecti
 
 // DetectionStatistics 检测统计
 type DetectionStatistics struct {
-	TotalDetections    int64                     `json:"total_detections"`
-	TotalResults       int64                     `json:"total_results"`
-	ActiveRules        int                       `json:"active_rules"`
-	TotalFindings      int64                     `json:"total_findings"`
-	FindingsByCategory map[string]int64          `json:"findings_by_category"`
-	FindingsBySeverity map[SeverityLevel]int64   `json:"findings_by_severity"`
-	RecentActivity     []*ActivityPoint          `json:"recent_activity"`
-	TopTargets         []*TargetStats            `json:"top_targets"`
-	TrendData          []*TrendPoint             `json:"trend_data"`
+	TotalDetections    int64                   `json:"total_detections"`
+	TotalResults       int64                   `json:"total_results"`
+	ActiveRules        int                     `json:"active_rules"`
+	TotalFindings      int64                   `json:"total_findings"`
+	FindingsByCategory map[string]int64        `json:"findings_by_category"`
+	FindingsBySeverity map[SeverityLevel]int64 `json:"findings_by_severity"`
+	RecentActivity     []*ActivityPoint        `json:"recent_activity"`
+	TopTargets         []*TargetStats          `json:"top_targets"`
+	TrendData          []*TrendPoint           `json:"trend_data"`
 }
 
 // ActivityPoint 活动点
@@ -278,7 +288,7 @@ type ActivityPoint struct {
 // 批量操作方法
 func (s *Service) BatchScanURLs(urls []string) ([]*DetectionResult, error) {
 	var results []*DetectionResult
-	
+
 	for _, url := range urls {
 		result, err := s.engine.ScanURL(url)
 		if err != nil {
@@ -287,13 +297,13 @@ func (s *Service) BatchScanURLs(urls []string) ([]*DetectionResult, error) {
 		}
 		results = append(results, result)
 	}
-	
+
 	return results, nil
 }
 
 func (s *Service) BatchScanFiles(filePaths []string) ([]*DetectionResult, error) {
 	var results []*DetectionResult
-	
+
 	for _, filePath := range filePaths {
 		result, err := s.engine.ScanFile(filePath)
 		if err != nil {
@@ -302,7 +312,7 @@ func (s *Service) BatchScanFiles(filePaths []string) ([]*DetectionResult, error)
 		}
 		results = append(results, result)
 	}
-	
+
 	return results, nil
 }
 
@@ -320,16 +330,18 @@ func (s *Service) HealthCheck() error {
 	// 检查数据库连接
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	if err := s.db.Client().Ping(ctx, nil); err != nil {
-		return fmt.Errorf("数据库连接失败: %v", err)
+		logger.Error("HealthCheck database ping failed", map[string]interface{}{"error": err})
+		return pkgerrors.WrapError(err, pkgerrors.CodeDatabaseError, "数据库连接失败", 500)
 	}
-	
+
 	// 检查规则加载
 	if len(s.engine.GetRules()) == 0 {
-		return fmt.Errorf("没有加载任何检测规则")
+		logger.Warn("HealthCheck no rules loaded", nil)
+		return pkgerrors.NewAppError(pkgerrors.CodeConfigError, "没有加载任何检测规则", 500)
 	}
-	
+
 	return nil
 }
 
@@ -344,17 +356,19 @@ func (s *Service) DetectSensitiveInfo(projectID string, req models.SensitiveDete
 	// 解析项目ID
 	projID, err := primitive.ObjectIDFromHex(projectID)
 	if err != nil {
-		return nil, fmt.Errorf("无效的项目ID: %v", err)
+		logger.Error("DetectSensitiveInfo invalid projectID", map[string]interface{}{"projectID": projectID, "error": err})
+		return nil, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的项目ID", 400, err)
 	}
 	req.ProjectID = projID
-	
+
 	return s.StartDetection(context.Background(), req)
 }
 
 func (s *Service) GetDetectionResult(id string) (*models.SensitiveDetectionResult, error) {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return nil, fmt.Errorf("无效的结果ID: %v", err)
+		logger.Error("GetDetectionResult invalid resultID", map[string]interface{}{"resultID": id, "error": err})
+		return nil, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的结果ID", 400, err)
 	}
 	return s.GetResult(objID)
 }
@@ -362,7 +376,8 @@ func (s *Service) GetDetectionResult(id string) (*models.SensitiveDetectionResul
 func (s *Service) ListDetectionResults(projectID string, status string, limit int, skip int) ([]*models.SensitiveDetectionResult, error) {
 	objID, err := primitive.ObjectIDFromHex(projectID)
 	if err != nil {
-		return nil, fmt.Errorf("无效的项目ID: %v", err)
+		logger.Error("ListDetectionResults invalid projectID", map[string]interface{}{"projectID": projectID, "error": err})
+		return nil, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的项目ID", 400, err)
 	}
 	return s.GetResults(objID, limit)
 }
@@ -370,7 +385,8 @@ func (s *Service) ListDetectionResults(projectID string, status string, limit in
 func (s *Service) DeleteDetectionResult(id string) error {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return fmt.Errorf("无效的结果ID: %v", err)
+		logger.Error("DeleteDetectionResult invalid resultID", map[string]interface{}{"resultID": id, "error": err})
+		return pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的结果ID", 400, err)
 	}
 	return s.DeleteResult(objID)
 }

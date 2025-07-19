@@ -60,6 +60,7 @@ func (m *Manager) Load(configDir string) error {
 
 	configFiles := []string{
 		filepath.Join(configDir, fmt.Sprintf("config.%s.yaml", m.env)),
+		filepath.Join(configDir, fmt.Sprintf("config.%s.yaml", getShortEnv(m.env))),
 		filepath.Join(configDir, "config.yaml"),
 	}
 
@@ -114,7 +115,7 @@ func (m *Manager) GetEnv() string {
 
 // IsDevelopment 是否为开发环境
 func (m *Manager) IsDevelopment() bool {
-	return m.env == "dev" || m.env == "development" 
+	return m.env == "dev" || m.env == "development"
 }
 
 // IsProduction 是否为生产环境
@@ -136,7 +137,7 @@ func (m *Manager) getDefaultConfig() Config {
 			Mode: "debug",
 		},
 		Database: DatabaseConfig{
-			Type:     "sqlite",
+			Type:     "mongodb", // 默认使用 MongoDB
 			Path:     "./stellar.db",
 			Host:     "localhost",
 			Port:     5432,
@@ -260,6 +261,20 @@ func (m *Manager) validateConfig(config *Config) error {
 	}
 
 	return nil
+}
+
+// getShortEnv 获取环境简称
+func getShortEnv(env string) string {
+	switch env {
+	case "development":
+		return "dev"
+	case "production":
+		return "prod"
+	case "testing":
+		return "test"
+	default:
+		return env
+	}
 }
 
 // contains 检查切片是否包含指定元素

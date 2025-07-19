@@ -8,7 +8,9 @@ export const load: LayoutLoad = async () => {
 	if (browser) {
 		const authState = get(auth);
 		if (!authState.isAuthenticated) {
-			goto('/login');
+			// 如果未认证，重定向到登录页，并记录当前路径
+			const currentPath = window.location.pathname;
+			goto(`/login?redirect=${encodeURIComponent(currentPath)}`);
 			return {};
 		}
 	}

@@ -11,13 +11,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/StellarServer/internal/models"
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
+	"github.com/StellarServer/internal/pkg/logger"
+	"github.com/StellarServer/internal/utils"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-
-	"github.com/StellarServer/internal/models"
-	"github.com/StellarServer/internal/utils"
 )
 
 // AssetHandler 处理资产相关的API请求
@@ -63,21 +64,16 @@ type CreateAssetRequest struct {
 func (h *AssetHandler) CreateAsset(c *gin.Context) {
 	var req CreateAssetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "无效的请求参数",
-			"details": err.Error(),
-		})
+		logger.Error("CreateAsset参数绑定失败", map[string]interface{}{"error": err})
+		utils.HandleError(c, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的请求参数", 400, err))
 		return
 	}
 
 	// 验证项目ID
 	projectID, err := primitive.ObjectIDFromHex(req.ProjectID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "无效的项目ID",
-		})
+		logger.Error("CreateAsset无效的项目ID", map[string]interface{}{"projectID": req.ProjectID, "error": err})
+		utils.HandleError(c, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的项目ID", 400, err))
 		return
 	}
 
@@ -85,17 +81,11 @@ func (h *AssetHandler) CreateAsset(c *gin.Context) {
 	var project models.Project
 	err = h.DB.Collection("projects").FindOne(c, bson.M{"_id": projectID}).Decode(&project)
 	if err != nil {
+		logger.Error("CreateAsset查询项目失败", map[string]interface{}{"projectID": req.ProjectID, "error": err})
 		if err == mongo.ErrNoDocuments {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "项目不存在",
-			})
+			utils.HandleError(c, pkgerrors.NewNotFoundError("项目不存在"))
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "查询项目失败",
-				"details": err.Error(),
-			})
+			utils.HandleError(c, pkgerrors.WrapDatabaseError(err, "查询项目"))
 		}
 		return
 	}
@@ -182,21 +172,16 @@ func (h *AssetHandler) CreateAsset(c *gin.Context) {
 
 	// 其他资产类型处理...
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "不支持的资产类型",
-		})
+		logger.Error("CreateAsset不支持的资产类型", map[string]interface{}{"assetType": req.Type})
+		utils.HandleError(c, pkgerrors.NewAppError(pkgerrors.CodeBadRequest, "不支持的资产类型", 400))
 		return
 	}
 
 	// 创建资产
 	id, err = h.AssetRepo.CreateAsset(c, req.Type, asset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "创建资产失败",
-			"details": err.Error(),
-		})
+		logger.Error("CreateAsset创建资产失败", map[string]interface{}{"assetType": req.Type, "projectID": req.ProjectID, "error": err})
+		utils.HandleError(c, pkgerrors.WrapDatabaseError(err, "创建资产"))
 		return
 	}
 

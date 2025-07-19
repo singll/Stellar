@@ -20,13 +20,18 @@ function isPublicRoute(path: string): boolean {
 export const authGuard: Handle = async ({ event, resolve }) => {
 	const path = event.url.pathname;
 
+	// 检查认证状态
+	const { isAuthenticated, token } = auth.state;
+
+	// 如果已认证且访问登录页，重定向到dashboard
+	if (isAuthenticated && token && path === '/login') {
+		throw redirect(303, '/dashboard');
+	}
+
 	// 如果是公开路由，直接放行
 	if (isPublicRoute(path)) {
 		return resolve(event);
 	}
-
-	// 检查认证状态
-	const { isAuthenticated, token } = auth.state;
 
 	// 如果未认证且不是公开路由，重定向到登录页
 	if (!isAuthenticated || !token) {

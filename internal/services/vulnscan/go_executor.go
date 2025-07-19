@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/StellarServer/internal/models"
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
+	"github.com/StellarServer/internal/pkg/logger"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -155,7 +157,8 @@ func (e *GoPOCExecutor) compileGoScript(script string, target POCTarget, hash st
 	// 创建项目目录
 	projectDir := filepath.Join(e.tempDir, fmt.Sprintf("poc_%s", hash))
 	if err := os.MkdirAll(projectDir, 0755); err != nil {
-		return "", err
+		logger.Error("compileGoScript create project dir failed", map[string]interface{}{"projectDir": projectDir, "error": err})
+		return "", pkgerrors.WrapFileError(err, "创建Go项目目录")
 	}
 
 	// 创建go.mod文件
@@ -169,7 +172,8 @@ require (
 `
 	goModPath := filepath.Join(projectDir, "go.mod")
 	if err := os.WriteFile(goModPath, []byte(goModContent), 0644); err != nil {
-		return "", err
+		logger.Error("compileGoScript write go.mod failed", map[string]interface{}{"goModPath": goModPath, "error": err})
+		return "", pkgerrors.WrapFileError(err, "创建go.mod文件")
 	}
 
 	// 构建完整的Go程序
@@ -178,7 +182,8 @@ require (
 	// 创建main.go文件
 	mainGoPath := filepath.Join(projectDir, "main.go")
 	if err := os.WriteFile(mainGoPath, []byte(fullScript), 0644); err != nil {
-		return "", err
+		logger.Error("compileGoScript write main.go failed", map[string]interface{}{"mainGoPath": mainGoPath, "error": err})
+		return "", pkgerrors.WrapFileError(err, "创建main.go文件")
 	}
 
 	// 编译程序
@@ -191,7 +196,8 @@ require (
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("编译失败: %v\n%s", err, string(output))
+		logger.Error("compileGoScript build failed", map[string]interface{}{"projectDir": projectDir, "output": string(output), "error": err})
+		return "", pkgerrors.WrapError(fmt.Errorf("编译失败: %v\n%s", err, string(output)), pkgerrors.CodePluginError, "编译Go脚本失败", 500)
 	}
 
 	return binaryPath, nil

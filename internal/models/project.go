@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
+	"github.com/StellarServer/internal/pkg/logger"
 	"github.com/StellarServer/internal/utils"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -41,16 +43,19 @@ func CreateProject(db *mongo.Database, project *Project, target string) (string,
 	// 检查项目名是否已存在
 	count, err := db.Collection("project").CountDocuments(context.Background(), bson.M{"name": project.Name})
 	if err != nil {
-		return "", err
+		logger.Error("CreateProject count documents failed", map[string]interface{}{"projectName": project.Name, "error": err})
+		return "", pkgerrors.WrapDatabaseError(err, "检查项目名是否存在")
 	}
 	if count > 0 {
-		return "", ErrNameExists
+		logger.Error("CreateProject project name exists", map[string]interface{}{"projectName": project.Name})
+		return "", pkgerrors.NewAppError(pkgerrors.CodeConflict, "项目名已存在", 409)
 	}
 
 	// 处理目标数据
 	targetList, err := utils.GetTargetList(target, project.Ignore)
 	if err != nil {
-		return "", err
+		logger.Error("CreateProject get target list failed", map[string]interface{}{"target": target, "error": err})
+		return "", pkgerrors.WrapError(err, pkgerrors.CodeValidationFailed, "处理目标数据失败", 400)
 	}
 
 	// 提取根域名
@@ -80,7 +85,8 @@ func CreateProject(db *mongo.Database, project *Project, target string) (string,
 	// 插入项目
 	result, err := db.Collection("project").InsertOne(context.Background(), project)
 	if err != nil {
-		return "", err
+		logger.Error("CreateProject insert project failed", map[string]interface{}{"projectName": project.Name, "error": err})
+		return "", pkgerrors.WrapDatabaseError(err, "创建项目")
 	}
 
 	projectID := result.InsertedID.(primitive.ObjectID).Hex()
@@ -91,7 +97,8 @@ func CreateProject(db *mongo.Database, project *Project, target string) (string,
 		"target": target,
 	})
 	if err != nil {
-		return "", err
+		logger.Error("CreateProject insert target data failed", map[string]interface{}{"projectID": projectID, "error": err})
+		return "", pkgerrors.WrapDatabaseError(err, "创建项目目标数据")
 	}
 
 	return projectID, nil
@@ -101,13 +108,18 @@ func CreateProject(db *mongo.Database, project *Project, target string) (string,
 func GetProject(db *mongo.Database, projectID string) (*Project, error) {
 	id, err := primitive.ObjectIDFromHex(projectID)
 	if err != nil {
-		return nil, err
+		logger.Error("GetProject invalid projectID", map[string]interface{}{"projectID": projectID, "error": err})
+		return nil, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的项目ID", 400, err)
 	}
 
 	var project Project
 	err = db.Collection("project").FindOne(context.Background(), bson.M{"_id": id}).Decode(&project)
 	if err != nil {
-		return nil, err
+		logger.Error("GetProject find project failed", map[string]interface{}{"projectID": projectID, "error": err})
+		if err == mongo.ErrNoDocuments {
+			return nil, pkgerrors.NewNotFoundError("项目不存在")
+		}
+		return nil, pkgerrors.WrapDatabaseError(err, "查询项目")
 	}
 
 	return &project, nil
@@ -118,7 +130,11 @@ func GetProjectTargetData(db *mongo.Database, projectID string) (*ProjectTargetD
 	var targetData ProjectTargetData
 	err := db.Collection("ProjectTargetData").FindOne(context.Background(), bson.M{"id": projectID}).Decode(&targetData)
 	if err != nil {
-		return nil, err
+		logger.Error("GetProjectTargetData find target data failed", map[string]interface{}{"projectID": projectID, "error": err})
+		if err == mongo.ErrNoDocuments {
+			return nil, pkgerrors.NewNotFoundError("项目目标数据不存在")
+		}
+		return nil, pkgerrors.WrapDatabaseError(err, "查询项目目标数据")
 	}
 
 	return &targetData, nil

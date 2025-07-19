@@ -7,6 +7,7 @@ import (
 	"github.com/StellarServer/internal/services/nodemanager"
 	"github.com/StellarServer/internal/services/pagemonitoring"
 	"github.com/StellarServer/internal/services/portscan"
+	"github.com/StellarServer/internal/services/session"
 	"github.com/StellarServer/internal/services/taskmanager"
 	"github.com/StellarServer/internal/services/vulnscan"
 	"github.com/gin-gonic/gin"
@@ -34,8 +35,14 @@ type AppDependencies struct {
 
 // SetupAllRoutes 设置所有路由
 func SetupAllRoutes(engine *gin.Engine, deps *AppDependencies) *RouteManager {
+	// 创建会话管理器
+	var sessionManager *session.SessionManager
+	if deps.RedisClient != nil {
+		sessionManager = session.NewSessionManager(deps.RedisClient)
+	}
+
 	// 创建路由管理器
-	rm := NewRouteManager(engine)
+	rm := NewRouteManager(engine, sessionManager)
 
 	// 应用全局中间件
 	rm.ApplyGlobalMiddleware()

@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/StellarServer/internal/models"
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
+	"github.com/StellarServer/internal/pkg/logger"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -107,7 +109,8 @@ func (h *Handler) DeleteScanTask(taskID string) error {
 	// 解析任务ID
 	objID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
-		return err
+		logger.Error("DeleteScanTask invalid taskID", map[string]interface{}{"taskID": taskID, "error": err})
+		return pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的任务ID", 400, err)
 	}
 
 	// 检查任务状态
@@ -116,14 +119,20 @@ func (h *Handler) DeleteScanTask(taskID string) error {
 		"_id": objID,
 	}).Decode(&task)
 	if err != nil {
-		return err
+		if err == mongo.ErrNoDocuments {
+			logger.Warn("DeleteScanTask task not found", map[string]interface{}{"taskID": taskID})
+			return pkgerrors.NewNotFoundError("端口扫描任务不存在")
+		}
+		logger.Error("DeleteScanTask find task failed", map[string]interface{}{"taskID": taskID, "error": err})
+		return pkgerrors.WrapDatabaseError(err, "查询端口扫描任务")
 	}
 
 	// 如果任务正在运行，先停止任务
 	if task.Status == "running" {
 		err = h.manager.StopTask(taskID)
 		if err != nil {
-			return err
+			logger.Error("DeleteScanTask stop task failed", map[string]interface{}{"taskID": taskID, "error": err})
+			return pkgerrors.WrapTaskError(err, taskID, "停止端口扫描任务")
 		}
 	}
 
@@ -131,7 +140,11 @@ func (h *Handler) DeleteScanTask(taskID string) error {
 	_, err = h.db.Collection("port_scan_tasks").DeleteOne(context.Background(), bson.M{
 		"_id": objID,
 	})
-	return err
+	if err != nil {
+		logger.Error("DeleteScanTask delete task failed", map[string]interface{}{"taskID": taskID, "error": err})
+		return pkgerrors.WrapDatabaseError(err, "删除端口扫描任务")
+	}
+	return nil
 }
 
 // GetScanResults 获取扫描结果
@@ -139,7 +152,8 @@ func (h *Handler) GetScanResults(taskID string) ([]models.PortScanResult, error)
 	// 解析任务ID
 	objID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
-		return nil, err
+		logger.Error("GetScanResults invalid taskID", map[string]interface{}{"taskID": taskID, "error": err})
+		return nil, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的任务ID", 400, err)
 	}
 
 	// 查询结果
@@ -147,14 +161,16 @@ func (h *Handler) GetScanResults(taskID string) ([]models.PortScanResult, error)
 		"taskId": objID,
 	})
 	if err != nil {
-		return nil, err
+		logger.Error("GetScanResults find results failed", map[string]interface{}{"taskID": taskID, "error": err})
+		return nil, pkgerrors.WrapDatabaseError(err, "查询端口扫描结果")
 	}
 	defer cursor.Close(context.Background())
 
 	// 解析结果
 	var results []models.PortScanResult
 	if err = cursor.All(context.Background(), &results); err != nil {
-		return nil, err
+		logger.Error("GetScanResults decode results failed", map[string]interface{}{"taskID": taskID, "error": err})
+		return nil, pkgerrors.WrapDatabaseError(err, "解析端口扫描结果")
 	}
 
 	return results, nil
@@ -169,7 +185,11 @@ func (h *Handler) SaveScanResult(result *models.PortScanResult) error {
 
 	// 保存结果
 	_, err := h.db.Collection("port_scan_results").InsertOne(context.Background(), result)
-	return err
+	if err != nil {
+		logger.Error("SaveScanResult failed", map[string]interface{}{"error": err, "host": result.Host, "port": result.Port})
+		return pkgerrors.WrapDatabaseError(err, "保存端口扫描结果")
+	}
+	return nil
 }
 
 // UpdateTaskProgress 更新任务进度
@@ -177,7 +197,8 @@ func (h *Handler) UpdateTaskProgress(taskID string, progress float64) error {
 	// 解析任务ID
 	objID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
-		return err
+		logger.Error("UpdateTaskProgress invalid taskID", map[string]interface{}{"taskID": taskID, "error": err})
+		return pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的任务ID", 400, err)
 	}
 
 	// 更新进度
@@ -186,7 +207,11 @@ func (h *Handler) UpdateTaskProgress(taskID string, progress float64) error {
 		bson.M{"_id": objID},
 		bson.M{"$set": bson.M{"progress": progress}},
 	)
-	return err
+	if err != nil {
+		logger.Error("UpdateTaskProgress failed", map[string]interface{}{"taskID": taskID, "progress": progress, "error": err})
+		return pkgerrors.WrapDatabaseError(err, "更新端口扫描任务进度")
+	}
+	return nil
 }
 
 // MongoResultHandler MongoDB结果处理器

@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/StellarServer/internal/models"
-	"gopkg.in/yaml.v2"
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
+	"github.com/StellarServer/internal/pkg/logger"
+	"gopkg.in/yaml.v3"
 )
 
 // YAMLPOCExecutor YAML POC执行器
@@ -22,8 +24,8 @@ type YAMLPOCExecutor struct {
 
 // YAMLPOCTemplate YAML POC模板结构
 type YAMLPOCTemplate struct {
-	Info     POCInfo            `yaml:"info"`
-	Requests []POCRequest       `yaml:"requests"`
+	Info      POCInfo           `yaml:"info"`
+	Requests  []POCRequest      `yaml:"requests"`
 	Variables map[string]string `yaml:"variables,omitempty"`
 }
 
@@ -39,17 +41,17 @@ type POCInfo struct {
 
 // POCRequest POC请求
 type POCRequest struct {
-	Method      string            `yaml:"method"`
-	Path        string            `yaml:"path"`
-	Headers     map[string]string `yaml:"headers,omitempty"`
-	Body        string            `yaml:"body,omitempty"`
-	Matchers    []POCMatcher      `yaml:"matchers"`
-	Extractors  []POCExtractor    `yaml:"extractors,omitempty"`
+	Method     string            `yaml:"method"`
+	Path       string            `yaml:"path"`
+	Headers    map[string]string `yaml:"headers,omitempty"`
+	Body       string            `yaml:"body,omitempty"`
+	Matchers   []POCMatcher      `yaml:"matchers"`
+	Extractors []POCExtractor    `yaml:"extractors,omitempty"`
 }
 
 // POCMatcher POC匹配器
 type POCMatcher struct {
-	Type      string   `yaml:"type"`       // status, word, regex, size
+	Type      string   `yaml:"type"` // status, word, regex, size
 	Status    []int    `yaml:"status,omitempty"`
 	Words     []string `yaml:"words,omitempty"`
 	Regex     []string `yaml:"regex,omitempty"`
@@ -60,13 +62,13 @@ type POCMatcher struct {
 
 // POCExtractor POC提取器
 type POCExtractor struct {
-	Type   string   `yaml:"type"`   // regex, xpath, json
-	Name   string   `yaml:"name"`
-	Part   string   `yaml:"part"`   // body, header
-	Group  int      `yaml:"group,omitempty"`
-	Regex  []string `yaml:"regex,omitempty"`
-	XPath  []string `yaml:"xpath,omitempty"`
-	JSON   []string `yaml:"json,omitempty"`
+	Type  string   `yaml:"type"` // regex, xpath, json
+	Name  string   `yaml:"name"`
+	Part  string   `yaml:"part"` // body, header
+	Group int      `yaml:"group,omitempty"`
+	Regex []string `yaml:"regex,omitempty"`
+	XPath []string `yaml:"xpath,omitempty"`
+	JSON  []string `yaml:"json,omitempty"`
 }
 
 // NewYAMLPOCExecutor 创建YAML POC执行器
@@ -90,7 +92,8 @@ func (e *YAMLPOCExecutor) Execute(ctx context.Context, poc *models.POC, target P
 	// 解析YAML模板
 	template, err := e.parseTemplate(poc.Script)
 	if err != nil {
-		return nil, fmt.Errorf("解析YAML模板失败: %v", err)
+		logger.Error("Execute parse template failed", map[string]interface{}{"pocID": poc.ID.Hex(), "error": err})
+		return nil, pkgerrors.WrapError(err, pkgerrors.CodePluginError, "解析YAML模板失败", 500)
 	}
 
 	result := &models.POCResult{
@@ -104,6 +107,7 @@ func (e *YAMLPOCExecutor) Execute(ctx context.Context, poc *models.POC, target P
 	for i, request := range template.Requests {
 		requestResult, err := e.executeRequest(ctx, request, target, template.Variables)
 		if err != nil {
+			logger.Error("Execute request failed", map[string]interface{}{"pocID": poc.ID.Hex(), "requestIndex": i, "error": err})
 			result.Error = err.Error()
 			continue
 		}
@@ -114,7 +118,7 @@ func (e *YAMLPOCExecutor) Execute(ctx context.Context, poc *models.POC, target P
 			result.Success = true
 			result.Output = template.Info.Description
 			result.Response = requestResult.Response
-			
+
 			// 提取器提取数据
 			if len(request.Extractors) > 0 {
 				extracted := e.extractData(request.Extractors, requestResult)
@@ -123,7 +127,7 @@ func (e *YAMLPOCExecutor) Execute(ctx context.Context, poc *models.POC, target P
 					result.Payload = string(extractedData)
 				}
 			}
-			
+
 			break // 找到漏洞就停止
 		}
 
@@ -166,7 +170,8 @@ func (e *YAMLPOCExecutor) executeRequest(ctx context.Context, request POCRequest
 	// 创建HTTP请求
 	req, err := http.NewRequestWithContext(ctx, request.Method, url, strings.NewReader(body))
 	if err != nil {
-		return nil, err
+		logger.Error("executeRequest create request failed", map[string]interface{}{"method": request.Method, "url": url, "error": err})
+		return nil, pkgerrors.WrapError(err, pkgerrors.CodeNetworkError, "创建HTTP请求失败", 500)
 	}
 
 	// 设置请求头
@@ -177,7 +182,8 @@ func (e *YAMLPOCExecutor) executeRequest(ctx context.Context, request POCRequest
 	// 执行请求
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		logger.Error("executeRequest do request failed", map[string]interface{}{"method": request.Method, "url": url, "error": err})
+		return nil, pkgerrors.WrapError(err, pkgerrors.CodeNetworkError, "执行HTTP请求失败", 500)
 	}
 	defer resp.Body.Close()
 
@@ -204,7 +210,7 @@ func (e *YAMLPOCExecutor) checkMatchers(matchers []POCMatcher, result *RequestRe
 
 	for _, matcher := range matchers {
 		matched := false
-		
+
 		switch matcher.Type {
 		case "status":
 			for _, status := range matcher.Status {
@@ -259,7 +265,7 @@ func (e *YAMLPOCExecutor) extractData(extractors []POCExtractor, result *Request
 
 	for _, extractor := range extractors {
 		content := e.getMatchContent(result, extractor.Part)
-		
+
 		switch extractor.Type {
 		case "regex":
 			for _, pattern := range extractor.Regex {
@@ -272,7 +278,7 @@ func (e *YAMLPOCExecutor) extractData(extractors []POCExtractor, result *Request
 					extracted[extractor.Name] = matches[extractor.Group]
 				}
 			}
-		// TODO: 添加xpath和json提取器
+			// TODO: 添加xpath和json提取器
 		}
 	}
 

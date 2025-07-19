@@ -31,6 +31,7 @@ import (
 	"github.com/StellarServer/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -190,7 +191,10 @@ func main() {
 
 	// 获取数据库连接
 	mongoDB := application.DB.MongoDB.GetDatabase()
-	redisClient := application.DB.Redis.GetClient()
+	var redisClient *redis.Client
+	if application.DB.Redis != nil {
+		redisClient = application.DB.Redis.GetClient()
+	}
 
 	// 子域名枚举服务
 	subdomainResolver := subdomain.NewResolver()
@@ -253,22 +257,33 @@ func main() {
 	_ = vulndbService // 暂时标记为未使用
 
 	// 资产发现服务
-	redisResultHandler := assetdiscovery.NewRedisResultHandler(redisClient)
-	discoveryService := assetdiscovery.NewDiscoveryService(mongoDB, redisResultHandler)
-	_ = assetdiscovery.NewHandler(mongoDB, discoveryService) // 保留变量但标记为未使用，将来可能用于依赖注入
-	logger.Info("资产发现服务初始化成功", nil)
-	fmt.Println("资产发现服务初始化成功")
+	if redisClient != nil {
+		redisResultHandler := assetdiscovery.NewRedisResultHandler(redisClient)
+		discoveryService := assetdiscovery.NewDiscoveryService(mongoDB, redisResultHandler)
+		_ = assetdiscovery.NewHandler(mongoDB, discoveryService) // 保留变量但标记为未使用，将来可能用于依赖注入
+		logger.Info("资产发现服务初始化成功", nil)
+		fmt.Println("资产发现服务初始化成功")
+	} else {
+		logger.Warn("Redis未连接，跳过资产发现服务初始化", nil)
+		fmt.Println("Redis未连接，跳过资产发现服务初始化")
+	}
 
 	// 页面监控服务
-	monitoringService := pagemonitoring.NewPageMonitoringService(mongoDB, redisClient)
-	if err := monitoringService.Start(); err != nil {
-		logger.Fatal("启动页面监控服务失败", map[string]interface{}{
-			"error": err,
-		})
+	var monitoringService *pagemonitoring.PageMonitoringService
+	if redisClient != nil {
+		monitoringService = pagemonitoring.NewPageMonitoringService(mongoDB, redisClient)
+		if err := monitoringService.Start(); err != nil {
+			logger.Fatal("启动页面监控服务失败", map[string]interface{}{
+				"error": err,
+			})
+		}
+		defer monitoringService.Stop()
+		logger.Info("页面监控服务启动成功", nil)
+		fmt.Println("页面监控服务启动成功")
+	} else {
+		logger.Warn("Redis未连接，跳过页面监控服务初始化", nil)
+		fmt.Println("Redis未连接，跳过页面监控服务初始化")
 	}
-	defer monitoringService.Stop()
-	logger.Info("页面监控服务启动成功", nil)
-	fmt.Println("页面监控服务启动成功")
 
 	// 敏感信息检测服务
 	_ = sensitive.NewService(mongoDB) // 保留变量但标记为未使用，将来可能用于依赖注入
@@ -276,39 +291,51 @@ func main() {
 	fmt.Println("敏感信息检测服务初始化成功")
 
 	// 节点管理服务
-	nodeManagerConfig := nodemanager.NodeManagerConfig{
-		HeartbeatInterval: cfg.Node.HeartbeatInterval,
-		HeartbeatTimeout:  cfg.Node.HeartbeatTimeout,
-		EnableAutoRemove:  cfg.Node.EnableAutoRemove,
-		AutoRemoveAfter:   cfg.Node.AutoRemoveAfter,
+	var nodeManager *nodemanager.NodeManager
+	if redisClient != nil {
+		nodeManagerConfig := nodemanager.NodeManagerConfig{
+			HeartbeatInterval: cfg.Node.HeartbeatInterval,
+			HeartbeatTimeout:  cfg.Node.HeartbeatTimeout,
+			EnableAutoRemove:  cfg.Node.EnableAutoRemove,
+			AutoRemoveAfter:   cfg.Node.AutoRemoveAfter,
+		}
+		nodeManager = nodemanager.NewNodeManager(mongoDB, redisClient, nodeManagerConfig)
+		if err := nodeManager.Start(); err != nil {
+			logger.Fatal("启动节点管理服务失败", map[string]interface{}{
+				"error": err,
+			})
+		}
+		defer nodeManager.Stop()
+		logger.Info("节点管理服务启动成功", nil)
+		fmt.Println("节点管理服务启动成功")
+	} else {
+		logger.Warn("Redis未连接，跳过节点管理服务初始化", nil)
+		fmt.Println("Redis未连接，跳过节点管理服务初始化")
 	}
-	nodeManager := nodemanager.NewNodeManager(mongoDB, redisClient, nodeManagerConfig)
-	if err := nodeManager.Start(); err != nil {
-		logger.Fatal("启动节点管理服务失败", map[string]interface{}{
-			"error": err,
-		})
-	}
-	defer nodeManager.Stop()
-	logger.Info("节点管理服务启动成功", nil)
-	fmt.Println("节点管理服务启动成功")
 
 	// 任务管理服务
-	taskManagerConfig := taskmanager.TaskManagerConfig{
-		MaxConcurrentTasks: cfg.Task.MaxConcurrentTasks,
-		TaskTimeout:        cfg.Task.TaskTimeout,
-		EnableRetry:        cfg.Task.EnableRetry,
-		MaxRetries:         cfg.Task.MaxRetries,
-		RetryInterval:      cfg.Task.RetryInterval,
+	var taskManager *taskmanager.TaskManager
+	if redisClient != nil && nodeManager != nil {
+		taskManagerConfig := taskmanager.TaskManagerConfig{
+			MaxConcurrentTasks: cfg.Task.MaxConcurrentTasks,
+			TaskTimeout:        cfg.Task.TaskTimeout,
+			EnableRetry:        cfg.Task.EnableRetry,
+			MaxRetries:         cfg.Task.MaxRetries,
+			RetryInterval:      cfg.Task.RetryInterval,
+		}
+		taskManager = taskmanager.NewTaskManager(mongoDB, redisClient, nodeManager, taskManagerConfig)
+		if err := taskManager.Start(); err != nil {
+			logger.Fatal("启动任务管理服务失败", map[string]interface{}{
+				"error": err,
+			})
+		}
+		defer taskManager.Stop()
+		logger.Info("任务管理服务启动成功", nil)
+		fmt.Println("任务管理服务启动成功")
+	} else {
+		logger.Warn("Redis未连接或节点管理器未初始化，跳过任务管理服务初始化", nil)
+		fmt.Println("Redis未连接或节点管理器未初始化，跳过任务管理服务初始化")
 	}
-	taskManager := taskmanager.NewTaskManager(mongoDB, redisClient, nodeManager, taskManagerConfig)
-	if err := taskManager.Start(); err != nil {
-		logger.Fatal("启动任务管理服务失败", map[string]interface{}{
-			"error": err,
-		})
-	}
-	defer taskManager.Stop()
-	logger.Info("任务管理服务启动成功", nil)
-	fmt.Println("任务管理服务启动成功")
 
 	logger.Info("所有业务服务初始化完成", nil)
 	fmt.Println("所有业务服务初始化完成")

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/StellarServer/internal/models"
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
+	"github.com/StellarServer/internal/pkg/logger"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -65,7 +67,8 @@ func (s *PageMonitoringService) initIndexes() error {
 		},
 	)
 	if err != nil {
-		return err
+		logger.Error("initIndexes create page_monitoring index failed", map[string]interface{}{"error": err})
+		return pkgerrors.WrapDatabaseError(err, "创建页面监控索引")
 	}
 
 	// 为PageSnapshot集合创建索引
@@ -76,7 +79,8 @@ func (s *PageMonitoringService) initIndexes() error {
 		},
 	)
 	if err != nil {
-		return err
+		logger.Error("initIndexes create page_snapshots index failed", map[string]interface{}{"error": err})
+		return pkgerrors.WrapDatabaseError(err, "创建页面快照索引")
 	}
 
 	// 为PageChange集合创建索引
@@ -86,8 +90,12 @@ func (s *PageMonitoringService) initIndexes() error {
 			Keys: bson.D{{Key: "monitoringId", Value: 1}, {Key: "changedAt", Value: -1}},
 		},
 	)
+	if err != nil {
+		logger.Error("initIndexes create page_changes index failed", map[string]interface{}{"error": err})
+		return pkgerrors.WrapDatabaseError(err, "创建页面变更索引")
+	}
 
-	return err
+	return nil
 }
 
 // scheduleMonitoringTasks 调度监控任务
@@ -116,14 +124,14 @@ func (s *PageMonitoringService) checkAndScheduleTasks() {
 
 	cursor, err := s.db.Collection("page_monitoring").Find(s.ctx, filter)
 	if err != nil {
-		// 记录错误日志
+		logger.Error("checkAndScheduleTasks find tasks failed", map[string]interface{}{"error": err})
 		return
 	}
 	defer cursor.Close(s.ctx)
 
 	var tasks []models.PageMonitoring
 	if err := cursor.All(s.ctx, &tasks); err != nil {
-		// 记录错误日志
+		logger.Error("checkAndScheduleTasks decode tasks failed", map[string]interface{}{"error": err})
 		return
 	}
 
@@ -148,7 +156,7 @@ func (s *PageMonitoringService) dispatchMonitoringTask(task *models.PageMonitori
 		},
 	)
 	if err != nil {
-		// 记录错误日志
+		logger.Error("dispatchMonitoringTask update task failed", map[string]interface{}{"taskID": task.ID.Hex(), "error": err})
 		return
 	}
 
@@ -163,14 +171,14 @@ func (s *PageMonitoringService) dispatchMonitoringTask(task *models.PageMonitori
 	// 序列化任务数据
 	taskBytes, err := bson.Marshal(taskData)
 	if err != nil {
-		// 记录错误日志
+		logger.Error("dispatchMonitoringTask marshal task failed", map[string]interface{}{"taskID": task.ID.Hex(), "error": err})
 		return
 	}
 
 	// 添加到任务队列
 	err = s.redisClient.LPush(s.ctx, "task_queue:page_monitoring", string(taskBytes)).Err()
 	if err != nil {
-		// 记录错误日志
+		logger.Error("dispatchMonitoringTask add to redis failed", map[string]interface{}{"taskID": task.ID.Hex(), "error": err})
 		return
 	}
 }
@@ -179,13 +187,15 @@ func (s *PageMonitoringService) dispatchMonitoringTask(task *models.PageMonitori
 func (s *PageMonitoringService) CreateMonitoring(req *models.PageMonitoringCreateRequest) (*models.PageMonitoring, error) {
 	// 验证URL
 	if req.URL == "" {
-		return nil, errors.New("URL不能为空")
+		logger.Error("CreateMonitoring empty URL", map[string]interface{}{"request": req})
+		return nil, pkgerrors.NewAppError(pkgerrors.CodeValidationFailed, "URL不能为空", 400)
 	}
 
 	// 验证项目ID
 	projectID := req.ProjectID
 	if projectID.IsZero() {
-		return nil, errors.New("无效的项目ID")
+		logger.Error("CreateMonitoring invalid projectID", map[string]interface{}{"request": req})
+		return nil, pkgerrors.NewAppError(pkgerrors.CodeValidationFailed, "无效的项目ID", 400)
 	}
 
 	// 设置默认值
@@ -228,7 +238,8 @@ func (s *PageMonitoringService) CreateMonitoring(req *models.PageMonitoringCreat
 	// 保存到数据库
 	_, err := s.db.Collection("page_monitoring").InsertOne(s.ctx, monitoring)
 	if err != nil {
-		return nil, err
+		logger.Error("CreateMonitoring insert failed", map[string]interface{}{"monitoring": monitoring, "error": err})
+		return nil, pkgerrors.WrapDatabaseError(err, "创建页面监控任务")
 	}
 
 	// 立即调度一次任务

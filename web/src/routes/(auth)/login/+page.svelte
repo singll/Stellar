@@ -41,7 +41,13 @@
 					password: values.password
 				};
 				await auth.login(credentials);
-				await goto('/dashboard');
+				
+				// 获取重定向URL，如果没有则跳转到dashboard
+				const urlParams = new URLSearchParams(window.location.search);
+				const redirectUrl = urlParams.get('redirect');
+				const targetUrl = redirectUrl || '/dashboard';
+				
+				await goto(targetUrl);
 			} catch (error) {
 				notifications.add({
 					type: 'error',

@@ -60,20 +60,22 @@ func NewDB(cfg *config.Config) (*DB, error) {
 	if cfg.MongoDB.URI != "" {
 		mongoManager, err := NewMongoDBManager(cfg.MongoDB)
 		if err != nil {
-			return nil, fmt.Errorf("failed to initialize MongoDB: %w", err)
+			// 记录错误但不中断程序启动
+			fmt.Printf("Warning: Failed to initialize MongoDB: %v\n", err)
+		} else {
+			db.MongoDB = mongoManager
 		}
-
-		db.MongoDB = mongoManager
 	}
 
 	// Initialize Redis
 	if cfg.Redis.Addr != "" {
 		redisManager, err := NewRedisManager(cfg.Redis)
 		if err != nil {
-			return nil, fmt.Errorf("failed to initialize Redis: %w", err)
+			// 记录错误但不中断程序启动
+			fmt.Printf("Warning: Failed to initialize Redis: %v\n", err)
+		} else {
+			db.Redis = redisManager
 		}
-
-		db.Redis = redisManager
 	}
 
 	return db, nil

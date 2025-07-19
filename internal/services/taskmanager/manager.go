@@ -303,7 +303,8 @@ func (tm *TaskManager) ListTasks(projectID, status, taskType string, limit, offs
 	// 查询总数
 	total, err := tm.db.Collection("tasks").CountDocuments(tm.ctx, filter)
 	if err != nil {
-		return nil, 0, err
+		logger.Error("ListTasks count documents failed", map[string]interface{}{"error": err})
+		return nil, 0, pkgerrors.WrapDatabaseError(err, "查询任务总数")
 	}
 
 	// 查询任务列表
@@ -314,13 +315,15 @@ func (tm *TaskManager) ListTasks(projectID, status, taskType string, limit, offs
 
 	cursor, err := tm.db.Collection("tasks").Find(tm.ctx, filter, opts)
 	if err != nil {
-		return nil, 0, err
+		logger.Error("ListTasks find documents failed", map[string]interface{}{"error": err})
+		return nil, 0, pkgerrors.WrapDatabaseError(err, "查询任务列表")
 	}
 	defer cursor.Close(tm.ctx)
 
 	var tasks []*models.Task
 	if err := cursor.All(tm.ctx, &tasks); err != nil {
-		return nil, 0, err
+		logger.Error("ListTasks decode documents failed", map[string]interface{}{"error": err})
+		return nil, 0, pkgerrors.WrapDatabaseError(err, "解析任务数据")
 	}
 
 	return tasks, total, nil
@@ -335,16 +338,19 @@ func (tm *TaskManager) UpdateTaskStatus(taskID string, status string, progress f
 func (tm *TaskManager) GetTaskResult(taskID string) (*models.TaskResult, error) {
 	objID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
-		return nil, err
+		logger.Error("GetTaskResult invalid taskID", map[string]interface{}{"taskID": taskID, "error": err})
+		return nil, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的任务ID", 400, err)
 	}
 
 	var result models.TaskResult
 	err = tm.db.Collection("task_results").FindOne(tm.ctx, bson.M{"task_id": objID}).Decode(&result)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
+			logger.Info("GetTaskResult not found", map[string]interface{}{"taskID": taskID})
 			return nil, nil
 		}
-		return nil, err
+		logger.Error("GetTaskResult failed", map[string]interface{}{"taskID": taskID, "error": err})
+		return nil, pkgerrors.WrapDatabaseError(err, "查询任务结果")
 	}
 
 	return &result, nil

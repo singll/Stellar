@@ -24,7 +24,13 @@ function getInitialState(): AuthState {
 	if (storedState) {
 		try {
 			const parsedState = JSON.parse(storedState);
-			return { ...initialState, ...parsedState, isAuthenticated: !!parsedState.token };
+			// 检查token是否存在且有效
+			const hasValidToken = !!parsedState.token && typeof parsedState.token === 'string' && parsedState.token.length > 0;
+			return { 
+				...initialState, 
+				...parsedState, 
+				isAuthenticated: hasValidToken 
+			};
 		} catch {
 			localStorage.removeItem(STORAGE_KEY);
 		}
@@ -137,6 +143,30 @@ export const auth = {
 				message: '会话已过期，请重新登录'
 			});
 			throw error;
+		}
+	},
+
+	async verifySession() {
+		try {
+			const response = await authApi.verifySession();
+			if (response.code === 200 && response.valid) {
+				// 会话有效，更新用户信息
+				if (response.user && auth.state.user) {
+					store.update((state) => ({
+						...state,
+						user: {
+							...state.user!,
+							username: response.user!.username,
+							roles: response.user!.roles,
+						},
+					}));
+				}
+				return true;
+			}
+			return false;
+		} catch (error) {
+			console.error('会话验证失败:', error);
+			return false;
 		}
 	},
 	setCurrentUser(user: User) {

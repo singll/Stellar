@@ -7,20 +7,31 @@ import (
 	"github.com/StellarServer/internal/models"
 	pkgerrors "github.com/StellarServer/internal/pkg/errors"
 	"github.com/StellarServer/internal/pkg/logger"
+	"github.com/StellarServer/internal/services/session"
 	"github.com/StellarServer/internal/utils"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // AuthHandler 认证处理器
 type AuthHandler struct {
-	DB *mongo.Database
+	DB             *mongo.Database
+	SessionManager *session.SessionManager
 }
 
 // NewAuthHandler 创建认证处理器
-func NewAuthHandler(db *mongo.Database) *AuthHandler {
-	return &AuthHandler{DB: db}
+func NewAuthHandler(db *mongo.Database, redisClient *redis.Client) *AuthHandler {
+	var sessionManager *session.SessionManager
+	if redisClient != nil {
+		sessionManager = session.NewSessionManager(redisClient)
+	}
+
+	return &AuthHandler{
+		DB:             db,
+		SessionManager: sessionManager,
+	}
 }
 
 // RegisterRoutes 注册路由
@@ -29,6 +40,7 @@ func (h *AuthHandler) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("/info", AuthMiddleware(), GetUserInfo) // 用户信息需要认证
 	router.POST("/logout", Logout)                     // logout不需要认证中间件
 	router.POST("/register", h.Register)
+	router.GET("/verify", h.VerifySession) // 验证会话状态
 }
 
 // JWTSecret JWT密钥
@@ -127,6 +139,17 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// 如果Redis可用，创建会话
+	if h.SessionManager != nil {
+		err = h.SessionManager.CreateSession(c.Request.Context(), tokenString, user.ID.Hex(), user.Username, user.Roles)
+		if err != nil {
+			logger.Warn("创建Redis会话失败，但继续返回JWT令牌", map[string]interface{}{
+				"error": err,
+				"user":  user.Username,
+			})
+		}
+	}
+
 	// 返回令牌和用户信息
 	c.JSON(http.StatusOK, gin.H{
 		"code":    200,
@@ -178,15 +201,94 @@ func GetUserInfo(c *gin.Context) {
 
 // Logout 处理登出请求
 func Logout(c *gin.Context) {
-	// 实际上，服务端不需要做任何特殊处理
-	// 客户端只需要删除本地存储的令牌即可
+	// 从请求头获取令牌
+	authHeader := c.GetHeader("Authorization")
+	if authHeader != "" {
+		// 提取Bearer token
+		tokenString := authHeader
+		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+			tokenString = authHeader[7:]
+		}
+
+		// 尝试从上下文获取会话管理器
+		if sessionManager, exists := c.Get("session_manager"); exists {
+			if sm, ok := sessionManager.(*session.SessionManager); ok {
+				// 删除Redis会话
+				err := sm.DeleteSession(c.Request.Context(), tokenString)
+				if err != nil {
+					logger.Warn("删除Redis会话失败", map[string]interface{}{
+						"error": err,
+					})
+				}
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"code":    200,
 		"message": "登出成功",
 	})
 }
 
-// AuthMiddleware JWT认证中间件，支持可选角色权限校验
+// VerifySession 验证会话状态
+func (h *AuthHandler) VerifySession(c *gin.Context) {
+	// 从请求头获取令牌
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"code":    401,
+			"message": "未提供授权令牌",
+			"valid":   false,
+		})
+		return
+	}
+
+	// 提取Bearer token
+	tokenString := authHeader
+	if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+		tokenString = authHeader[7:]
+	}
+
+	// 首先验证JWT令牌
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		return JWTSecret, nil
+	})
+
+	if err != nil || !token.Valid {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"code":    401,
+			"message": "无效的授权令牌",
+			"valid":   false,
+		})
+		return
+	}
+
+	// 如果Redis会话管理器可用，验证会话
+	sessionValid := true
+	if h.SessionManager != nil {
+		_, err := h.SessionManager.GetSession(c.Request.Context(), tokenString)
+		if err != nil {
+			sessionValid = false
+			logger.Warn("Redis会话验证失败", map[string]interface{}{
+				"error": err,
+				"user":  claims.Username,
+			})
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "会话验证成功",
+		"valid":   sessionValid,
+		"user": gin.H{
+			"username": claims.Username,
+			"roles":    claims.Roles,
+		},
+	})
+}
+
+// AuthMiddleware JWT认证中间件，支持可选角色权限校验和Redis会话验证
 func AuthMiddleware(allowedRoles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 从请求头获取令牌
@@ -206,7 +308,7 @@ func AuthMiddleware(allowedRoles ...string) gin.HandlerFunc {
 			tokenString = authHeader[7:]
 		}
 
-		// 解析令牌
+		// 首先验证JWT令牌
 		claims := &Claims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 			return JWTSecret, nil
@@ -219,6 +321,25 @@ func AuthMiddleware(allowedRoles ...string) gin.HandlerFunc {
 			})
 			c.Abort()
 			return
+		}
+
+		// 如果Redis会话管理器可用，验证会话
+		if sessionManager, exists := c.Get("session_manager"); exists {
+			if sm, ok := sessionManager.(*session.SessionManager); ok {
+				sessionData, err := sm.GetSession(c.Request.Context(), tokenString)
+				if err != nil {
+					logger.Warn("Redis会话验证失败", map[string]interface{}{
+						"error": err,
+						"user":  claims.Username,
+					})
+					// 如果Redis会话验证失败，但JWT有效，可以选择继续或拒绝
+					// 这里选择继续，因为JWT本身是有效的
+				} else {
+					// 使用Redis会话中的用户信息，确保数据一致性
+					claims.Username = sessionData.Username
+					claims.Roles = sessionData.Roles
+				}
+			}
 		}
 
 		// 角色权限校验（如有指定）

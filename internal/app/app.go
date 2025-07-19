@@ -4,6 +4,7 @@ import (
 	"github.com/StellarServer/internal/config"
 	"github.com/StellarServer/internal/database"
 	"github.com/StellarServer/internal/pkg/container"
+	pkgerrors "github.com/StellarServer/internal/pkg/errors"
 	"github.com/StellarServer/internal/pkg/logger"
 	"github.com/StellarServer/internal/repository"
 )
@@ -31,13 +32,15 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	}
 	err := logger.Init(logConfig)
 	if err != nil {
-		return nil, err
+		logger.Error("NewApplication init logger failed", map[string]interface{}{"config": logConfig, "error": err})
+		return nil, pkgerrors.WrapError(err, pkgerrors.CodeConfigError, "初始化日志系统失败", 500)
 	}
 
 	// 初始化数据库
 	db, err := database.NewDB(cfg)
 	if err != nil {
-		return nil, err
+		logger.Error("NewApplication init database failed", map[string]interface{}{"config": cfg, "error": err})
+		return nil, pkgerrors.WrapError(err, pkgerrors.CodeDatabaseError, "初始化数据库失败", 500)
 	}
 	app.DB = db
 
@@ -48,7 +51,8 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// 注册服务到容器
 	err = app.registerServices()
 	if err != nil {
-		return nil, err
+		logger.Error("NewApplication register services failed", map[string]interface{}{"error": err})
+		return nil, pkgerrors.WrapError(err, pkgerrors.CodeConfigError, "注册服务到容器失败", 500)
 	}
 
 	return app, nil
@@ -101,10 +105,10 @@ func (app *Application) Shutdown() error {
 	// 关闭数据库连接
 	if app.DB != nil {
 		if err := app.DB.Close(); err != nil {
-			logger.Error("Failed to close database", map[string]interface{}{
+			logger.Error("Shutdown close database failed", map[string]interface{}{
 				"error": err,
 			})
-			return err
+			return pkgerrors.WrapDatabaseError(err, "关闭数据库连接")
 		}
 	}
 

@@ -40,6 +40,16 @@ export interface RefreshTokenResponse {
 	};
 }
 
+export interface VerifySessionResponse {
+	code: number;
+	message: string;
+	valid: boolean;
+	user?: {
+		username: string;
+		roles: string[];
+	};
+}
+
 export class APIError extends Error {
 	code: number;
 	details?: string;
@@ -215,6 +225,23 @@ export const authApi = {
 	async updatePassword(data: { oldPassword: string; newPassword: string }): Promise<void> {
 		try {
 			await api.post('/auth/update-password', data);
+		} catch (error: any) {
+			if (error.response?.data) {
+				const { code, message, details } = error.response.data;
+				throw new APIError(code, message, details);
+			}
+			throw error;
+		}
+	},
+
+	/**
+	 * 验证会话状态
+	 * @returns { code, message, valid, user }
+	 */
+	async verifySession(): Promise<VerifySessionResponse> {
+		try {
+			const response = await api.get('/auth/verify');
+			return response.data;
 		} catch (error: any) {
 			if (error.response?.data) {
 				const { code, message, details } = error.response.data;

@@ -2,7 +2,6 @@ package vulnscan
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -182,13 +181,15 @@ func (e *Engine) StartTask(taskID string) error {
 	_, exists := e.taskMap[taskID]
 	e.taskMutex.RUnlock()
 	if exists {
-		return errors.New("任务已在运行中")
+		logger.Warn("StartTask task already running", map[string]interface{}{"taskID": taskID})
+		return pkgerrors.NewTaskRunningError()
 	}
 
 	// 从数据库获取任务
 	objID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
-		return fmt.Errorf("无效的任务ID: %v", err)
+		logger.Error("StartTask invalid taskID", map[string]interface{}{"taskID": taskID, "error": err})
+		return pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的任务ID", 400, err)
 	}
 
 	var task models.VulnScanTask
@@ -196,12 +197,18 @@ func (e *Engine) StartTask(taskID string) error {
 		"_id": objID,
 	}).Decode(&task)
 	if err != nil {
-		return fmt.Errorf("获取任务失败: %v", err)
+		if err == mongo.ErrNoDocuments {
+			logger.Warn("StartTask task not found", map[string]interface{}{"taskID": taskID})
+			return pkgerrors.NewTaskNotFoundError()
+		}
+		logger.Error("StartTask get task failed", map[string]interface{}{"taskID": taskID, "error": err})
+		return pkgerrors.WrapDatabaseError(err, "获取漏洞扫描任务")
 	}
 
 	// 检查任务状态
 	if task.Status == "running" || task.Status == "completed" {
-		return fmt.Errorf("任务状态不允许启动: %s", task.Status)
+		logger.Warn("StartTask task status not allowed", map[string]interface{}{"taskID": taskID, "status": task.Status})
+		return pkgerrors.NewAppError(pkgerrors.CodeConflict, fmt.Sprintf("任务状态不允许启动: %s", task.Status), 409)
 	}
 
 	// 更新任务状态
@@ -209,7 +216,8 @@ func (e *Engine) StartTask(taskID string) error {
 	task.StartedAt = time.Now()
 	err = e.resultHandler.UpdateTaskStatus(taskID, "running")
 	if err != nil {
-		return fmt.Errorf("更新任务状态失败: %v", err)
+		logger.Error("StartTask update task status failed", map[string]interface{}{"taskID": taskID, "error": err})
+		return pkgerrors.WrapTaskError(err, taskID, "更新任务状态")
 	}
 
 	// 创建上下文和取消函数
@@ -284,7 +292,8 @@ func (e *Engine) StopTask(taskID string) error {
 	task, exists := e.taskMap[taskID]
 	e.taskMutex.RUnlock()
 	if !exists {
-		return errors.New("任务未在运行中")
+		logger.Warn("StopTask task not running", map[string]interface{}{"taskID": taskID})
+		return pkgerrors.NewAppError(pkgerrors.CodeNotFound, "任务未在运行中", 404)
 	}
 
 	// 取消任务
@@ -295,7 +304,8 @@ func (e *Engine) StopTask(taskID string) error {
 	task.EndTime = time.Now()
 	err := e.resultHandler.UpdateTaskStatus(taskID, "stopped")
 	if err != nil {
-		return fmt.Errorf("更新任务状态失败: %v", err)
+		logger.Error("StopTask update task status failed", map[string]interface{}{"taskID": taskID, "error": err})
+		return pkgerrors.WrapTaskError(err, taskID, "更新任务状态")
 	}
 
 	// 从任务映射中移除
@@ -319,7 +329,8 @@ func (e *Engine) GetTaskStatus(taskID string) (string, error) {
 	// 从数据库获取任务
 	objID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
-		return "", fmt.Errorf("无效的任务ID: %v", err)
+		logger.Error("GetTaskStatus invalid taskID", map[string]interface{}{"taskID": taskID, "error": err})
+		return "", pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的任务ID", 400, err)
 	}
 
 	var dbTask models.VulnScanTask
@@ -327,7 +338,12 @@ func (e *Engine) GetTaskStatus(taskID string) (string, error) {
 		"_id": objID,
 	}).Decode(&dbTask)
 	if err != nil {
-		return "", fmt.Errorf("获取任务失败: %v", err)
+		if err == mongo.ErrNoDocuments {
+			logger.Warn("GetTaskStatus task not found", map[string]interface{}{"taskID": taskID})
+			return "", pkgerrors.NewTaskNotFoundError()
+		}
+		logger.Error("GetTaskStatus get task failed", map[string]interface{}{"taskID": taskID, "error": err})
+		return "", pkgerrors.WrapDatabaseError(err, "获取漏洞扫描任务状态")
 	}
 
 	return dbTask.Status, nil
@@ -346,7 +362,8 @@ func (e *Engine) GetTaskProgress(taskID string) (float64, error) {
 	// 从数据库获取任务
 	objID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
-		return 0, fmt.Errorf("无效的任务ID: %v", err)
+		logger.Error("GetTaskProgress invalid taskID", map[string]interface{}{"taskID": taskID, "error": err})
+		return 0, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的任务ID", 400, err)
 	}
 
 	var dbTask models.VulnScanTask
@@ -354,7 +371,12 @@ func (e *Engine) GetTaskProgress(taskID string) (float64, error) {
 		"_id": objID,
 	}).Decode(&dbTask)
 	if err != nil {
-		return 0, fmt.Errorf("获取任务失败: %v", err)
+		if err == mongo.ErrNoDocuments {
+			logger.Warn("GetTaskProgress task not found", map[string]interface{}{"taskID": taskID})
+			return 0, pkgerrors.NewTaskNotFoundError()
+		}
+		logger.Error("GetTaskProgress get task failed", map[string]interface{}{"taskID": taskID, "error": err})
+		return 0, pkgerrors.WrapDatabaseError(err, "获取漏洞扫描任务进度")
 	}
 
 	return dbTask.Progress, nil

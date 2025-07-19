@@ -12,7 +12,7 @@ database:
 
 # MongoDB配置（向后兼容，留空以跳过）
 mongodb:
-  uri: "mongodb://192.168.7.216:27017"
+  uri: "mongodb://127.0.0.1:27017"
   database: "stellarserver_dev"
   user: "admin"
   password: "admin"
@@ -22,7 +22,7 @@ mongodb:
 
 # Redis配置（留空以跳过）
 redis:
-  addr: "192.168.7.128:6379"
+  addr: "127.0.0.1:6379"
   password: "redis"
   db: 0
   poolSize: 10

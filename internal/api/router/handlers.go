@@ -10,7 +10,7 @@ import (
 
 // NewAuthHandler 创建认证处理器
 func NewAuthHandler(deps *AppDependencies) RouteHandler {
-	return api.NewAuthHandler(deps.MongoDB)
+	return api.NewAuthHandler(deps.MongoDB, deps.RedisClient)
 }
 
 // NewProjectHandler 创建项目处理器
