@@ -9,8 +9,6 @@
 	let { children }: Props = $props();
 </script>
 
-<div class="min-h-screen bg-background flex items-center justify-center">
-	<main class="w-full max-w-md mx-auto p-6">
-		{@render children()}
-	</main>
+<div class="h-screen overflow-hidden">
+	{@render children()}
 </div>

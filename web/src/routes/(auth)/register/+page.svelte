@@ -65,7 +65,7 @@
 	<title>注册 - Stellar 安全资产管理平台</title>
 </svelte:head>
 
-<div class="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-blue-900 dark:to-indigo-900 flex items-center justify-center p-4">
+<div class="h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-blue-900 dark:to-indigo-900 flex flex-col items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 overflow-hidden">
 	<!-- 背景装饰 -->
 	<div class="absolute inset-0 overflow-hidden">
 		<div class="absolute -top-40 -right-40 w-80 h-80 bg-blue-400/20 rounded-full blur-3xl"></div>
@@ -74,41 +74,41 @@
 	</div>
 
 	<!-- 注册卡片 -->
-	<div class="relative z-10 w-full max-w-md">
+	<div class="relative z-10 w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg">
 		<!-- 品牌标识 -->
-		<div class="text-center mb-8">
-			<div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg mb-4">
-				<Icon icon="tabler:shield" width={32} class="text-white" />
+		<div class="text-center mb-2 sm:mb-3 md:mb-4">
+			<div class="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg mb-2 sm:mb-3">
+				<Icon icon="tabler:shield" width={24} class="text-white sm:w-6 sm:h-6 lg:w-8 lg:h-8" />
 			</div>
-			<h1 class="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+			<h1 class="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
 				Stellar
 			</h1>
-			<p class="text-slate-600 dark:text-slate-400 mt-1">
+			<p class="text-slate-600 dark:text-slate-400 mt-1 text-xs sm:text-sm lg:text-base">
 				安全资产管理平台
 			</p>
 		</div>
 
 		<!-- 注册表单 -->
 		<Card class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-slate-200/50 dark:border-slate-700/50 shadow-2xl">
-			<CardHeader class="space-y-2 text-center pb-6">
-				<CardTitle class="text-2xl font-bold text-slate-900 dark:text-slate-100">
+			<CardHeader class="space-y-1 text-center pb-2 sm:pb-3">
+				<CardTitle class="text-xl lg:text-2xl font-bold text-slate-900 dark:text-slate-100">
 					创建新账户
 				</CardTitle>
-				<CardDescription class="text-slate-600 dark:text-slate-400">
+				<CardDescription class="text-slate-600 dark:text-slate-400 text-sm">
 					加入Stellar，开启您的安全资产管理之旅
 				</CardDescription>
 			</CardHeader>
 			
-			<CardContent class="space-y-6">
-				<form use:form class="space-y-5">
+			<CardContent class="space-y-2 sm:space-y-3 px-3 sm:px-4 md:px-6">
+				<form use:form class="space-y-2 sm:space-y-3">
 					<!-- 用户名输入 -->
-					<div class="space-y-2">
+					<div class="space-y-1">
 						<Label for="username" class="text-sm font-medium text-slate-700 dark:text-slate-300">
 							用户名
 						</Label>
 						<div class="relative">
 							<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-								<Icon icon="tabler:user-plus" width={18} class="text-slate-400" />
+								<Icon icon="tabler:user-plus" width={16} class="text-slate-400" />
 							</div>
 							<Input
 								id="username"
@@ -116,7 +116,7 @@
 								type="text"
 								placeholder="请输入用户名"
 								disabled={isLoading || $isSubmitting}
-								class="pl-10 h-11 bg-white/50 dark:bg-slate-800/50 border-slate-300 dark:border-slate-600 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-blue-500/20 transition-all duration-200"
+								class="pl-10 h-10 bg-white/50 dark:bg-slate-800/50 border-slate-300 dark:border-slate-600 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-blue-500/20 transition-all duration-200 text-sm"
 							/>
 						</div>
 						{#if $errors.username}
@@ -128,13 +128,13 @@
 					</div>
 
 					<!-- 邮箱输入 -->
-					<div class="space-y-2">
+					<div class="space-y-1">
 						<Label for="email" class="text-sm font-medium text-slate-700 dark:text-slate-300">
 							邮箱地址
 						</Label>
 						<div class="relative">
 							<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-								<Icon icon="tabler:mail" width={18} class="text-slate-400" />
+								<Icon icon="tabler:mail" width={16} class="text-slate-400" />
 							</div>
 							<Input
 								id="email"
@@ -142,7 +142,7 @@
 								type="email"
 								placeholder="请输入邮箱地址"
 								disabled={isLoading || $isSubmitting}
-								class="pl-10 h-11 bg-white/50 dark:bg-slate-800/50 border-slate-300 dark:border-slate-600 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-blue-500/20 transition-all duration-200"
+								class="pl-10 h-10 bg-white/50 dark:bg-slate-800/50 border-slate-300 dark:border-slate-600 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-blue-500/20 transition-all duration-200 text-sm"
 							/>
 						</div>
 						{#if $errors.email}
@@ -154,13 +154,13 @@
 					</div>
 
 					<!-- 密码输入 -->
-					<div class="space-y-2">
+					<div class="space-y-1">
 						<Label for="password" class="text-sm font-medium text-slate-700 dark:text-slate-300">
 							密码
 						</Label>
 						<div class="relative">
 							<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-								<Icon icon="tabler:lock" width={18} class="text-slate-400" />
+								<Icon icon="tabler:lock" width={16} class="text-slate-400" />
 							</div>
 							<Input
 								id="password"
@@ -168,7 +168,7 @@
 								type={showPassword ? 'text' : 'password'}
 								placeholder="请输入密码"
 								disabled={isLoading || $isSubmitting}
-								class="pl-10 pr-10 h-11 bg-white/50 dark:bg-slate-800/50 border-slate-300 dark:border-slate-600 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-blue-500/20 transition-all duration-200"
+								class="pl-10 pr-10 h-10 bg-white/50 dark:bg-slate-800/50 border-slate-300 dark:border-slate-600 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-blue-500/20 transition-all duration-200 text-sm"
 							/>
 							<button
 								type="button"
@@ -176,9 +176,9 @@
 								class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
 							>
 								{#if showPassword}
-									<Icon icon="tabler:eye-off" width={18} />
+									<Icon icon="tabler:eye-off" width={16} />
 								{:else}
-									<Icon icon="tabler:eye" width={18} />
+									<Icon icon="tabler:eye" width={16} />
 								{/if}
 							</button>
 						</div>
@@ -191,13 +191,13 @@
 					</div>
 
 					<!-- 确认密码输入 -->
-					<div class="space-y-2">
+					<div class="space-y-1">
 						<Label for="confirmPassword" class="text-sm font-medium text-slate-700 dark:text-slate-300">
 							确认密码
 						</Label>
 						<div class="relative">
 							<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-								<Icon icon="tabler:lock" width={18} class="text-slate-400" />
+								<Icon icon="tabler:lock" width={16} class="text-slate-400" />
 							</div>
 							<Input
 								id="confirmPassword"
@@ -205,7 +205,7 @@
 								type={showConfirmPassword ? 'text' : 'password'}
 								placeholder="请再次输入密码"
 								disabled={isLoading || $isSubmitting}
-								class="pl-10 pr-10 h-11 bg-white/50 dark:bg-slate-800/50 border-slate-300 dark:border-slate-600 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-blue-500/20 transition-all duration-200"
+								class="pl-10 pr-10 h-10 bg-white/50 dark:bg-slate-800/50 border-slate-300 dark:border-slate-600 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-blue-500/20 transition-all duration-200 text-sm"
 							/>
 							<button
 								type="button"
@@ -213,9 +213,9 @@
 								class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
 							>
 								{#if showConfirmPassword}
-									<Icon icon="tabler:eye-off" width={18} />
+									<Icon icon="tabler:eye-off" width={16} />
 								{:else}
-									<Icon icon="tabler:eye" width={18} />
+									<Icon icon="tabler:eye" width={16} />
 								{/if}
 							</button>
 						</div>
@@ -228,8 +228,8 @@
 					</div>
 
 					<!-- 服务协议 -->
-					<div class="space-y-2">
-						<label class="flex items-start space-x-3 text-sm">
+					<div class="space-y-1">
+						<label class="flex items-start space-x-2 text-xs">
 							<input 
 								id="agreeToTerms"
 								name="agreeToTerms"
@@ -265,7 +265,7 @@
 					<!-- 注册按钮 -->
 					<Button 
 						type="submit" 
-						class="w-full h-11 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+						class="w-full h-10 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
 						disabled={isLoading || $isSubmitting}
 					>
 						{#if isLoading || $isSubmitting}
@@ -295,31 +295,31 @@
 				</div>
 
 				<!-- 第三方注册 -->
-				<div class="grid grid-cols-2 gap-3">
+				<div class="grid grid-cols-2 gap-2">
 					<Button
 						variant="outline"
-						class="h-11 border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+						class="h-9 border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-xs"
 						disabled={isLoading}
 					>
-						<div class="flex items-center space-x-2">
-							<div class="w-5 h-5 bg-blue-500 rounded"></div>
+						<div class="flex items-center space-x-1">
+							<div class="w-4 h-4 bg-blue-500 rounded"></div>
 							<span>GitHub</span>
 						</div>
 					</Button>
 					<Button
 						variant="outline"
-						class="h-11 border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+						class="h-9 border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-xs"
 						disabled={isLoading}
 					>
-						<div class="flex items-center space-x-2">
-							<div class="w-5 h-5 bg-red-500 rounded"></div>
+						<div class="flex items-center space-x-1">
+							<div class="w-4 h-4 bg-red-500 rounded"></div>
 							<span>Google</span>
 						</div>
 					</Button>
 				</div>
 			</CardContent>
 
-			<CardFooter class="pt-6">
+			<CardFooter class="pt-2">
 				<div class="w-full text-center">
 					<p class="text-sm text-slate-600 dark:text-slate-400">
 						已有账号？
@@ -335,9 +335,9 @@
 		</Card>
 
 		<!-- 版权信息 -->
-		<div class="text-center mt-8 text-sm text-slate-500 dark:text-slate-400">
+		<div class="text-center mt-2 text-xs text-slate-500 dark:text-slate-400">
 			<p>© 2024 Stellar. 保留所有权利。</p>
-			<div class="flex items-center justify-center space-x-4 mt-2">
+			<div class="flex items-center justify-center space-x-2 mt-1">
 				<a href="/privacy" class="hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
 					隐私政策
 				</a>

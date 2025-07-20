@@ -5,6 +5,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/stores/auth';
+	import { browser } from '$app/environment';
+	import { onMount } from 'svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import {
 		Card,
@@ -15,8 +17,20 @@
 	} from '$lib/components/ui/card';
 
 	// 检查是否已登录
+	let authState = $state(auth.state);
+	let isInitialized = $state(false);
+	
+	onMount(async () => {
+		if (browser) {
+			// 等待认证状态初始化完成
+			await auth.initialize();
+			isInitialized = true;
+		}
+	});
+	
 	$effect(() => {
-		if ($auth.isAuthenticated) {
+		if (isInitialized && authState.isAuthenticated) {
+			console.log('根页面：检测到已认证状态，跳转到dashboard');
 			// 如果已登录，直接跳转到dashboard
 			goto('/dashboard');
 		}
@@ -115,8 +129,18 @@
 				</div>
 
 				<div class="flex items-center space-x-4">
-					<Button variant="outline" onclick={() => goto('/login')}>登录</Button>
-					<Button variant="default" onclick={() => goto('/register')}>注册</Button>
+					{#if isInitialized && !authState.isAuthenticated}
+						<Button variant="outline" onclick={() => goto('/login')}>登录</Button>
+						<Button variant="default" onclick={() => goto('/register')}>注册</Button>
+					{:else if isInitialized && authState.isAuthenticated}
+						<Button variant="default" onclick={() => goto('/dashboard')}>进入系统</Button>
+					{:else}
+						<!-- 加载状态 -->
+						<div class="flex items-center space-x-2">
+							<div class="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+							<span class="text-sm text-gray-600">加载中...</span>
+						</div>
+					{/if}
 				</div>
 			</div>
 		</nav>
@@ -143,22 +167,47 @@
 					</p>
 
 					<div class="flex flex-col sm:flex-row gap-4 justify-center">
-						<Button
-							variant="default"
-							size="lg"
-							class="text-lg px-8 py-4"
-							onclick={() => goto('/login')}
-						>
-							🚀 开始使用
-						</Button>
-						<Button
-							variant="outline"
-							size="lg"
-							class="text-lg px-8 py-4"
-							onclick={() => goto('/dashboard')}
-						>
-							📊 查看演示
-						</Button>
+						{#if isInitialized && !authState.isAuthenticated}
+							<Button
+								variant="default"
+								size="lg"
+								class="text-lg px-8 py-4"
+								onclick={() => goto('/login')}
+							>
+								🚀 开始使用
+							</Button>
+							<Button
+								variant="outline"
+								size="lg"
+								class="text-lg px-8 py-4"
+								onclick={() => goto('/register')}
+							>
+								📝 注册账户
+							</Button>
+						{:else if isInitialized && authState.isAuthenticated}
+							<Button
+								variant="default"
+								size="lg"
+								class="text-lg px-8 py-4"
+								onclick={() => goto('/dashboard')}
+							>
+								📊 进入仪表盘
+							</Button>
+							<Button
+								variant="outline"
+								size="lg"
+								class="text-lg px-8 py-4"
+								onclick={() => goto('/projects')}
+							>
+								📋 管理项目
+							</Button>
+						{:else}
+							<!-- 加载状态 -->
+							<div class="flex items-center justify-center space-x-2">
+								<div class="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+								<span class="text-lg text-gray-600">正在加载...</span>
+							</div>
+						{/if}
 					</div>
 				</div>
 			</div>

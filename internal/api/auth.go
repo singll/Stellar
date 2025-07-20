@@ -37,10 +37,13 @@ func NewAuthHandler(db *mongo.Database, redisClient *redis.Client) *AuthHandler 
 // RegisterRoutes 注册路由
 func (h *AuthHandler) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/login", h.Login)
-	router.GET("/info", AuthMiddleware(), GetUserInfo) // 用户信息需要认证
-	router.POST("/logout", Logout)                     // logout不需要认证中间件
+	router.POST("/logout", Logout) // logout不需要认证中间件
 	router.POST("/register", h.Register)
-	router.GET("/verify", h.VerifySession) // 验证会话状态
+	router.GET("/verify", h.VerifySession)                      // 验证会话状态 - 公开访问
+	router.GET("/session/status", h.GetSessionStatus)           // 获取会话状态信息 - 公开访问
+	router.POST("/session/refresh", h.RefreshSession)           // 刷新会话 - 公开访问
+	router.GET("/info", AuthMiddleware(), GetUserInfo)          // 用户信息需要认证
+	router.PUT("/password", AuthMiddleware(), h.ChangePassword) // 修改密码需要认证
 }
 
 // JWTSecret JWT密钥
@@ -235,8 +238,8 @@ func (h *AuthHandler) VerifySession(c *gin.Context) {
 	// 从请求头获取令牌
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
+		c.JSON(http.StatusOK, gin.H{
+			"code":    200,
 			"message": "未提供授权令牌",
 			"valid":   false,
 		})
@@ -256,8 +259,8 @@ func (h *AuthHandler) VerifySession(c *gin.Context) {
 	})
 
 	if err != nil || !token.Valid {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
+		c.JSON(http.StatusOK, gin.H{
+			"code":    200,
 			"message": "无效的授权令牌",
 			"valid":   false,
 		})
@@ -266,18 +269,27 @@ func (h *AuthHandler) VerifySession(c *gin.Context) {
 
 	// 如果Redis会话管理器可用，验证会话
 	sessionValid := true
+	var sessionStatus map[string]interface{}
+
 	if h.SessionManager != nil {
-		_, err := h.SessionManager.GetSession(c.Request.Context(), tokenString)
+		// 获取会话状态信息
+		status, err := h.SessionManager.GetSessionStatus(c.Request.Context(), tokenString)
 		if err != nil {
 			sessionValid = false
 			logger.Warn("Redis会话验证失败", map[string]interface{}{
 				"error": err,
 				"user":  claims.Username,
 			})
+		} else {
+			sessionStatus = status
+			// 检查会话是否过期
+			if isExpired, ok := status["is_expired"].(bool); ok && isExpired {
+				sessionValid = false
+			}
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"code":    200,
 		"message": "会话验证成功",
 		"valid":   sessionValid,
@@ -285,6 +297,144 @@ func (h *AuthHandler) VerifySession(c *gin.Context) {
 			"username": claims.Username,
 			"roles":    claims.Roles,
 		},
+	}
+
+	// 如果会话有效且Redis可用，添加会话状态信息
+	if sessionValid && sessionStatus != nil {
+		response["session_status"] = sessionStatus
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// GetSessionStatus 获取会话状态信息
+func (h *AuthHandler) GetSessionStatus(c *gin.Context) {
+	// 从请求头获取令牌
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"code":    200,
+			"message": "未提供授权令牌",
+			"data":    nil,
+		})
+		return
+	}
+
+	// 提取Bearer token
+	tokenString := authHeader
+	if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+		tokenString = authHeader[7:]
+	}
+
+	// 验证JWT令牌
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		return JWTSecret, nil
+	})
+
+	if err != nil || !token.Valid {
+		c.JSON(http.StatusOK, gin.H{
+			"code":    200,
+			"message": "无效的授权令牌",
+			"data":    nil,
+		})
+		return
+	}
+
+	// 如果Redis会话管理器可用，获取会话状态
+	if h.SessionManager != nil {
+		status, err := h.SessionManager.GetSessionStatus(c.Request.Context(), tokenString)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"code":    200,
+				"message": "会话不存在或已过期",
+				"data":    nil,
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"code":    200,
+			"message": "获取会话状态成功",
+			"data":    status,
+		})
+		return
+	}
+
+	// 如果Redis不可用，返回JWT信息
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "Redis不可用，仅返回JWT信息",
+		"data": gin.H{
+			"username": claims.Username,
+			"roles":    claims.Roles,
+			"jwt_only": true,
+		},
+	})
+}
+
+// RefreshSession 刷新会话
+func (h *AuthHandler) RefreshSession(c *gin.Context) {
+	// 从请求头获取令牌
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"code":    200,
+			"message": "未提供授权令牌",
+			"data":    nil,
+		})
+		return
+	}
+
+	// 提取Bearer token
+	tokenString := authHeader
+	if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+		tokenString = authHeader[7:]
+	}
+
+	// 验证JWT令牌
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		return JWTSecret, nil
+	})
+
+	if err != nil || !token.Valid {
+		c.JSON(http.StatusOK, gin.H{
+			"code":    200,
+			"message": "无效的授权令牌",
+			"data":    nil,
+		})
+		return
+	}
+
+	// 如果Redis会话管理器可用，刷新会话
+	if h.SessionManager != nil {
+		err := h.SessionManager.RefreshSession(c.Request.Context(), tokenString)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"code":    200,
+				"message": "刷新会话失败",
+				"error":   err.Error(),
+				"data":    nil,
+			})
+			return
+		}
+
+		// 获取刷新后的会话状态
+		status, _ := h.SessionManager.GetSessionStatus(c.Request.Context(), tokenString)
+
+		c.JSON(http.StatusOK, gin.H{
+			"code":    200,
+			"message": "会话刷新成功",
+			"data":    status,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "Redis不可用，无法刷新会话",
+		"data":    nil,
 	})
 }
 
@@ -370,6 +520,57 @@ func AuthMiddleware(allowedRoles ...string) gin.HandlerFunc {
 		c.Set("roles", claims.Roles)
 		c.Next()
 	}
+}
+
+// ChangePasswordRequest 修改密码请求
+type ChangePasswordRequest struct {
+	OldPassword string `json:"oldPassword" binding:"required"`
+	NewPassword string `json:"newPassword" binding:"required,min=6"`
+}
+
+// ChangePassword 修改密码
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	var req ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Error("ChangePassword参数绑定失败", map[string]interface{}{"error": err})
+		utils.HandleError(c, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的请求参数", 400, err))
+		return
+	}
+
+	// 从中间件获取用户名
+	username, exists := c.Get("username")
+	if !exists {
+		logger.Error("ChangePassword获取用户名失败", nil)
+		utils.HandleError(c, pkgerrors.NewAppError(pkgerrors.CodeUnauthorized, "用户信息未找到", 401))
+		return
+	}
+
+	usernameStr, ok := username.(string)
+	if !ok {
+		logger.Error("ChangePassword用户名类型错误", nil)
+		utils.HandleError(c, pkgerrors.NewAppError(pkgerrors.CodeInternalError, "用户名类型错误", 500))
+		return
+	}
+
+	// 验证新密码长度
+	if len(req.NewPassword) < 6 {
+		logger.Error("ChangePassword新密码长度不足", map[string]interface{}{"username": usernameStr})
+		utils.HandleError(c, pkgerrors.NewAppError(pkgerrors.CodeBadRequest, "新密码长度不能少于6位", 400))
+		return
+	}
+
+	// 调用模型层更新密码
+	err := models.UpdatePassword(h.DB, usernameStr, req.OldPassword, req.NewPassword)
+	if err != nil {
+		logger.Error("ChangePassword更新密码失败", map[string]interface{}{"username": usernameStr, "error": err})
+		utils.HandleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "密码修改成功",
+	})
 }
 
 // Register 注册新用户

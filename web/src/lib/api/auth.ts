@@ -48,6 +48,49 @@ export interface VerifySessionResponse {
 		username: string;
 		roles: string[];
 	};
+	session_status?: {
+		user_id: string;
+		username: string;
+		roles: string[];
+		created_at: string;
+		last_used: string;
+		expires_at: string;
+		time_until_expiry: number;
+		is_expired: boolean;
+		needs_refresh: boolean;
+	};
+}
+
+export interface SessionStatusResponse {
+	code: number;
+	message: string;
+	data?: {
+		user_id: string;
+		username: string;
+		roles: string[];
+		created_at: string;
+		last_used: string;
+		expires_at: string;
+		time_until_expiry: number;
+		is_expired: boolean;
+		needs_refresh: boolean;
+	};
+}
+
+export interface RefreshSessionResponse {
+	code: number;
+	message: string;
+	data?: {
+		user_id: string;
+		username: string;
+		roles: string[];
+		created_at: string;
+		last_used: string;
+		expires_at: string;
+		time_until_expiry: number;
+		is_expired: boolean;
+		needs_refresh: boolean;
+	};
 }
 
 export class APIError extends Error {
@@ -241,6 +284,40 @@ export const authApi = {
 	async verifySession(): Promise<VerifySessionResponse> {
 		try {
 			const response = await api.get('/auth/verify');
+			return response.data;
+		} catch (error: any) {
+			if (error.response?.data) {
+				const { code, message, details } = error.response.data;
+				throw new APIError(code, message, details);
+			}
+			throw error;
+		}
+	},
+
+	/**
+	 * 获取会话状态
+	 * @returns { code, message, data }
+	 */
+	async getSessionStatus(): Promise<SessionStatusResponse> {
+		try {
+			const response = await api.get('/auth/session/status');
+			return response.data;
+		} catch (error: any) {
+			if (error.response?.data) {
+				const { code, message, details } = error.response.data;
+				throw new APIError(code, message, details);
+			}
+			throw error;
+		}
+	},
+
+	/**
+	 * 刷新会话
+	 * @returns { code, message, data }
+	 */
+	async refreshSession(): Promise<RefreshSessionResponse> {
+		try {
+			const response = await api.post('/auth/session/refresh');
 			return response.data;
 		} catch (error: any) {
 			if (error.response?.data) {
