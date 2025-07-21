@@ -13,11 +13,12 @@ import type {
 import type { APIResponse } from '$lib/types/api';
 
 export const assetApi = {
-	// 获取资产列表 - 使用正确的路径和参数名
+	// 获取资产列表 - 修复资产类型为必填参数的问题
 	getAssets: async (params?: AssetQueryParams): Promise<APIResponse<AssetListResult>> => {
-		// 确保参数名称与后端一致
+		// 确保资产类型参数不为空，默认使用domain
 		const queryParams = {
 			...params,
+			type: params?.type || 'domain', // 确保type参数不为空
 			page: params?.page || 1,
 			pageSize: params?.pageSize || 20
 		};
@@ -25,6 +26,34 @@ export const assetApi = {
 			params: queryParams
 		});
 		return response.data;
+	},
+
+	// 获取所有类型的资产列表
+	getAllAssets: async (params?: Omit<AssetQueryParams, 'type'>): Promise<APIResponse<Asset[]>> => {
+		try {
+			// 使用 type="all" 参数一次性获取所有类型的资产
+			const queryParams = {
+				...params,
+				type: 'all',
+				page: params?.page || 1,
+				pageSize: params?.pageSize || 100
+			};
+			
+			const response = await api.get<APIResponse<AssetListResult>>('/assets', {
+				params: queryParams
+			});
+			
+			// 直接返回资产数组
+			const assets = response.data.data?.items || [];
+
+			return {
+				code: 200,
+				message: 'success',
+				data: assets
+			};
+		} catch (error) {
+			throw new Error('获取资产列表失败');
+		}
 	},
 
 	// 获取单个资产
@@ -147,6 +176,13 @@ export const assetApi = {
 		const response = await api.get<APIResponse<AssetRelation[]>>('/assets/relations', {
 			params: { projectId, assetId }
 		});
+		return response.data;
+	},
+
+	// 获取资产类型列表
+	getAssetTypes: async (): Promise<APIResponse<{ types: Array<{ value: string; label: string; description: string }> }>> => {
+		const response = await api.get('/assets/types');
+		console.log('Raw API response:', response);
 		return response.data;
 	},
 

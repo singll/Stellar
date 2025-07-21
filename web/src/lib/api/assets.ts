@@ -5,6 +5,7 @@ import type {
 	CreateAssetRequest,
 	UpdateAssetRequest
 } from '$lib/types/asset';
+import { handleApiResponse, handlePaginatedResponse } from '$lib/utils/api-response-handler';
 
 export interface AssetListResponse {
 	code: number;
@@ -25,23 +26,23 @@ export interface AssetResponse {
 
 export const assetsApi = {
 	async getAssets(params?: AssetQueryParams): Promise<AssetListResponse> {
-		const response = await api.get('/assets', { params });
-		return response.data;
+		const response = await api.get('/assets', { params: { ...params, type: params?.type || 'domain' } });
+		return handleApiResponse(response.data);
 	},
 
 	async getAsset(id: string): Promise<AssetResponse> {
 		const response = await api.get(`/assets/${id}`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	async createAsset(asset: CreateAssetRequest): Promise<AssetResponse> {
 		const response = await api.post('/assets', asset);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	async updateAsset(id: string, asset: UpdateAssetRequest): Promise<AssetResponse> {
 		const response = await api.put(`/assets/${id}`, asset);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	async deleteAsset(id: string): Promise<void> {
@@ -54,12 +55,12 @@ export const assetsApi = {
 
 	async searchAssets(query: string): Promise<AssetListResponse> {
 		const response = await api.get('/assets/search', { params: { q: query } });
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	async getAssetHistory(id: string): Promise<any> {
 		const response = await api.get(`/assets/${id}/history`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	async exportAssets(params?: AssetQueryParams): Promise<Blob> {

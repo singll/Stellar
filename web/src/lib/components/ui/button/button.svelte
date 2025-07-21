@@ -17,6 +17,7 @@
 		children?: Snippet;
 		href?: string;
 		class?: string;
+		builders?: Array<{ [key: string]: any }>;
 		[key: string]: any;
 	};
 
@@ -57,11 +58,19 @@
 		class: className,
 		children,
 		href,
+		builders = [],
 		...restProps
 	}: ButtonProps = $props();
 
+	// Merge builder props
+	let builderProps = {};
+	builders.forEach(builder => {
+		builderProps = { ...builderProps, ...builder };
+	});
+
 	const baseProps = {
 		class: cn(getButtonClasses(variant, size), className),
+		...builderProps,
 		...restProps
 	};
 </script>

@@ -4,6 +4,7 @@
  */
 
 import api from './axios-config';
+import { handleApiResponse, handlePaginatedResponse } from '$lib/utils/api-response-handler';
 import type {
 	PortScanTask,
 	PortScanResult,
@@ -47,7 +48,7 @@ export class PortScanAPI {
 			}
 		);
 
-		return response.data;
+		return handleApiResponse(response.data);
 	}
 
 	/**
@@ -70,13 +71,14 @@ export class PortScanAPI {
 		if (params?.status) queryParams.status = params.status;
 
 		const response = await api.get('/api/v1/portscan/tasks', { params: queryParams });
-
+		const data = handlePaginatedResponse(response.data);
+		
 		return {
-			tasks: response.data.tasks,
-			total: response.data.total,
+			tasks: data.data,
+			total: data.total,
 			page: params?.page || 1,
 			limit: params?.limit || 10,
-			totalPages: Math.ceil(response.data.total / (params?.limit || 10))
+			totalPages: data.totalPages
 		};
 	}
 
@@ -87,7 +89,7 @@ export class PortScanAPI {
 	 */
 	async getTask(taskId: string): Promise<PortScanTask> {
 		const response = await api.get(`/api/v1/portscan/tasks/${taskId}`);
-		return response.data;
+		return handleApiResponse(response.data);
 	}
 
 	/**
@@ -96,7 +98,7 @@ export class PortScanAPI {
 	 */
 	async startTask(taskId: string): Promise<{ message: string; taskId: string }> {
 		const response = await api.post(`/api/v1/portscan/tasks/${taskId}/start`);
-		return response.data;
+		return handleApiResponse(response.data);
 	}
 
 	/**
@@ -105,7 +107,7 @@ export class PortScanAPI {
 	 */
 	async stopTask(taskId: string): Promise<{ message: string; taskId: string }> {
 		const response = await api.post(`/api/v1/portscan/tasks/${taskId}/stop`);
-		return response.data;
+		return handleApiResponse(response.data);
 	}
 
 	/**
@@ -114,7 +116,7 @@ export class PortScanAPI {
 	 */
 	async getTaskStatus(taskId: string): Promise<{ status: string; taskId: string }> {
 		const response = await api.get(`/api/v1/portscan/tasks/${taskId}/status`);
-		return response.data;
+		return handleApiResponse(response.data);
 	}
 
 	/**
@@ -123,7 +125,7 @@ export class PortScanAPI {
 	 */
 	async getTaskProgress(taskId: string): Promise<{ progress: number; taskId: string }> {
 		const response = await api.get(`/api/v1/portscan/tasks/${taskId}/progress`);
-		return response.data;
+		return handleApiResponse(response.data);
 	}
 
 	/**
@@ -147,7 +149,7 @@ export class PortScanAPI {
 		const response = await api.get(`/api/v1/portscan/tasks/${taskId}/results`, {
 			params: queryParams
 		});
-		return response.data;
+		return handleApiResponse(response.data);
 	}
 
 	/**

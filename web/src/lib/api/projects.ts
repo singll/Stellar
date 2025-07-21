@@ -8,6 +8,7 @@ import type {
 	ProjectResponse,
 	ProjectStats
 } from '$lib/types/project';
+import { handleApiResponse, handlePaginatedResponse, isApiSuccess, getApiError } from '$lib/utils/api-response-handler';
 
 /**
  * 项目管理API客户端
@@ -30,69 +31,11 @@ export class ProjectAPI {
 		try {
 			const response = await api.get('/projects', { params: query });
 			console.log('📦 [API] 项目列表API原始响应:', response);
-			console.log('📊 [API] 项目列表API响应数据:', response.data);
 			
-			// 适配不同的响应格式
-			const data = response.data;
+			const result = handlePaginatedResponse(response.data);
+			console.log('✅ [API] 解析后的数据格式:', result);
 			
-			// 记录响应结构
-			console.log('📋 [API] 响应数据类型:', typeof data);
-			console.log('📋 [API] 响应数据结构:', {
-				isArray: Array.isArray(data),
-				hasDataField: data && 'data' in data,
-				hasCodeField: data && 'code' in data,
-				keys: data ? Object.keys(data) : [],
-				dataType: data ? typeof data : 'null'
-			});
-			
-			// 检查标准格式
-			if (data && data.data && Array.isArray(data.data)) {
-				console.log('✅ [API] 返回标准格式:', {
-					data: data.data,
-					total: data.total,
-					page: data.page,
-					limit: data.limit
-				});
-				return data;
-			}
-			
-			// 检查嵌套格式
-			if (data && data.code === 200 && data.data && Array.isArray(data.data.data)) {
-				console.log('✅ [API] 返回嵌套格式:', data.data);
-				return data.data;
-			}
-			
-			// 如果直接返回数组
-			if (Array.isArray(data)) {
-				console.log('✅ [API] 返回数组格式:', data);
-				return {
-					data: data,
-					total: data.length,
-					page: params?.page || 1,
-					limit: params?.limit || 20
-				};
-			}
-			
-			// 如果返回的是对象但没有data字段
-			if (data && typeof data === 'object' && !Array.isArray(data)) {
-				console.log('✅ [API] 返回对象格式:', data);
-				const result = {
-					data: data.items || data.list || data.projects || data.records || [],
-					total: data.total || data.count || data.totalRecords || 0,
-					page: params?.page || 1,
-					limit: params?.limit || 20
-				};
-				console.log('✅ [API] 转换后的格式:', result);
-				return result;
-			}
-			
-			console.error('❌ [API] 未知响应格式:', data);
-			return {
-				data: [],
-				total: 0,
-				page: params?.page || 1,
-				limit: params?.limit || 20
-			};
+			return result;
 			
 		} catch (error) {
 			console.error('❌ [API] 获取项目列表API错误:', error);
@@ -112,7 +55,7 @@ export class ProjectAPI {
 	 */
 	static async getProject(id: string): Promise<ProjectResponse> {
 		const response = await api.get(`/projects/${id}`);
-		return response.data;
+		return handleApiResponse(response.data);
 	}
 
 	/**
@@ -122,7 +65,7 @@ export class ProjectAPI {
 	 */
 	static async createProject(project: CreateProjectRequest): Promise<{ id: string }> {
 		const response = await api.post('/projects', project);
-		return response.data.data;
+		return handleApiResponse(response.data);
 	}
 
 	/**
@@ -133,7 +76,7 @@ export class ProjectAPI {
 	 */
 	static async updateProject(id: string, project: UpdateProjectRequest): Promise<ProjectResponse> {
 		const response = await api.put(`/projects/${id}`, project);
-		return response.data;
+		return handleApiResponse(response.data);
 	}
 
 	/**
@@ -150,18 +93,10 @@ export class ProjectAPI {
 	 */
 	static async getProjectStats(): Promise<ProjectStats> {
 		try {
-			// 使用正确的统计API路径
 			const response = await api.get('/statistics/dashboard/stats');
-			const data = response.data;
-			
-			// 适配不同的响应格式
-			if (data.data) {
-				return data.data;
-			}
-			return data;
+			return handleApiResponse(response.data);
 		} catch (error) {
 			console.error('获取项目统计失败:', error);
-			// 返回默认统计信息
 			return {
 				total_projects: 0,
 				active_projects: 0,
@@ -180,7 +115,7 @@ export class ProjectAPI {
 	 */
 	static async duplicateProject(id: string, name: string): Promise<Project> {
 		const response = await api.post(`/projects/${id}/duplicate`, { name });
-		return response.data.data;
+		return handleApiResponse(response.data);
 	}
 
 	/**
@@ -218,7 +153,7 @@ export class ProjectAPI {
 	 */
 	static async getProjectMembers(id: string): Promise<any[]> {
 		const response = await api.get(`/projects/${id}/members`);
-		return response.data.data;
+		return handleApiResponse(response.data);
 	}
 
 	/**
@@ -265,7 +200,7 @@ export class ProjectAPI {
 		params?: { page?: number; limit?: number }
 	): Promise<any> {
 		const response = await api.get(`/projects/${id}/activities`, { params });
-		return response.data;
+		return handleApiResponse(response.data);
 	}
 
 	/**
@@ -292,7 +227,7 @@ export class ProjectAPI {
 	 */
 	static async getProjectAssets(id: string, params?: any): Promise<any> {
 		const response = await api.get(`/projects/${id}/assets`, { params });
-		return response.data;
+		return handleApiResponse(response.data);
 	}
 
 	/**
@@ -303,6 +238,6 @@ export class ProjectAPI {
 	 */
 	static async getProjectTasks(id: string, params?: any): Promise<any> {
 		const response = await api.get(`/projects/${id}/tasks`, { params });
-		return response.data;
+		return handleApiResponse(response.data);
 	}
 }

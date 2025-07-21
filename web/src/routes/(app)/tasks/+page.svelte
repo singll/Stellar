@@ -1,364 +1,311 @@
-<!--
-任务管理 - 任务列表页面
-提供任务的列表、搜索、过滤、批量操作等功能
--->
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
-	import { taskStore, taskActions } from '$lib/stores/tasks';
-	import { projectStore, projectActions } from '$lib/stores/projects';
-	import type { TaskStatus, TaskType, TaskPriority } from '$lib/types/task';
-	import type { Project } from '$lib/types/project';
+	import { taskApi } from '$lib/api/tasks';
+	import type { Task } from '$lib/types/task';
 
-	import TaskCard from '$lib/components/tasks/TaskCard.svelte';
-	import TaskFilters from '$lib/components/tasks/TaskFilters.svelte';
-	import TaskStatsCards from '$lib/components/tasks/TaskStatsCards.svelte';
-	import LoadingSpinner from '$lib/components/ui/LoadingSpinner.svelte';
-	import SearchInput from '$lib/components/ui/SearchInput.svelte';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Pagination from '$lib/components/ui/Pagination.svelte';
+	import PageLayout from '$lib/components/ui/page-layout/PageLayout.svelte';
+	import StatsGrid from '$lib/components/ui/stats-grid/StatsGrid.svelte';
+	import DataList from '$lib/components/ui/data-list/DataList.svelte';
+	import { Button } from '$lib/components/ui/button';
+	import { notifications } from '$lib/stores/notifications';
 
 	// 响应式状态
-	let selectedTasks = $state<string[]>([]);
-	let showFilters = $state(false);
+	let tasks = $state<Task[]>([]);
+	let taskStats = $state({
+		total: 0,
+		pending: 0,
+		running: 0,
+		completed: 0,
+		failed: 0
+	});
+	let loading = $state(false);
 	let searchQuery = $state('');
-
-	// Store 状态使用 runes
-	let store = $state({
-		tasks: taskActions.tasks,
-		loading: taskActions.loading,
-		error: taskActions.error,
-		pagination: taskActions.pagination,
-		taskStats: null as any
-	});
-
-	let projects = $state<{ projects: Project[]; loading: boolean }>({
-		projects: [],
-		loading: false
-	});
-
-	// 分页和过滤参数
 	let currentPage = $state(1);
-	let pageSize = $state(20);
-	let statusFilter = $state<TaskStatus | ''>('');
-	let typeFilter = $state<TaskType | ''>('');
-	let priorityFilter = $state<TaskPriority | ''>('');
-	let projectFilter = $state('');
+	let totalPages = $state(0);
 
-	// 更新 store 状态的副作用
-	$effect(() => {
-		store = {
-			tasks: taskActions.tasks,
-			loading: taskActions.loading,
-			error: taskActions.error,
-			pagination: taskActions.pagination,
-			taskStats: null
-		};
-	});
-
-	// 更新项目状态的副作用
-	$effect(() => {
-		// 从 projectStore 获取数据
-		const unsubscribe = projectStore.subscribe((value) => {
-			projects = value;
-		});
-		return unsubscribe;
-	});
-
-	// 组件挂载时初始化
-	onMount(async () => {
-		// 从URL查询参数初始化过滤器
-		const params = new URLSearchParams($page.url.search);
-		currentPage = parseInt(params.get('page') || '1');
-		statusFilter = (params.get('status') as TaskStatus) || '';
-		typeFilter = (params.get('type') as TaskType) || '';
-		priorityFilter = (params.get('priority') as TaskPriority) || '';
-		projectFilter = params.get('project') || '';
-		searchQuery = params.get('search') || '';
-
-		// 加载项目列表
-		await projectActions.loadProjects();
-
-		// 加载任务统计
-		await taskActions.loadTaskStats();
-
-		// 加载任务列表
-		await loadTasks();
-	});
-
-	// 加载任务列表
+	// 加载任务数据
 	async function loadTasks() {
-		const params = {
-			page: currentPage,
-			pageSize,
-			status: statusFilter || undefined,
-			type: typeFilter || undefined,
-			priority: priorityFilter || undefined,
-			projectId: projectFilter || undefined,
-			search: searchQuery || undefined
+		try {
+			loading = true;
+			
+			// 并行获取任务列表和统计信息
+			const [tasksResponse, statsResponse] = await Promise.all([
+				taskApi.getTasks({
+					page: currentPage,
+					pageSize: 20,
+					search: searchQuery || undefined
+				}),
+				taskApi.getTaskStats()
+			]);
+
+			tasks = tasksResponse.data || [];
+			taskStats = statsResponse || {
+				total: 0,
+				pending: 0,
+				running: 0,
+				completed: 0,
+				failed: 0
+			};
+			
+			totalPages = Math.ceil((tasksResponse.total || 0) / 20);
+		} catch (error) {
+			console.error('加载任务数据失败:', error);
+			notifications.add({
+				type: 'error',
+				message: '加载任务数据失败: ' + (error instanceof Error ? error.message : '未知错误')
+			});
+			
+			// 出错时显示空数据
+			tasks = [];
+			taskStats = {
+				total: 0,
+				pending: 0,
+				running: 0,
+				completed: 0,
+				failed: 0
+			};
+		} finally {
+			loading = false;
+		}
+	}
+
+	// 获取任务状态颜色
+	function getTaskStatusColor(status: string) {
+		switch (status) {
+			case 'pending':
+				return 'bg-gray-100 text-gray-800';
+			case 'running':
+				return 'bg-blue-100 text-blue-800';
+			case 'completed':
+				return 'bg-green-100 text-green-800';
+			case 'failed':
+				return 'bg-red-100 text-red-800';
+			default:
+				return 'bg-gray-100 text-gray-800';
+		}
+	}
+
+	// 获取任务类型显示名称
+	function getTaskTypeDisplay(type: string) {
+		const typeMap: { [key: string]: string } = {
+			subdomain: '子域名扫描',
+			portscan: '端口扫描',
+			vulnerability: '漏洞检测',
+			webscan: 'Web扫描'
 		};
-
-		await taskActions.loadTasks(params);
-
-		// 更新URL
-		updateURL();
+		return typeMap[type] || type;
 	}
 
-	// 更新URL查询参数
-	function updateURL() {
-		const params = new URLSearchParams();
-		if (currentPage > 1) params.set('page', currentPage.toString());
-		if (statusFilter) params.set('status', statusFilter);
-		if (typeFilter) params.set('type', typeFilter);
-		if (priorityFilter) params.set('priority', priorityFilter);
-		if (projectFilter) params.set('project', projectFilter);
-		if (searchQuery) params.set('search', searchQuery);
-
-		const url = params.toString() ? `?${params.toString()}` : '';
-		goto(`/tasks${url}`, { replaceState: true });
-	}
-
-	// 处理搜索
-	function handleSearch() {
-		currentPage = 1;
-		loadTasks();
-	}
-
-	// 处理过滤器变化
-	function handleFilterChange() {
-		currentPage = 1;
-		loadTasks();
-	}
-
-	// 处理分页变化
-	function handlePageChange(event: CustomEvent<number>) {
-		currentPage = event.detail;
-		loadTasks();
-	}
-
-	// 处理任务选择
-	function handleTaskSelect(taskId: string, selected: boolean) {
-		if (selected) {
-			selectedTasks = [...selectedTasks, taskId];
-		} else {
-			selectedTasks = selectedTasks.filter((id) => id !== taskId);
+	// 获取优先级颜色
+	function getPriorityColor(priority: string) {
+		switch (priority) {
+			case 'high':
+				return 'bg-red-100 text-red-800';
+			case 'medium':
+				return 'bg-yellow-100 text-yellow-800';
+			case 'low':
+				return 'bg-green-100 text-green-800';
+			default:
+				return 'bg-gray-100 text-gray-800';
 		}
 	}
 
-	// 全选/取消全选
-	function handleSelectAll(selected: boolean) {
-		if (selected) {
-			selectedTasks = store?.tasks?.map((task) => task.id) || [];
-		} else {
-			selectedTasks = [];
-		}
+	// 格式化时间
+	function formatTime(dateString: string) {
+		return new Date(dateString).toLocaleString('zh-CN');
 	}
 
-	// 批量操作
-	async function handleBatchAction(action: 'start' | 'cancel' | 'delete') {
-		if (selectedTasks.length === 0) return;
-
-		switch (action) {
-			case 'start':
-				// 逐个启动任务
-				for (const taskId of selectedTasks) {
-					await taskActions.restartTask(taskId);
-				}
-				break;
-			case 'cancel':
-				await taskActions.batchCancel(selectedTasks);
-				break;
-			case 'delete':
-				await taskActions.batchDelete(selectedTasks);
-				break;
+	// 搜索处理
+	const handleSearch = async (query?: string) => {
+		if (query !== undefined) {
+			searchQuery = query;
 		}
-
-		selectedTasks = [];
+		currentPage = 1; // 重置到第一页
 		await loadTasks();
-	}
+	};
 
-	// 跳转到任务详情
-	function viewTask(taskId: string) {
-		goto(`/tasks/${taskId}`);
-	}
+	// 分页处理
+	const handlePageChange = async (newPage: number) => {
+		currentPage = newPage;
+		await loadTasks();
+	};
 
-	// 跳转到创建任务页面
-	function createTask() {
-		goto('/tasks/create');
-	}
+	// 准备统计数据
+	const statsData = $derived([
+		{
+			title: '总任务',
+			value: taskStats.total,
+			icon: 'list',
+			color: 'blue' as const
+		},
+		{
+			title: '运行中',
+			value: taskStats.running,
+			icon: 'play',
+			color: 'blue' as const
+		},
+		{
+			title: '已完成',
+			value: taskStats.completed,
+			icon: 'check-circle',
+			color: 'green' as const
+		},
+		{
+			title: '失败',
+			value: taskStats.failed,
+			icon: 'x-circle',
+			color: 'red' as const
+		}
+	]);
 
-	// 计算属性
-	let isAllSelected = $derived(
-		store?.tasks?.length > 0 && selectedTasks.length === store.tasks.length
-	);
+	// 准备表格列配置
+	const columns = [
+		{
+			key: 'name',
+			title: '任务名称',
+			render: (value: any, row: any) => {
+				return `
+					<div class="flex items-center gap-3">
+						<div class="flex items-center justify-center w-8 h-8 rounded-full bg-purple-100">
+							<svg class="h-4 w-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+							</svg>
+						</div>
+						<div>
+							<span class="font-medium text-blue-600 hover:text-blue-800 cursor-pointer">${row.name}</span>
+							<p class="text-xs text-gray-500 mt-1">${getTaskTypeDisplay(row.type)}</p>
+						</div>
+					</div>
+				`;
+			}
+		},
+		{
+			key: 'status',
+			title: '状态',
+			render: (value: any, row: any) => {
+				const statusColor = getTaskStatusColor(row.status);
+				return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}">${row.status}</span>`;
+			}
+		},
+		{
+			key: 'priority',
+			title: '优先级',
+			render: (value: any, row: any) => {
+				const priorityColor = getPriorityColor(row.priority);
+				return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${priorityColor}">${row.priority}</span>`;
+			}
+		},
+		{
+			key: 'project',
+			title: '所属项目',
+			render: (value: any, row: any) => {
+				return `<span class="font-mono text-xs bg-gray-100 px-2 py-1 rounded">${row.project}</span>`;
+			}
+		},
+		{
+			key: 'progress',
+			title: '进度',
+			render: (value: any, row: any) => {
+				return `
+					<div class="flex items-center gap-2">
+						<div class="flex-1 bg-gray-200 rounded-full h-2">
+							<div class="bg-blue-600 h-2 rounded-full" style="width: ${row.progress}%"></div>
+						</div>
+						<span class="text-xs text-gray-500">${row.progress}%</span>
+					</div>
+				`;
+			}
+		},
+		{
+			key: 'updated_at',
+			title: '更新时间',
+			render: (value: any, row: any) => {
+				return `<span class="text-gray-500 text-sm">${formatTime(row.updated_at)}</span>`;
+			}
+		}
+	];
 
-	let isPartialSelected = $derived(
-		selectedTasks.length > 0 && selectedTasks.length < (store?.tasks?.length || 0)
-	);
+	onMount(() => {
+		loadTasks();
+	});
 </script>
 
 <svelte:head>
 	<title>任务管理 - Stellar</title>
 </svelte:head>
 
-<div class="container mx-auto px-4 py-6">
-	<!-- 页面标题和操作 -->
-	<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-		<div>
-			<h1 class="text-2xl font-bold text-gray-900 dark:text-white">任务管理</h1>
-			<p class="text-gray-600 dark:text-gray-400 mt-1">管理和监控安全扫描任务的执行状态</p>
-		</div>
-		<div class="flex gap-2">
-			<Button variant="outline" onclick={() => (showFilters = !showFilters)}>
-				<i class="fas fa-filter mr-2"></i>
-				过滤器
+<PageLayout
+	title="任务管理"
+	description="管理和监控安全扫描任务的执行状态"
+	icon="play"
+	showStats={!loading && tasks.length > 0}
+	actions={[
+		{
+			text: '创建任务',
+			icon: 'plus',
+			variant: 'default',
+			onClick: () => goto('/tasks/create')
+		}
+	]}
+>
+	{#snippet stats()}
+		<StatsGrid stats={statsData} columns={4} />
+	{/snippet}
+
+	<DataList
+		title=""
+		{columns}
+		data={tasks}
+		{loading}
+		searchPlaceholder="搜索任务名称、类型..."
+		searchValue={searchQuery}
+		onSearch={handleSearch}
+		emptyStateTitle="暂无任务"
+		emptyStateDescription="您还没有创建任何任务，开始创建第一个任务吧"
+		emptyStateAction={{
+			text: '创建第一个任务',
+			icon: 'plus',
+			onClick: () => goto('/tasks/create')
+		}}
+		onRowClick={(task) => goto(`/tasks/${task.id}`)}
+	/>
+
+	<!-- 分页 -->
+	{#if totalPages > 1}
+		<div class="flex justify-center items-center gap-2 mt-8">
+			<Button
+				variant="outline"
+				size="sm"
+				disabled={currentPage === 1}
+				onclick={() => handlePageChange(currentPage - 1)}
+			>
+				上一页
 			</Button>
-			<Button onclick={createTask}>
-				<i class="fas fa-plus mr-2"></i>
-				创建任务
+
+			{#each Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+				if (totalPages <= 7) return i + 1;
+				if (currentPage <= 4) return i + 1;
+				if (currentPage >= totalPages - 3) return totalPages - 6 + i;
+				return currentPage - 3 + i;
+			}) as page}
+				{#if page === currentPage}
+					<Button size="sm">{page}</Button>
+				{:else}
+					<Button variant="outline" size="sm" onclick={() => handlePageChange(page)}>
+						{page}
+					</Button>
+				{/if}
+			{/each}
+
+			<Button
+				variant="outline"
+				size="sm"
+				disabled={currentPage === totalPages}
+				onclick={() => handlePageChange(currentPage + 1)}
+			>
+				下一页
 			</Button>
-		</div>
-	</div>
-
-	<!-- 任务统计卡片 -->
-	{#if store?.taskStats}
-		<TaskStatsCards stats={store.taskStats} />
-	{/if}
-
-	<!-- 搜索和过滤器 -->
-	<div
-		class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6"
-	>
-		<div class="flex flex-col sm:flex-row gap-4">
-			<div class="flex-1">
-				<SearchInput
-					bind:value={searchQuery}
-					placeholder="搜索任务名称、描述..."
-					onenter={handleSearch}
-				/>
-			</div>
-			<div class="flex gap-2">
-				<Button variant="outline" onclick={handleSearch}>
-					<i class="fas fa-search mr-2"></i>
-					搜索
-				</Button>
-			</div>
-		</div>
-
-		{#if showFilters}
-			<div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-				<TaskFilters
-					bind:status={statusFilter}
-					bind:type={typeFilter}
-					bind:priority={priorityFilter}
-					bind:projectId={projectFilter}
-					projects={projects?.projects || []}
-					onchange={handleFilterChange}
-				/>
-			</div>
-		{/if}
-	</div>
-
-	<!-- 批量操作工具栏 -->
-	{#if selectedTasks.length > 0}
-		<div
-			class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-4"
-		>
-			<div class="flex items-center justify-between">
-				<span class="text-blue-700 dark:text-blue-300">
-					已选择 {selectedTasks.length} 个任务
-				</span>
-				<div class="flex gap-2">
-					<Button size="sm" variant="outline" onclick={() => handleBatchAction('start')}>
-						<i class="fas fa-play mr-1"></i>
-						批量启动
-					</Button>
-					<Button size="sm" variant="outline" onclick={() => handleBatchAction('cancel')}>
-						<i class="fas fa-stop mr-1"></i>
-						批量取消
-					</Button>
-					<Button size="sm" variant="destructive" onclick={() => handleBatchAction('delete')}>
-						<i class="fas fa-trash mr-1"></i>
-						批量删除
-					</Button>
-				</div>
-			</div>
 		</div>
 	{/if}
-
-	<!-- 任务列表 -->
-	<div
-		class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700"
-	>
-		{#if store?.loading}
-			<div class="p-8 text-center">
-				<LoadingSpinner />
-				<p class="text-gray-600 dark:text-gray-400 mt-2">加载任务列表...</p>
-			</div>
-		{:else if store?.error}
-			<div class="p-8 text-center">
-				<div class="text-red-500 mb-2">
-					<i class="fas fa-exclamation-triangle text-2xl"></i>
-				</div>
-				<p class="text-red-600 dark:text-red-400">{store.error}</p>
-				<Button variant="outline" onclick={loadTasks} class="mt-4">重新加载</Button>
-			</div>
-		{:else if !store?.tasks?.length}
-			<div class="p-8 text-center">
-				<div class="text-gray-400 mb-2">
-					<i class="fas fa-tasks text-3xl"></i>
-				</div>
-				<p class="text-gray-600 dark:text-gray-400 mb-4">暂无任务</p>
-				<Button onclick={createTask}>
-					<i class="fas fa-plus mr-2"></i>
-					创建第一个任务
-				</Button>
-			</div>
-		{:else}
-			<!-- 列表头部 -->
-			<div class="border-b border-gray-200 dark:border-gray-700 p-4">
-				<div class="flex items-center gap-4">
-					<label class="flex items-center">
-						<input
-							type="checkbox"
-							checked={isAllSelected}
-							indeterminate={isPartialSelected}
-							onchange={(e) => handleSelectAll((e.target as HTMLInputElement).checked)}
-							class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-						/>
-						<span class="ml-2 text-sm text-gray-600 dark:text-gray-400"> 全选 </span>
-					</label>
-					<div class="text-sm text-gray-600 dark:text-gray-400">
-						共 {store.pagination?.total || 0} 个任务
-					</div>
-				</div>
-			</div>
-
-			<!-- 任务列表项 -->
-			<div class="divide-y divide-gray-200 dark:divide-gray-700">
-				{#each store.tasks as task (task.id)}
-					<TaskCard
-						{task}
-						selected={selectedTasks.includes(task.id)}
-						onselect={(selected) => handleTaskSelect(task.id, selected)}
-						onclick={() => viewTask(task.id)}
-					/>
-				{/each}
-			</div>
-
-			<!-- 分页 -->
-			{#if store.pagination && store.pagination.totalPages > 1}
-				<div class="border-t border-gray-200 dark:border-gray-700 p-4">
-					<Pagination
-						currentPage={store.pagination.page}
-						totalPages={store.pagination.totalPages}
-						total={store.pagination.total}
-						pageSize={store.pagination.pageSize}
-						on:pageChange={handlePageChange}
-					/>
-				</div>
-			{/if}
-		{/if}
-	</div>
-</div>
+</PageLayout>

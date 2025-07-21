@@ -1,4 +1,5 @@
 import api from './axios-config';
+import { handleApiResponse, handlePaginatedResponse } from '$lib/utils/api-response-handler';
 
 // 移除 taskApiClient，全部使用 api 实例
 import type {
@@ -48,7 +49,7 @@ export const taskApi = {
 	 */
 	createTask: async (data: CreateTaskRequest): Promise<TaskResponse> => {
 		const response = await api.post<TaskResponse>('/tasks', data);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -62,7 +63,7 @@ export const taskApi = {
 			pageSize: params?.pageSize || 20
 		};
 		const response = await api.get<TaskListResponse>('/tasks', { params: queryParams });
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -70,7 +71,7 @@ export const taskApi = {
 	 */
 	getTask: async (taskId: string): Promise<TaskResponse> => {
 		const response = await api.get<TaskResponse>(`/tasks/${taskId}`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -78,7 +79,7 @@ export const taskApi = {
 	 */
 	updateTask: async (taskId: string, data: UpdateTaskRequest): Promise<TaskResponse> => {
 		const response = await api.put<TaskResponse>(`/tasks/${taskId}`, data);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -86,7 +87,7 @@ export const taskApi = {
 	 */
 	deleteTask: async (taskId: string): Promise<APIResponse<void>> => {
 		const response = await api.delete<APIResponse<void>>(`/tasks/${taskId}`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -97,7 +98,7 @@ export const taskApi = {
 		data: UpdateTaskStatusRequest
 	): Promise<APIResponse<void>> => {
 		const response = await api.put<APIResponse<void>>(`/tasks/${taskId}/status`, data);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -105,7 +106,7 @@ export const taskApi = {
 	 */
 	startTask: async (taskId: string): Promise<APIResponse<void>> => {
 		const response = await api.post<APIResponse<void>>(`/tasks/${taskId}/start`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -113,7 +114,7 @@ export const taskApi = {
 	 */
 	pauseTask: async (taskId: string): Promise<APIResponse<void>> => {
 		const response = await api.post<APIResponse<void>>(`/tasks/${taskId}/pause`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -121,7 +122,7 @@ export const taskApi = {
 	 */
 	resumeTask: async (taskId: string): Promise<APIResponse<void>> => {
 		const response = await api.post<APIResponse<void>>(`/tasks/${taskId}/resume`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -129,7 +130,7 @@ export const taskApi = {
 	 */
 	cancelTask: async (taskId: string): Promise<APIResponse<void>> => {
 		const response = await api.post<APIResponse<void>>(`/tasks/${taskId}/cancel`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -137,7 +138,7 @@ export const taskApi = {
 	 */
 	stopTask: async (taskId: string): Promise<APIResponse<void>> => {
 		const response = await api.post<APIResponse<void>>(`/tasks/${taskId}/cancel`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -145,7 +146,7 @@ export const taskApi = {
 	 */
 	restartTask: async (taskId: string): Promise<APIResponse<void>> => {
 		const response = await api.post<APIResponse<void>>(`/tasks/${taskId}/restart`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -153,7 +154,7 @@ export const taskApi = {
 	 */
 	cloneTask: async (taskId: string): Promise<TaskResponse> => {
 		const response = await api.post<TaskResponse>(`/tasks/${taskId}/clone`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -161,7 +162,7 @@ export const taskApi = {
 	 */
 	batchOperation: async (data: BatchTaskRequest): Promise<APIResponse<BatchTaskResult>> => {
 		const response = await api.post<APIResponse<BatchTaskResult>>('/tasks/batch', data);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	// ==================== 任务结果 ====================
@@ -171,7 +172,7 @@ export const taskApi = {
 	 */
 	getTaskResult: async (taskId: string): Promise<TaskResultResponse> => {
 		const response = await api.get<TaskResultResponse>(`/tasks/${taskId}/result`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -179,7 +180,7 @@ export const taskApi = {
 	 */
 	getTaskResults: async (params?: { taskIds: string[] }): Promise<APIResponse<TaskResult[]>> => {
 		const response = await api.get<APIResponse<TaskResult[]>>('/tasks/results', { params });
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -215,7 +216,7 @@ export const taskApi = {
 		params?: { page?: number; pageSize?: number }
 	): Promise<TaskEventListResponse> => {
 		const response = await api.get<TaskEventListResponse>(`/tasks/${taskId}/events`, { params });
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -254,7 +255,7 @@ export const taskApi = {
 		params?: TaskLogQueryParams
 	): Promise<TaskLogListResponse> => {
 		const response = await api.get<TaskLogListResponse>(`/tasks/${taskId}/logs`, { params });
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -291,7 +292,7 @@ export const taskApi = {
 	getTaskStats: async (projectId?: string): Promise<TaskStatsResponse> => {
 		const params = projectId ? { projectId } : undefined;
 		const response = await api.get<TaskStatsResponse>('/tasks/stats', { params });
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -303,7 +304,7 @@ export const taskApi = {
 		const response = await api.get<APIResponse<TaskPerformanceMetrics[]>>(
 			`/tasks/${taskId}/metrics`
 		);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	// ==================== 任务执行器 ====================
@@ -313,7 +314,7 @@ export const taskApi = {
 	 */
 	getExecutors: async (): Promise<ExecutorInfoResponse> => {
 		const response = await api.get<ExecutorInfoResponse>('/tasks/executors');
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -321,7 +322,7 @@ export const taskApi = {
 	 */
 	getRunningTasks: async (): Promise<APIResponse<string[]>> => {
 		const response = await api.get<APIResponse<string[]>>('/tasks/running');
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -329,7 +330,7 @@ export const taskApi = {
 	 */
 	getExecutionContext: async (taskId: string): Promise<APIResponse<ExecutionContext>> => {
 		const response = await api.get<APIResponse<ExecutionContext>>(`/tasks/${taskId}/context`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	// ==================== 任务模板 ====================
@@ -341,7 +342,7 @@ export const taskApi = {
 		data: CreateTaskTemplateRequest
 	): Promise<APIResponse<TaskTemplate>> => {
 		const response = await api.post<APIResponse<TaskTemplate>>('/tasks/templates', data);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -354,7 +355,7 @@ export const taskApi = {
 		type?: string;
 	}): Promise<TaskTemplateListResponse> => {
 		const response = await api.get<TaskTemplateListResponse>('/tasks/templates', { params });
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -362,7 +363,7 @@ export const taskApi = {
 	 */
 	getTaskTemplate: async (templateId: string): Promise<APIResponse<TaskTemplate>> => {
 		const response = await api.get<APIResponse<TaskTemplate>>(`/tasks/templates/${templateId}`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -376,7 +377,7 @@ export const taskApi = {
 			`/tasks/templates/${templateId}`,
 			data
 		);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -384,7 +385,7 @@ export const taskApi = {
 	 */
 	deleteTaskTemplate: async (templateId: string): Promise<APIResponse<void>> => {
 		const response = await api.delete<APIResponse<void>>(`/tasks/templates/${templateId}`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -395,7 +396,7 @@ export const taskApi = {
 		data: { projectId: string; config?: Record<string, any> }
 	): Promise<TaskResponse> => {
 		const response = await api.post<TaskResponse>(`/tasks/templates/${templateId}/create`, data);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	// ==================== 任务调度 ====================
@@ -407,7 +408,7 @@ export const taskApi = {
 		data: CreateTaskScheduleRuleRequest
 	): Promise<APIResponse<TaskScheduleRule>> => {
 		const response = await api.post<APIResponse<TaskScheduleRule>>('/tasks/schedule-rules', data);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -421,7 +422,7 @@ export const taskApi = {
 		const response = await api.get<TaskScheduleRuleListResponse>('/tasks/schedule-rules', {
 			params
 		});
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -431,7 +432,7 @@ export const taskApi = {
 		const response = await api.get<APIResponse<TaskScheduleRule>>(
 			`/tasks/schedule-rules/${ruleId}`
 		);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -445,7 +446,7 @@ export const taskApi = {
 			`/tasks/schedule-rules/${ruleId}`,
 			data
 		);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -453,7 +454,7 @@ export const taskApi = {
 	 */
 	deleteTaskScheduleRule: async (ruleId: string): Promise<APIResponse<void>> => {
 		const response = await api.delete<APIResponse<void>>(`/tasks/schedule-rules/${ruleId}`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -463,7 +464,7 @@ export const taskApi = {
 		const response = await api.put<APIResponse<void>>(`/tasks/schedule-rules/${ruleId}/toggle`, {
 			enabled
 		});
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -471,7 +472,7 @@ export const taskApi = {
 	 */
 	triggerTaskScheduleRule: async (ruleId: string): Promise<TaskResponse> => {
 		const response = await api.post<TaskResponse>(`/tasks/schedule-rules/${ruleId}/trigger`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	// ==================== 任务配置验证 ====================
@@ -487,7 +488,7 @@ export const taskApi = {
 			type,
 			config
 		});
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -497,7 +498,7 @@ export const taskApi = {
 		const response = await api.get<APIResponse<Record<string, any>>>(
 			`/tasks/config-template/${type}`
 		);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -507,7 +508,7 @@ export const taskApi = {
 		data: CreateTaskRequest
 	): Promise<APIResponse<TaskExecutionPlan>> => {
 		const response = await api.post<APIResponse<TaskExecutionPlan>>('/tasks/execution-plan', data);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	// ==================== 任务导入导出 ====================
@@ -541,7 +542,7 @@ export const taskApi = {
 	 */
 	importTasks: async (data: TaskImportRequest): Promise<APIResponse<TaskImportResult>> => {
 		const response = await api.post<APIResponse<TaskImportResult>>('/tasks/import', data);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	// ==================== 任务通知 ====================
@@ -555,7 +556,7 @@ export const taskApi = {
 		const response = await api.get<APIResponse<TaskNotificationConfig>>(
 			`/tasks/${taskId}/notification-config`
 		);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -569,7 +570,7 @@ export const taskApi = {
 			`/tasks/${taskId}/notification-config`,
 			config
 		);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	// ==================== 任务队列 ====================
@@ -579,7 +580,7 @@ export const taskApi = {
 	 */
 	getTaskQueues: async (): Promise<APIResponse<TaskQueue[]>> => {
 		const response = await api.get<APIResponse<TaskQueue[]>>('/tasks/queues');
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -587,7 +588,7 @@ export const taskApi = {
 	 */
 	getTaskQueue: async (queueId: string): Promise<APIResponse<TaskQueue>> => {
 		const response = await api.get<APIResponse<TaskQueue>>(`/tasks/queues/${queueId}`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -595,7 +596,7 @@ export const taskApi = {
 	 */
 	pauseTaskQueue: async (queueId: string): Promise<APIResponse<void>> => {
 		const response = await api.post<APIResponse<void>>(`/tasks/queues/${queueId}/pause`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -603,7 +604,7 @@ export const taskApi = {
 	 */
 	resumeTaskQueue: async (queueId: string): Promise<APIResponse<void>> => {
 		const response = await api.post<APIResponse<void>>(`/tasks/queues/${queueId}/resume`);
-		return response.data;
+		return handleApiResponse(response.data);
 	},
 
 	/**
@@ -611,6 +612,6 @@ export const taskApi = {
 	 */
 	clearTaskQueue: async (queueId: string): Promise<APIResponse<void>> => {
 		const response = await api.post<APIResponse<void>>(`/tasks/queues/${queueId}/clear`);
-		return response.data;
+		return handleApiResponse(response.data);
 	}
 };
