@@ -12,33 +12,42 @@ export const load = async ({ url }: LoadEvent) => {
 		const sort_order = (url.searchParams.get('sort_order') as 'asc' | 'desc') || 'desc';
 
 		// 并行获取项目列表和统计信息
-		const [projectsData, statsData] = await Promise.allSettled([
-			ProjectAPI.getProjects({
-				page,
-				limit,
-				search,
-				sort_by,
-				sort_order
-			}),
-			ProjectAPI.getProjectStats()
-		]);
+		let projects: ProjectListResponse;
+		let stats: ProjectStats;
 
-		const projects: ProjectListResponse =
-			projectsData.status === 'fulfilled'
-				? projectsData.value
-				: { data: [], total: 0, page: 1, limit: 20 };
+		try {
+			console.log('🚀 [Server] 开始加载项目数据...');
+			console.log('📝 [Server] 查询参数:', { page, limit, search, sort_by, sort_order });
+			[projects, stats] = await Promise.all([
+				ProjectAPI.getProjects({
+					page,
+					limit,
+					search,
+					sort_by,
+					sort_order
+				}),
+				ProjectAPI.getProjectStats()
+			]);
+			console.log('✅ [Server] 项目数据加载成功:', { 
+				projectsCount: projects.data?.length || 0, 
+				projectsTotal: projects.total,
+				stats 
+			});
+		} catch (error) {
+			console.error('加载项目数据失败:', error);
+			// 返回默认数据
+			projects = { data: [], total: 0, page: 1, limit: 20 };
+			stats = {
+				total_projects: 0,
+				active_projects: 0,
+				total_assets: 0,
+				total_vulnerabilities: 0,
+				total_tasks: 0
+			};
+		}
 
-		const stats: ProjectStats =
-			statsData.status === 'fulfilled'
-				? statsData.value
-				: {
-						total_projects: 0,
-						active_projects: 0,
-						total_assets: 0,
-						total_vulnerabilities: 0,
-						total_tasks: 0
-					};
-
+		console.log('服务端返回数据:', { projects, stats });
+		
 		return {
 			projects,
 			stats,

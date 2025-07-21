@@ -82,15 +82,15 @@
 			]);
 
 			// 处理资产统计
-			if (assetsResponse.status === 'fulfilled') {
+			if (assetsResponse.status === 'fulfilled' && assetsResponse.value.data) {
 				const assetsData = assetsResponse.value;
-				stats.assets.total = assetsData.data.total;
+				stats.assets.total = assetsData.data.total || 0;
 
 				// 获取详细的资产统计
 				try {
 					const assetStats = await assetApi.getAssetStats();
 					// assetStats.data 是 Record<string, number>，需要解析结构
-					const assetData = assetStats.data as Record<string, number>;
+					const assetData = assetStats.data as Record<string, number> || {};
 					stats.assets.active = assetData.total || 0;
 					stats.assets.domains = assetData.domain || 0;
 					stats.assets.ips = assetData.ip || 0;
@@ -103,16 +103,16 @@
 						sortBy: 'createdAt',
 						sortDesc: true
 					});
-					recentAssets = recentAssetsData.data.items;
+					recentAssets = recentAssetsData.data?.items || [];
 				} catch (err) {
 					console.warn('加载资产详细统计失败:', err);
 				}
 			}
 
 			// 处理任务统计
-			if (tasksResponse.status === 'fulfilled') {
+			if (tasksResponse.status === 'fulfilled' && tasksResponse.value.data) {
 				const tasksData = tasksResponse.value;
-				stats.tasks.total = tasksData.data.total;
+				stats.tasks.total = tasksData.data.total || 0;
 
 				try {
 					const taskStats = await taskApi.getTaskStats();
@@ -126,17 +126,17 @@
 			}
 
 			// 处理最近任务
-			if (recentTasksResponse.status === 'fulfilled') {
-				recentTasks = recentTasksResponse.value.data.items;
+			if (recentTasksResponse.status === 'fulfilled' && recentTasksResponse.value.data) {
+				recentTasks = recentTasksResponse.value.data.items || [];
 			}
 
 			// 处理节点统计
 			if (nodesStatsResponse.status === 'fulfilled' && nodesStatsResponse.value) {
 				nodeStats = nodesStatsResponse.value;
 				if (nodeStats) {
-					stats.nodes.total = nodeStats.total;
-					stats.nodes.online = nodeStats.online;
-					stats.nodes.offline = nodeStats.offline;
+					stats.nodes.total = nodeStats.total || 0;
+					stats.nodes.online = nodeStats.online || 0;
+					stats.nodes.offline = nodeStats.offline || 0;
 
 					// 计算节点健康度
 					if (nodeStats.total > 0) {
@@ -146,17 +146,28 @@
 			}
 
 			// 处理项目统计
-			if (projectsResponse.status === 'fulfilled') {
+			if (projectsResponse.status === 'fulfilled' && projectsResponse.value.data) {
 				const projectsData = projectsResponse.value;
-				stats.projects.total = projectsData.total;
-				activeProjects = projectsData.data;
-				stats.projects.active = projectsData.data.length;
+				stats.projects.total = projectsData.data.total || 0;
+				activeProjects = projectsData.data.items || [];
+				stats.projects.active = activeProjects.length;
 			}
 
 			// 计算整体系统健康度
 			systemHealth.overall = Math.round(
 				(systemHealth.database + systemHealth.cache + systemHealth.nodes + systemHealth.storage) / 4
 			);
+			
+			// 确保所有统计值都是有效的数字
+			Object.keys(stats).forEach(key => {
+				const category = key as keyof typeof stats;
+				Object.keys(stats[category]).forEach(subKey => {
+					const value = stats[category][subKey as keyof typeof stats[typeof key]];
+					if (typeof value !== 'number' || isNaN(value)) {
+						stats[category][subKey as keyof typeof stats[typeof key]] = 0;
+					}
+				});
+			});
 		} catch (err) {
 			error = err instanceof Error ? err.message : '加载仪表盘数据失败';
 		} finally {

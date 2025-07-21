@@ -1,6 +1,8 @@
 <!-- 登录页面 - 现代化设计 -->
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 	import { Button } from '$lib/components/ui/button/index';
 	import {
 		Card,
@@ -31,6 +33,45 @@
 
 	let isLoading = $state(false);
 	let showPassword = $state(false);
+	let isCheckingAuth = $state(true);
+
+	// 自动登录验证
+	onMount(async () => {
+		if (!browser) return;
+		
+		isCheckingAuth = true;
+		try {
+			const storedState = localStorage.getItem('auth_state');
+			if (storedState) {
+				const parsedState = JSON.parse(storedState);
+				if (parsedState.token && parsedState.user) {
+					// 验证会话状态
+					const isValid = await auth.verifySession();
+					if (isValid) {
+						// 已登录且会话有效，跳转到主界面
+						const urlParams = new URLSearchParams(window.location.search);
+						const redirectUrl = urlParams.get('redirect') || '/dashboard';
+						await goto(redirectUrl);
+						return;
+					} else {
+						// 会话无效，清理状态
+						console.log('会话验证失败，清理认证状态');
+						auth.clearState();
+						// 清理localStorage中的认证数据
+						localStorage.removeItem('auth_state');
+						localStorage.removeItem('stellar_auth_tokens');
+					}
+				}
+			}
+		} catch (error) {
+			console.error('自动登录验证失败:', error);
+			// 清理可能损坏的状态
+			localStorage.removeItem('auth_state');
+			localStorage.removeItem('stellar_auth_tokens');
+		} finally {
+			isCheckingAuth = false;
+		}
+	});
 
 	const { form, errors, isSubmitting } = createForm<LoginForm>({
 		onSubmit: async (values) => {
@@ -73,8 +114,21 @@
 		<div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-400/10 rounded-full blur-3xl"></div>
 	</div>
 
-	<!-- 登录卡片 -->
-	<div class="relative z-10 w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg">
+	{#if isCheckingAuth}
+		<!-- 认证检查加载界面 -->
+		<div class="relative z-10 flex flex-col items-center">
+			<div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg mb-4">
+				<Icon icon="tabler:shield-check" width={32} class="text-white animate-pulse" />
+			</div>
+			<h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">正在验证登录状态</h2>
+			<p class="text-slate-600 dark:text-slate-400">请稍候...</p>
+			<div class="mt-4 w-32 h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+				<div class="h-full bg-gradient-to-r from-blue-500 to-purple-600 animate-pulse w-full rounded-full"></div>
+			</div>
+		</div>
+	{:else}
+		<!-- 登录卡片 -->
+		<div class="relative z-10 w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg">
 		<!-- 品牌标识 -->
 		<div class="text-center mb-2 sm:mb-3 md:mb-4">
 			<div class="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg mb-2 sm:mb-3">
@@ -253,22 +307,23 @@
 			</CardFooter>
 		</Card>
 
-		<!-- 版权信息 -->
-		<div class="text-center mt-2 text-xs text-slate-500 dark:text-slate-400">
-			<p>© 2024 Stellar. 保留所有权利。</p>
-			<div class="flex items-center justify-center space-x-2 mt-1">
-				<a href="/privacy" class="hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
-					隐私政策
-				</a>
-				<span>•</span>
-				<a href="/terms" class="hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
-					服务条款
-				</a>
-				<span>•</span>
-				<a href="/support" class="hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
-					技术支持
-				</a>
+			<!-- 版权信息 -->
+			<div class="text-center mt-2 text-xs text-slate-500 dark:text-slate-400">
+				<p>© 2024 Stellar. 保留所有权利。</p>
+				<div class="flex items-center justify-center space-x-2 mt-1">
+					<a href="/privacy" class="hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
+						隐私政策
+					</a>
+					<span>•</span>
+					<a href="/terms" class="hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
+						服务条款
+					</a>
+					<span>•</span>
+					<a href="/support" class="hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
+						技术支持
+					</a>
+				</div>
 			</div>
 		</div>
-	</div>
+	{/if}
 </div>

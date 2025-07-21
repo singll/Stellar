@@ -176,13 +176,13 @@ start_backend() {
     cd "$PROJECT_ROOT"
     
     # 检查配置文件
-    if [ ! -f "config.dev.yaml" ]; then
-        log_error "配置文件 config.dev.yaml 不存在"
+    if [ ! -f "configs/config.dev.yaml" ]; then
+        log_error "配置文件 configs/config.dev.yaml 不存在"
         exit 1
     fi
     
     # 启动后端服务
-    nohup go run ./cmd/main.go -config config.dev.yaml -log-level debug \
+    nohup go run ./cmd/main.go -config configs/config.dev.yaml -log-level debug \
         > "$LOG_DIR/backend.log" 2>&1 &
     
     local backend_pid=$!
