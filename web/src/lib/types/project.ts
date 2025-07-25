@@ -3,6 +3,7 @@ export interface Project {
 	id: string;
 	name: string;
 	description?: string;
+	tag?: string;
 	target?: string;
 	scan_status?: string;
 	color?: string;
@@ -11,8 +12,10 @@ export interface Project {
 	vulnerabilities_count?: number;
 	tasks_count?: number;
 	created_by?: string;
-	created_at: string;
-	updated_at: string;
+	created?: string; // 后端使用created而不是created_at
+	updated?: string; // 后端使用updated而不是updated_at
+	created_at?: string; // 保持兼容性
+	updated_at?: string; // 保持兼容性
 }
 
 // 创建项目请求类型

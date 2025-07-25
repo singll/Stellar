@@ -8,6 +8,9 @@
 	import PageLayout from '$lib/components/ui/page-layout/PageLayout.svelte';
 	import StatsGrid from '$lib/components/ui/stats-grid/StatsGrid.svelte';
 	import DataList from '$lib/components/ui/data-list/DataList.svelte';
+	import DeleteConfirmDialog from '$lib/components/dialogs/DeleteConfirmDialog.svelte';
+	import ProjectEditDialog from '$lib/components/dialogs/ProjectEditDialog.svelte';
+	import { Pagination } from '$lib/components/ui/pagination';
 	import { onMount } from 'svelte';
 
 	// 响应式状态
@@ -23,6 +26,14 @@
 	let searchQuery = $state('');
 	let currentPage = $state(1);
 	let totalPages = $state(0);
+	let totalItems = $state(0);
+	let pageSize = $state(20);
+
+	// 弹窗状态
+	let deleteDialogOpen = $state(false);
+	let editDialogOpen = $state(false);
+	let selectedProject = $state<Project | null>(null);
+	let dialogLoading = $state(false);
 
 	// 加载项目数据
 	async function loadProjects() {
@@ -33,7 +44,7 @@
 			const [projectsResponse, statsResponse] = await Promise.all([
 				ProjectAPI.getProjects({
 					page: currentPage,
-					limit: 20,
+					limit: pageSize,
 					search: searchQuery || undefined
 				}),
 				ProjectAPI.getProjectStats()
@@ -48,7 +59,11 @@
 				total_tasks: 0
 			};
 			
-			totalPages = Math.ceil((projectsResponse.total || 0) / 20);
+			totalItems = projectsResponse.total || 0;
+			// 确保totalPages计算正确，避免显示多余页面
+			totalPages = totalItems > 0 ? Math.ceil(totalItems / pageSize) : 0;
+			
+			console.log('📈 [项目管理] 最终状态 - totalItems:', totalItems, 'totalPages:', totalPages, 'pageSize:', pageSize);
 		} catch (error) {
 			console.error('加载项目数据失败:', error);
 			notifications.add({
@@ -58,6 +73,8 @@
 			
 			// 出错时显示空数据
 			projects = [];
+			totalItems = 0;
+			totalPages = 0;
 			stats = {
 				total_projects: 0,
 				active_projects: 0,
@@ -84,23 +101,70 @@
 		await loadProjects();
 	};
 
-	// 删除项目
-	const handleDeleteProject = async (projectId: string) => {
-		if (!confirm('确定要删除这个项目吗？此操作不可逆。')) return;
+	// 处理删除项目
+	const handleDeleteProject = (projectId: string) => {
+		const project = projects.find(p => p.id === projectId);
+		if (project) {
+			selectedProject = project;
+			deleteDialogOpen = true;
+		}
+	};
+
+	// 确认删除项目
+	const confirmDeleteProject = async () => {
+		if (!selectedProject) return;
 
 		try {
-			await ProjectAPI.deleteProject(projectId);
-			projects = projects.filter((p) => p.id !== projectId);
+			dialogLoading = true;
+			await ProjectAPI.deleteProject(selectedProject.id);
+			projects = projects.filter((p) => p.id !== selectedProject.id);
 			notifications.add({
 				type: 'success',
 				message: '项目删除成功'
 			});
+			deleteDialogOpen = false;
+			selectedProject = null;
 		} catch (error) {
 			notifications.add({
 				type: 'error',
 				message: '删除项目失败: ' + (error instanceof Error ? error.message : '未知错误')
 			});
+		} finally {
+			dialogLoading = false;
 		}
+	};
+
+	// 保存项目编辑
+	const saveProjectEdit = async (data: any) => {
+		if (!selectedProject) return;
+
+		try {
+			dialogLoading = true;
+			await ProjectAPI.updateProject(selectedProject.id, data);
+			
+			// 重新加载项目列表以获取最新数据
+			await loadProjects();
+			
+			notifications.add({
+				type: 'success',
+				message: '项目更新成功'
+			});
+			editDialogOpen = false;
+			selectedProject = null;
+		} catch (error) {
+			notifications.add({
+				type: 'error',
+				message: '更新项目失败: ' + (error instanceof Error ? error.message : '未知错误')
+			});
+			throw error; // 重新抛出错误，让弹窗保持打开状态
+		} finally {
+			dialogLoading = false;
+		}
+	};
+
+	// 取消弹窗操作
+	const handleDialogCancel = () => {
+		selectedProject = null;
 	};
 
 	// 复制项目
@@ -126,6 +190,13 @@
 	// 分页处理
 	const handlePageChange = async (newPage: number) => {
 		currentPage = newPage;
+		await loadProjects();
+	};
+
+	// 页面大小变更处理
+	const handlePageSizeChange = async (newPageSize: number) => {
+		pageSize = newPageSize;
+		currentPage = 1; // 重置到第一页
 		await loadProjects();
 	};
 
@@ -172,6 +243,15 @@
 			color: 'red' as const
 		}
 	]);
+
+	// 处理编辑项目
+	const handleEditProject = (projectId: string) => {
+		const project = projects.find(p => p.id === projectId);
+		if (project) {
+			selectedProject = project;
+			editDialogOpen = true;
+		}
+	};
 
 	// 准备表格列配置
 	const columns = [
@@ -274,43 +354,59 @@
 			onClick: () => goto('/projects/create')
 		}}
 		onRowClick={(project) => goto(`/projects/${project.id}`)}
+		rowActions={(row) => [
+			{
+				icon: 'edit',
+				title: '编辑项目',
+				variant: 'ghost',
+				onClick: () => handleEditProject(row.id)
+			},
+			{
+				icon: 'trash',
+				title: '删除项目',
+				variant: 'ghost',
+				color: 'red',
+				onClick: () => handleDeleteProject(row.id)
+			}
+		]}
 	/>
 
-	<!-- 分页 -->
-	{#if totalPages > 1}
-		<div class="flex justify-center items-center gap-2 mt-8">
-			<Button
-				variant="outline"
-				size="sm"
-				disabled={currentPage === 1}
-				onclick={() => handlePageChange(currentPage - 1)}
-			>
-				上一页
-			</Button>
-
-			{#each Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-				if (totalPages <= 7) return i + 1;
-				if (currentPage <= 4) return i + 1;
-				if (currentPage >= totalPages - 3) return totalPages - 6 + i;
-				return currentPage - 3 + i;
-			}) as page}
-				{#if page === currentPage}
-					<Button size="sm">{page}</Button>
-				{:else}
-					<Button variant="outline" size="sm" onclick={() => handlePageChange(page)}>
-						{page}
-					</Button>
-				{/if}
-			{/each}
-
-			<Button
-				variant="outline"
-				size="sm"
-				disabled={currentPage === totalPages}
-				onclick={() => handlePageChange(currentPage + 1)}
-			>
-				下一页
-			</Button>
+	<!-- 分页组件 -->
+	{#if totalItems > 0}
+		<div class="mt-8">
+			<Pagination
+				{currentPage}
+				{totalPages}
+				{totalItems}
+				{pageSize}
+				pageSizeOptions={[10, 20, 50, 100]}
+				showPageSizeSelector={true}
+				showPageInfo={true}
+				showFirstLast={true}
+				maxVisiblePages={7}
+				disabled={loading}
+				onPageChange={handlePageChange}
+				onPageSizeChange={handlePageSizeChange}
+				class="border-t pt-6"
+			/>
 		</div>
 	{/if}
 </PageLayout>
+
+<!-- 弹窗组件 -->
+<DeleteConfirmDialog
+	bind:open={deleteDialogOpen}
+	itemName={selectedProject?.name}
+	itemType="项目"
+	loading={dialogLoading}
+	onConfirm={confirmDeleteProject}
+	onCancel={handleDialogCancel}
+/>
+
+<ProjectEditDialog
+	bind:open={editDialogOpen}
+	project={selectedProject}
+	loading={dialogLoading}
+	onSave={saveProjectEdit}
+	onCancel={handleDialogCancel}
+/>

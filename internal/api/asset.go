@@ -125,12 +125,31 @@ type CreateAssetRequest struct {
 
 // CreateAsset 创建资产
 func (h *AssetHandler) CreateAsset(c *gin.Context) {
+	// 添加请求开始日志
+	logger.Info("CreateAsset 开始处理请求", map[string]interface{}{
+		"method":      c.Request.Method,
+		"path":        c.Request.URL.Path,
+		"contentType": c.Request.Header.Get("Content-Type"),
+	})
+
 	var req CreateAssetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Error("CreateAsset参数绑定失败", map[string]interface{}{"error": err})
+		logger.Error("CreateAsset参数绑定失败", map[string]interface{}{
+			"error":         err,
+			"requestBody":   c.Request.Body,
+			"contentLength": c.Request.ContentLength,
+		})
 		utils.HandleError(c, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的请求参数", 400, err))
 		return
 	}
+
+	// 添加请求参数日志
+	logger.Info("CreateAsset 请求参数", map[string]interface{}{
+		"type":      req.Type,
+		"projectId": req.ProjectID,
+		"tags":      req.Tags,
+		"dataKeys":  getMapKeys(req.Data),
+	})
 
 	var projectID primitive.ObjectID
 	
@@ -139,26 +158,36 @@ func (h *AssetHandler) CreateAsset(c *gin.Context) {
 		var err error
 		projectID, err = primitive.ObjectIDFromHex(req.ProjectID)
 		if err != nil {
-			logger.Error("CreateAsset无效的项目ID", map[string]interface{}{"projectID": req.ProjectID, "error": err})
-			utils.HandleError(c, pkgerrors.NewAppErrorWithCause(pkgerrors.CodeBadRequest, "无效的项目ID", 400, err))
-			return
-		}
-
-		// 验证项目是否存在
-		var project models.Project
-		err = h.DB.Collection("projects").FindOne(c, bson.M{"_id": projectID}).Decode(&project)
-		if err != nil {
-			logger.Error("CreateAsset查询项目失败", map[string]interface{}{"projectID": req.ProjectID, "error": err})
-			if err == mongo.ErrNoDocuments {
-				utils.HandleError(c, pkgerrors.NewNotFoundError("项目不存在"))
+			logger.Error("CreateAsset项目ID格式无效，将忽略", map[string]interface{}{"projectID": req.ProjectID, "error": err})
+			// 项目ID格式无效时，不报错，而是使用空的ObjectID
+			projectID = primitive.ObjectID{}
+		} else {
+			// 验证项目是否存在（如果项目ID格式有效）
+			var project models.Project
+			err = h.DB.Collection("projects").FindOne(c, bson.M{"_id": projectID}).Decode(&project)
+			if err != nil {
+				if err == mongo.ErrNoDocuments {
+					logger.Error("CreateAsset指定的项目不存在，将创建无项目关联的资产", map[string]interface{}{
+						"projectID": req.ProjectID,
+					})
+					// 项目不存在时，不报错，而是使用空的ObjectID
+					projectID = primitive.ObjectID{}
+				} else {
+					logger.Error("CreateAsset查询项目失败", map[string]interface{}{"projectID": req.ProjectID, "error": err})
+					utils.HandleError(c, pkgerrors.WrapDatabaseError(err, "查询项目"))
+					return
+				}
 			} else {
-				utils.HandleError(c, pkgerrors.WrapDatabaseError(err, "查询项目"))
+				logger.Info("CreateAsset项目验证成功", map[string]interface{}{
+					"projectID":   req.ProjectID,
+					"projectName": project.Name,
+				})
 			}
-			return
 		}
 	} else {
-		// 如果没有提供项目ID，使用零值
-		projectID = primitive.NilObjectID
+		// 如果没有提供项目ID，使用空的ObjectID
+		projectID = primitive.ObjectID{}
+		logger.Info("CreateAsset未指定项目，将创建无项目关联的资产", map[string]interface{}{})
 	}
 
 	now := time.Now()
@@ -410,12 +439,28 @@ func (h *AssetHandler) CreateAsset(c *gin.Context) {
 	}
 
 	// 创建资产
+	logger.Info("CreateAsset 开始创建资产", map[string]interface{}{
+		"assetType": req.Type,
+		"projectID": req.ProjectID,
+	})
+	
 	id, err = h.AssetRepo.CreateAsset(c, req.Type, asset)
 	if err != nil {
-		logger.Error("CreateAsset创建资产失败", map[string]interface{}{"assetType": req.Type, "projectID": req.ProjectID, "error": err})
+		logger.Error("CreateAsset创建资产失败", map[string]interface{}{
+			"assetType": req.Type, 
+			"projectID": req.ProjectID, 
+			"error": err,
+			"errorType": fmt.Sprintf("%T", err),
+		})
 		utils.HandleError(c, pkgerrors.WrapDatabaseError(err, "创建资产"))
 		return
 	}
+
+	logger.Info("CreateAsset 资产创建成功", map[string]interface{}{
+		"assetType": req.Type,
+		"assetId":   id.Hex(),
+		"projectID": req.ProjectID,
+	})
 
 	// 设置ID并返回
 	switch a := asset.(type) {
@@ -1546,4 +1591,13 @@ func (h *AssetHandler) listAllAssets(c *gin.Context, req struct {
 // ptrInt64 创建int64指针的辅助函数
 func ptrInt64(v int64) *int64 {
 	return &v
+}
+
+// getMapKeys 获取map的所有键，用于调试日志
+func getMapKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }

@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/StellarServer/internal/config"
 	"github.com/StellarServer/internal/database"
@@ -10,6 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // ProjectHandler 项目处理器
@@ -26,6 +28,7 @@ func NewProjectHandler(db *mongo.Database) *ProjectHandler {
 func (h *ProjectHandler) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("", h.GetProjects)
 	router.GET("/all", h.GetAllProjects)
+	router.GET("/search", h.SearchProjects)
 	router.GET("/:id", h.GetProjectContent)
 	router.POST("", h.AddProject)
 	router.PUT("/:id", h.UpdateProject)
@@ -69,11 +72,18 @@ func (h *ProjectHandler) GetProjects(c *gin.Context) {
 
 	go models.UpdateProjectAssetCount(db)
 
+	// 获取"All"标签下的项目数据，这是实际的分页数据
+	projects := resultList["All"]
+	totalCount := tagNum["All"]
+
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
 		"data": gin.H{
-			"result": resultList,
-			"tag":    tagNum,
+			"data":  projects,    // 当前页的项目数据
+			"total": totalCount,  // 总项目数
+			"page":  req.PageIndex,
+			"limit": req.PageSize,
+			"tags":  tagNum,      // 保留标签统计信息
 		},
 	})
 }
@@ -127,6 +137,80 @@ func (h *ProjectHandler) GetAllProjects(c *gin.Context) {
 			"list": result,
 		},
 	})
+}
+
+// SearchProjects 获取所有项目（用于前端搜索）
+func (h *ProjectHandler) SearchProjects(c *gin.Context) {
+	var req struct {
+		Limit int `form:"limit"`
+	}
+
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的请求参数",
+		})
+		return
+	}
+
+	// 设置默认限制
+	if req.Limit <= 0 || req.Limit > 100 {
+		req.Limit = 50
+	}
+
+	db := h.DB
+
+	// 查询所有项目，不进行服务端搜索过滤
+	cursor, err := db.Collection("project").Find(c, bson.M{}, &options.FindOptions{
+		Limit: int64Ptr(int64(req.Limit)),
+		Sort:  bson.M{"updated": -1}, // 按更新时间倒序
+		Projection: bson.M{
+			"_id":         1,
+			"name":        1,
+			"description": 1,
+			"tag":         1,
+			"created":     1,
+			"updated":     1,
+		},
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "获取项目列表失败",
+		})
+		return
+	}
+	defer cursor.Close(c)
+
+	var projects []bson.M
+	if err = cursor.All(c, &projects); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "处理项目数据失败",
+		})
+		return
+	}
+
+	// 转换ID格式
+	for _, project := range projects {
+		if id, ok := project["_id"].(primitive.ObjectID); ok {
+			project["id"] = id.Hex()
+			delete(project, "_id")
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"data": gin.H{
+			"projects": projects,
+			"total":    len(projects),
+		},
+	})
+}
+
+// 辅助函数：转换int64指针
+func int64Ptr(v int64) *int64 {
+	return &v
 }
 
 // GetProjectContent 获取项目详情
@@ -313,7 +397,7 @@ func (h *ProjectHandler) DeleteProject(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
-			"message": "无效的请求参数",
+			"message": "无效的请求参数: " + err.Error(),
 		})
 		return
 	}
@@ -326,13 +410,37 @@ func (h *ProjectHandler) DeleteProject(c *gin.Context) {
 		return
 	}
 
+	// 验证每个 ID 格式
+	for _, id := range req.IDs {
+		if _, err := primitive.ObjectIDFromHex(id); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"code":    400,
+				"message": "无效的项目ID格式: " + id,
+			})
+			return
+		}
+	}
+
 	db := h.DB
 	err := models.DeleteProject(db, req.IDs)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "删除项目失败: " + err.Error(),
-		})
+		// 根据错误类型返回不同的 HTTP 状态码
+		if err.Error() == "部分项目不存在" || err.Error() == "未找到要删除的项目" {
+			c.JSON(http.StatusNotFound, gin.H{
+				"code":    404,
+				"message": err.Error(),
+			})
+		} else if err.Error() == "项目ID列表不能为空" || strings.Contains(err.Error(), "无效的项目ID") {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"code":    400,
+				"message": err.Error(),
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    500,
+				"message": "删除项目失败: " + err.Error(),
+			})
+		}
 		return
 	}
 

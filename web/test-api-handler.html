@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API处理器测试</title>
+</head>
+<body>
+    <h1>API响应处理器测试</h1>
+    <div id="output"></div>
+    
+    <script>
+        // 模拟后端返回的数据格式
+        const mockApiResponse = {
+            code: 200,
+            message: "success",
+            data: {
+                data: [{id: 1, name: "项目1"}, {id: 2, name: "项目2"}],
+                total: 12,
+                page: 1,
+                limit: 10
+            }
+        };
+        
+        // 模拟API响应处理器的逻辑
+        function handlePaginatedResponse(response) {
+            // 提取数据
+            let data = response;
+            if (response.data !== undefined) {
+                data = response.data;
+            }
+            
+            // 如果已经是分页格式
+            if (data && typeof data === 'object' && 'data' in data && Array.isArray(data.data)) {
+                const total = data.total || data.totalCount || data.count || 0;
+                const limit = data.limit || data.pageSize || data.size || 20;
+                const result = {
+                    data: data.data,
+                    total: total,
+                    page: data.page || data.pageIndex || data.currentPage || 1,
+                    limit: limit,
+                    totalPages: data.totalPages || Math.ceil(total / limit)
+                };
+                console.log('🔧 [API处理器] 标准分页格式处理:', {
+                    原始数据: data,
+                    解析结果: result,
+                    计算过程: {
+                        原始total: data.total,
+                        原始limit: data.limit,
+                        计算的total: total,
+                        计算的limit: limit,
+                        计算的totalPages: Math.ceil(total / limit)
+                    }
+                });
+                return result;
+            }
+            
+            return { data: [], total: 0, page: 1, limit: 20, totalPages: 0 };
+        }
+        
+        // 测试处理器
+        const result = handlePaginatedResponse(mockApiResponse);
+        
+        document.getElementById('output').innerHTML = `
+            <h2>测试结果</h2>
+            <p><strong>原始响应:</strong></p>
+            <pre>${JSON.stringify(mockApiResponse, null, 2)}</pre>
+            <p><strong>处理后结果:</strong></p>
+            <pre>${JSON.stringify(result, null, 2)}</pre>
+            <p><strong>关键数据:</strong></p>
+            <ul>
+                <li>数据数量: ${result.data.length}</li>
+                <li>总数: ${result.total}</li>
+                <li>每页: ${result.limit}</li>
+                <li>总页数: ${result.totalPages}</li>
+            </ul>
+        `;
+        
+        console.log('测试完成，检查控制台日志');
+    </script>
+</body>
+</html>

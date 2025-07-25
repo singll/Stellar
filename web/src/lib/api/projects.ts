@@ -49,6 +49,41 @@ export class ProjectAPI {
 	}
 
 	/**
+	 * 获取项目列表（用于前端搜索）
+	 * @param search 搜索关键词（前端过滤使用，后端忽略）
+	 * @param limit 限制返回数量
+	 * @returns 项目列表
+	 */
+	static async searchProjects(search?: string, limit?: number): Promise<Project[]> {
+		const query = {
+			limit: limit || 50
+		};
+		
+		console.log('🔍 [ProjectAPI] 调用搜索项目接口, 参数:', query);
+		
+		try {
+			const response = await api.get('/projects/search', { params: query });
+			console.log('📦 [ProjectAPI] 搜索项目API原始响应:', response.data);
+			
+			if (response.data.code === 200 && response.data.data && response.data.data.projects) {
+				const projects = response.data.data.projects;
+				console.log('✅ [ProjectAPI] 解析到项目数据:', projects.length, '个项目');
+				console.log('📋 [ProjectAPI] 项目列表示例:', projects.slice(0, 2));
+				return projects;
+			}
+			
+			console.warn('⚠️ [ProjectAPI] API响应格式异常:', response.data);
+			return [];
+		} catch (error) {
+			console.error('❌ [ProjectAPI] 获取项目列表失败:', error);
+			if (error.response) {
+				console.error('❌ [ProjectAPI] 响应错误详情:', error.response.data);
+			}
+			return [];
+		}
+	}
+
+	/**
 	 * 获取单个项目
 	 * @param id 项目ID
 	 * @returns 项目详情
@@ -84,7 +119,13 @@ export class ProjectAPI {
 	 * @param id 项目ID
 	 */
 	static async deleteProject(id: string): Promise<void> {
-		await api.delete(`/projects/${id}`);
+		// 后端期望一个包含ids数组的JSON body
+		await api.delete(`/projects/${id}`, {
+			data: {
+				ids: [id],
+				delA: false // 暂时不删除关联资产，可以后续配置
+			}
+		});
 	}
 
 	/**

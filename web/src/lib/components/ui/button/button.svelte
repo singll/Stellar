@@ -73,6 +73,16 @@
 		...builderProps,
 		...restProps
 	};
+
+	// 调试输出
+	console.log('🔍 [Button Debug]', {
+		variant,
+		size,
+		className,
+		generatedClasses: getButtonClasses(variant, size),
+		finalClass: baseProps.class,
+		restProps
+	});
 </script>
 
 {#if href}

@@ -53,7 +53,9 @@ export class ApiResponseHandler {
     }
 
     // 处理后端项目列表API的特殊格式: response.data.data.result
-    if (response.data && response.data.data && response.data.data.result !== undefined) {
+    // 但要确保这不是标准分页格式
+    if (response.data && response.data.data && response.data.data.result !== undefined &&
+        !('total' in response.data.data || 'totalCount' in response.data.data || 'count' in response.data.data)) {
       // 如果是项目列表格式，直接返回result
       if (typeof response.data.data.result === 'object') {
         return response.data.data.result as T;
@@ -62,16 +64,13 @@ export class ApiResponseHandler {
     }
 
     // 处理标准格式: response.data.data.result
-    if (response.code !== undefined && response.data && response.data.data && response.data.data.result !== undefined) {
+    // 但要确保这不是标准分页格式
+    if (response.code !== undefined && response.data && response.data.data && response.data.data.result !== undefined &&
+        !('total' in response.data.data || 'totalCount' in response.data.data || 'count' in response.data.data)) {
       return response.data.data.result;
     }
 
-    // 标准格式: response.data.data
-    if (response.data && response.data.data !== undefined) {
-      return response.data.data;
-    }
-
-    // 标准格式: response.data
+    // 标准格式: response.data (包含完整的分页信息)
     if (response.data !== undefined) {
       return response.data;
     }
@@ -86,19 +85,29 @@ export class ApiResponseHandler {
   static extractPaginatedData<T = any>(response: any): PaginatedApiResponse<T> {
     const data = ApiResponseHandler.extractData(response);
     
-    // 如果已经是分页格式
-    if (data && typeof data === 'object' && 'data' in data && Array.isArray(data.data)) {
-      return {
+    // 首先检查是否是标准分页格式（优先级最高）
+    // 标准格式: { data: [...], total: X, page: Y, limit: Z }
+    if (data && typeof data === 'object' && 'data' in data && Array.isArray(data.data) && 
+        ('total' in data || 'totalCount' in data || 'count' in data)) {
+      const total = data.total || data.totalCount || data.count || 0;
+      const limit = data.limit || data.pageSize || data.size || 20;
+      const result = {
         data: data.data,
-        total: data.total || data.totalCount || data.count || 0,
+        total: total,
         page: data.page || data.pageIndex || data.currentPage || 1,
-        limit: data.limit || data.pageSize || data.size || 20,
-        totalPages: data.totalPages || Math.ceil((data.total || 0) / (data.limit || 20))
+        limit: limit,
+        totalPages: data.totalPages || Math.ceil(total / limit)
       };
+      return result;
     }
 
     // 处理后端按标签分组的格式: { result: { tag1: [...], tag2: [...] }, tag: {...} }
-    if (data && typeof data === 'object' && 'result' in data && typeof data.result === 'object') {
+    // 确保这不是标准分页格式才进入此分支
+    if (data && typeof data === 'object' && 'result' in data && typeof data.result === 'object' && 
+        !('data' in data && Array.isArray(data.data))) {
+      
+      console.log('⚠️ [API处理器] 匹配标签分组格式 - 这可能导致总数错误!', data);
+      
       // 合并所有标签下的项目到一个数组，并去重
       const allProjects: T[] = [];
       let totalCount = 0;
@@ -127,13 +136,24 @@ export class ApiResponseHandler {
         }
       }
       
-      return {
+      // 修复：标签分组情况下无法确定正确的页面大小，使用合理的默认值
+      const pageSize = Math.max(allProjects.length, 1);
+      const result = {
         data: allProjects,
         total: totalCount,
         page: 1,
-        limit: Math.max(allProjects.length, 20),
-        totalPages: Math.max(1, Math.ceil(totalCount / 20))
+        limit: pageSize,
+        totalPages: Math.max(1, Math.ceil(totalCount / pageSize))
       };
+      
+      console.log('🚨 [API处理器] 标签分组处理结果 - 可能的问题来源:', {
+        合并项目数: allProjects.length,
+        计算总数: totalCount,
+        最终结果: result,
+        注意: '这个分支不应该被触发，如果被触发说明数据格式判断有问题'
+      });
+      
+      return result;
     }
 
     // 如果是数组，创建分页格式

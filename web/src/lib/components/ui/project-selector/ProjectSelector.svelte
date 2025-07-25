@@ -33,42 +33,58 @@
 	}: Props = $props();
 
 	// State
-	let projects: Project[] = $state([]);
+	let allProjects: Project[] = $state([]);
+	let filteredProjects: Project[] = $state([]);
+	let selectedProject: Project | null = $state(null);
 	let searchQuery = $state('');
 	let loading = $state(false);
 	let open = $state(false);
-	let searchTimeout: NodeJS.Timeout;
 
-	// 搜索项目
-	async function searchProjects(query: string = '') {
+	// 加载所有项目
+	async function loadAllProjects() {
 		try {
 			loading = true;
-			const response = await ProjectAPI.getProjects({ 
-				search: query, 
-				limit: 20 
-			});
-			projects = response.data;
+			// 获取全量项目数据用于前端搜索
+			allProjects = await ProjectAPI.searchProjects('', 100); // 增加限制数量
+			filteredProjects = allProjects;
+			console.log('📦 项目选择器加载项目列表:', allProjects.length, '个项目');
 		} catch (error) {
-			console.error('搜索项目失败:', error);
-			projects = [];
+			console.error('❌ 项目选择器加载项目列表失败:', error);
+			allProjects = [];
+			filteredProjects = [];
 		} finally {
 			loading = false;
 		}
 	}
-
-	// 处理搜索输入
-	function handleSearchInput() {
-		if (searchTimeout) {
-			clearTimeout(searchTimeout);
+	
+	// 前端搜索项目
+	function filterProjects(query: string) {
+		console.log('🔍 过滤项目, 搜索词:', query, '全部项目数:', allProjects.length);
+		
+		if (!query.trim()) {
+			filteredProjects = allProjects;
+			console.log('📋 显示全部项目:', filteredProjects.length, '个');
+			return;
 		}
 		
-		searchTimeout = setTimeout(() => {
-			searchProjects(searchQuery);
-		}, 300);
+		const searchTerm = query.toLowerCase();
+		filteredProjects = allProjects.filter(project => {
+			const matches = (
+				project.name?.toLowerCase().includes(searchTerm) ||
+				project.id?.toLowerCase().includes(searchTerm) ||
+				project.tag?.toLowerCase().includes(searchTerm) ||
+				project.description?.toLowerCase().includes(searchTerm)
+			);
+			return matches;
+		});
+		
+		console.log('🎯 搜索结果:', filteredProjects.length, '个项目匹配');
 	}
+
 
 	// 选择项目
 	function selectProject(project: Project) {
+		selectedProject = project;
 		selectedProjectId = project.id;
 		selectedProjectName = project.name;
 		open = false;
@@ -81,6 +97,7 @@
 
 	// 清除选择
 	function clearSelection() {
+		selectedProject = null;
 		selectedProjectId = '';
 		selectedProjectName = '';
 		
@@ -91,13 +108,19 @@
 
 	// 组件挂载时加载项目
 	onMount(() => {
-		searchProjects();
+		loadAllProjects();
 	});
 
 	// 监听搜索输入变化
 	$effect(() => {
-		if (searchQuery !== undefined) {
-			handleSearchInput();
+		filterProjects(searchQuery);
+	});
+	
+	// 监听allProjects变化，确保在没有搜索词时显示所有项目
+	$effect(() => {
+		if (allProjects.length > 0 && !searchQuery) {
+			filteredProjects = allProjects;
+			console.log('🔄 项目数据更新，显示全部项目:', filteredProjects.length, '个');
 		}
 	});
 </script>
@@ -133,7 +156,7 @@
 					<Icon name="search" class="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
 					<Input
 						bind:value={searchQuery}
-						placeholder="搜索项目..."
+						placeholder="搜索项目名称、ID或标签..."
 						class="pl-8"
 					/>
 				</div>
@@ -142,27 +165,39 @@
 			<div class="max-h-60 overflow-auto">
 				{#if loading}
 					<div class="p-4 text-center text-sm text-muted-foreground">
-						搜索中...
+						<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mx-auto mb-2"></div>
+						加载项目列表...
 					</div>
-				{:else if projects.length === 0}
+				{:else if filteredProjects.length === 0}
 					<div class="p-4 text-center text-sm text-muted-foreground">
-						{searchQuery ? '没有找到相关项目' : '暂无项目'}
+						{#if searchQuery}
+							没有找到包含 "{searchQuery}" 的项目
+						{:else if allProjects.length === 0}
+							暂无项目，请先创建项目
+						{:else}
+							所有项目 ({allProjects.length} 个)
+						{/if}
 					</div>
 				{:else}
 					<div class="space-y-1 p-1">
-						{#each projects as project}
+						{#each filteredProjects as project}
 							<Button
 								variant="ghost"
-								class="w-full justify-start h-auto p-2"
+								class="w-full justify-start h-auto p-2 hover:bg-blue-50"
 								onclick={() => selectProject(project)}
 							>
-								<div class="flex flex-col items-start text-left">
-									<span class="font-medium">{project.name}</span>
-									<span class="text-xs text-muted-foreground truncate">
+								<div class="flex flex-col items-start text-left w-full">
+									<div class="flex items-center justify-between w-full">
+										<span class="font-medium text-sm text-gray-900">{project.name || '未命名项目'}</span>
+										{#if project.tag}
+											<span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-md flex-shrink-0 ml-2">{project.tag}</span>
+										{/if}
+									</div>
+									<span class="text-xs text-gray-500 truncate mt-0.5">
 										ID: {project.id}
 									</span>
 									{#if project.description}
-										<span class="text-xs text-muted-foreground truncate">
+										<span class="text-xs text-gray-500 truncate mt-0.5 max-w-full">
 											{project.description}
 										</span>
 									{/if}
@@ -188,9 +223,20 @@
 		</PopoverContent>
 	</Popover>
 	
-	{#if selectedProjectId}
-		<p class="text-xs text-muted-foreground">
-			已选择: {selectedProjectName} (ID: {selectedProjectId})
-		</p>
+	{#if selectedProjectId && selectedProject}
+		<div class="p-2 bg-blue-50 rounded-md border">
+			<div class="flex items-center justify-between">
+				<div class="flex-1">
+					<p class="text-sm font-medium text-blue-900">{selectedProject.name}</p>
+					<p class="text-xs text-blue-600 mt-0.5">ID: {selectedProjectId}</p>
+					{#if selectedProject.description}
+						<p class="text-xs text-blue-600 mt-0.5 truncate">{selectedProject.description}</p>
+					{/if}
+				</div>
+				{#if selectedProject.tag}
+					<span class="px-2 py-1 text-xs bg-blue-200 text-blue-800 rounded-md ml-2">{selectedProject.tag}</span>
+				{/if}
+			</div>
+		</div>
 	{/if}
 </div>

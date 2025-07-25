@@ -131,6 +131,30 @@
 		await loadTasks();
 	};
 
+	// 处理编辑任务
+	const handleEditTask = (taskId: string) => {
+		goto(`/tasks/${taskId}/edit`);
+	};
+
+	// 删除任务
+	const handleDeleteTask = async (taskId: string) => {
+		if (!confirm('确定要删除这个任务吗？此操作不可逆。')) return;
+
+		try {
+			await taskApi.deleteTask(taskId);
+			tasks = tasks.filter((t) => t.id !== taskId);
+			notifications.add({
+				type: 'success',
+				message: '任务删除成功'
+			});
+		} catch (error) {
+			notifications.add({
+				type: 'error',
+				message: '删除任务失败: ' + (error instanceof Error ? error.message : '未知错误')
+			});
+		}
+	};
+
 	// 准备统计数据
 	const statsData = $derived([
 		{
@@ -269,6 +293,21 @@
 			onClick: () => goto('/tasks/create')
 		}}
 		onRowClick={(task) => goto(`/tasks/${task.id}`)}
+		rowActions={(row) => [
+			{
+				icon: 'edit',
+				title: '编辑任务',
+				variant: 'ghost',
+				onClick: () => handleEditTask(row.id)
+			},
+			{
+				icon: 'trash',
+				title: '删除任务',
+				variant: 'ghost',
+				color: 'red',
+				onClick: () => handleDeleteTask(row.id)
+			}
+		]}
 	/>
 
 	<!-- 分页 -->

@@ -6,6 +6,8 @@
 	import PageLayout from '$lib/components/ui/page-layout/PageLayout.svelte';
 	import StatsGrid from '$lib/components/ui/stats-grid/StatsGrid.svelte';
 	import DataList from '$lib/components/ui/data-list/DataList.svelte';
+	import DeleteConfirmDialog from '$lib/components/dialogs/DeleteConfirmDialog.svelte';
+	import AssetEditDialog from '$lib/components/dialogs/AssetEditDialog.svelte';
 	import { assetApi } from '$lib/api/asset';
 	import type { Asset } from '$lib/types/asset';
 	import { notifications } from '$lib/stores/notifications';
@@ -14,6 +16,12 @@
 	let assets: Asset[] = $state([]);
 	let loading = $state(true);
 	let searchQuery = $state('');
+
+	// 弹窗状态
+	let deleteDialogOpen = $state(false);
+	let editDialogOpen = $state(false);
+	let selectedAsset = $state<Asset | null>(null);
+	let dialogLoading = $state(false);
 
 	// 搜索处理
 	const handleSearch = async (query?: string) => {
@@ -268,6 +276,81 @@
 		goto(`/assets/${id}`);
 	}
 
+	// 处理编辑资产
+	const handleEditAsset = (assetId: string) => {
+		const asset = assets.find(a => a.id === assetId);
+		if (asset) {
+			selectedAsset = asset;
+			editDialogOpen = true;
+		}
+	};
+
+	// 处理删除资产
+	const handleDeleteAsset = (assetId: string) => {
+		const asset = assets.find(a => a.id === assetId);
+		if (asset) {
+			selectedAsset = asset;
+			deleteDialogOpen = true;
+		}
+	};
+
+	// 确认删除资产
+	const confirmDeleteAsset = async () => {
+		if (!selectedAsset) return;
+
+		try {
+			dialogLoading = true;
+			await assetApi.deleteAsset(selectedAsset.id);
+			assets = assets.filter((a) => a.id !== selectedAsset.id);
+			notifications.add({
+				type: 'success',
+				message: '资产删除成功'
+			});
+			deleteDialogOpen = false;
+			selectedAsset = null;
+		} catch (error) {
+			notifications.add({
+				type: 'error',
+				message: '删除资产失败: ' + (error instanceof Error ? error.message : '未知错误')
+			});
+		} finally {
+			dialogLoading = false;
+		}
+	};
+
+	// 保存资产编辑
+	const saveAssetEdit = async (data: any) => {
+		if (!selectedAsset) return;
+
+		try {
+			dialogLoading = true;
+			await assetApi.updateAsset(selectedAsset.id, data);
+			
+			// 重新加载资产列表以获取最新数据
+			await loadAssets();
+			
+			notifications.add({
+				type: 'success',
+				message: '资产更新成功'
+			});
+			editDialogOpen = false;
+			selectedAsset = null;
+		} catch (error) {
+			notifications.add({
+				type: 'error',
+				message: '更新资产失败: ' + (error instanceof Error ? error.message : '未知错误')
+			});
+			throw error; // 重新抛出错误，让弹窗保持打开状态
+		} finally {
+			dialogLoading = false;
+		}
+	};
+
+	// 取消弹窗操作
+	const handleDialogCancel = () => {
+		selectedAsset = null;
+	};
+
 	// 准备统计数据
 	const statsData = $derived(assets.length > 0 ? [
 		{
@@ -424,5 +507,38 @@
 			onClick: () => goto('/assets/new')
 		}}
 		onRowClick={(asset) => handleAssetClick(asset.id)}
+		rowActions={(row) => [
+			{
+				icon: 'edit',
+				title: '编辑资产',
+				variant: 'ghost',
+				onClick: () => handleEditAsset(row.id)
+			},
+			{
+				icon: 'trash',
+				title: '删除资产',
+				variant: 'ghost',
+				color: 'red',
+				onClick: () => handleDeleteAsset(row.id)
+			}
+		]}
 	/>
 </PageLayout>
+
+<!-- 弹窗组件 -->
+<DeleteConfirmDialog
+	bind:open={deleteDialogOpen}
+	itemName={selectedAsset ? getAssetDisplayName(selectedAsset) : ''}
+	itemType="资产"
+	loading={dialogLoading}
+	onConfirm={confirmDeleteAsset}
+	onCancel={handleDialogCancel}
+/>
+
+<AssetEditDialog
+	bind:open={editDialogOpen}
+	asset={selectedAsset}
+	loading={dialogLoading}
+	onSave={saveAssetEdit}
+	onCancel={handleDialogCancel}
+/>

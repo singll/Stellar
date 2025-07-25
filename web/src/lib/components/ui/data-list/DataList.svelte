@@ -52,6 +52,13 @@
 			variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
 			onClick: () => void;
 		}>;
+		rowActions?: (row: any) => Array<{
+			icon: string;
+			title: string;
+			variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
+			color?: string;
+			onClick: () => void;
+		}>;
 	}
 
 	let {
@@ -68,7 +75,8 @@
 		emptyStateTitle = '暂无数据',
 		emptyStateDescription = '目前没有任何数据',
 		emptyStateAction,
-		actions = []
+		actions = [],
+		rowActions
 	}: Props = $props();
 
 	let searchQuery = $state(searchValue);
@@ -176,12 +184,15 @@
 								{column.title}
 							</TableHead>
 						{/each}
+						{#if rowActions}
+							<TableHead style="width: 120px">操作</TableHead>
+						{/if}
 					</TableRow>
 				</TableHeader>
 				<TableBody>
 					{#if loading}
 						<TableRow>
-							<td colspan={columns.length} class="text-center py-8">
+							<td colspan={columns.length + (rowActions ? 1 : 0)} class="text-center py-8">
 								<div class="flex flex-col items-center gap-2">
 									<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
 									<p class="text-gray-500">加载中...</p>
@@ -190,7 +201,7 @@
 						</TableRow>
 					{:else if filteredData.length === 0}
 						<TableRow>
-							<td colspan={columns.length} class="text-center py-12">
+							<td colspan={columns.length + (rowActions ? 1 : 0)} class="text-center py-12">
 								<div class="flex flex-col items-center gap-4">
 									<Icon name="inbox" class="h-12 w-12 text-gray-300" />
 									<div>
@@ -216,7 +227,11 @@
 						{#each filteredData as row, index}
 							<TableRow 
 								class={onRowClick ? "cursor-pointer hover:bg-muted/50 transition-colors" : ""}
-								onclick={() => handleRowClick(row)}
+								onclick={(e) => {
+									if (!e.target.closest('.action-button')) {
+										handleRowClick(row);
+									}
+								}}
 								role={onRowClick ? "button" : undefined}
 								tabindex={onRowClick ? 0 : undefined}
 							>
@@ -229,6 +244,26 @@
 										{/if}
 									</TableCell>
 								{/each}
+								{#if rowActions}
+									<TableCell>
+										<div class="flex items-center gap-1">
+											{#each rowActions(row) as action}
+												<Button
+													variant={action.variant || 'ghost'}
+													size="icon"
+													class="action-button h-8 w-8 {action.color === 'red' ? 'text-red-600 hover:bg-red-50 hover:text-red-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}"
+													onclick={(e) => {
+														e.stopPropagation();
+														action.onClick();
+													}}
+													title={action.title}
+												>
+													<Icon name={action.icon} class="h-4 w-4" />
+												</Button>
+											{/each}
+										</div>
+									</TableCell>
+								{/if}
 							</TableRow>
 						{/each}
 					{/if}
